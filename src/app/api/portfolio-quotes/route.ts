@@ -126,14 +126,15 @@ function toAud(price: number, currency: string, audPerUsd: number): number {
 
 export async function GET(req: NextRequest) {
   const tickersParam = req.nextUrl.searchParams.get("tickers") ?? "";
+  const fxOnly = req.nextUrl.searchParams.get("fxOnly") === "1";
   const tickers = tickersParam
     .split(",")
     .map((t) => t.trim().toUpperCase())
-    .filter(Boolean)
+    .filter((t) => t && t !== "AUDUSD=X")
     .slice(0, 40);
 
-  if (tickers.length === 0) {
-    return NextResponse.json({ quotes: [], audUsd: null, error: null });
+  if (tickers.length === 0 && !fxOnly) {
+    return NextResponse.json({ quotes: [], audUsd: null, audPerUsd: null, error: null });
   }
 
   try {

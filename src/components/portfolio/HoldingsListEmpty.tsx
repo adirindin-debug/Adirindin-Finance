@@ -8,6 +8,7 @@ type Props = {
   availableCashAud: number | null;
   onEdit: (id: string) => void;
   onAdd: () => void;
+  onEditCash: () => void;
 };
 
 function formatRowGain(gainAud: number | null, gainPct: number | null): string {
@@ -21,7 +22,13 @@ function formatRowGain(gainAud: number | null, gainPct: number | null): string {
   return `${sign}A$${dollars} ${pctSign}${Math.abs(gainPct).toFixed(2)}%`;
 }
 
-export function HoldingsListEmpty({ holdings, availableCashAud, onEdit, onAdd }: Props) {
+export function HoldingsListEmpty({
+  holdings,
+  availableCashAud,
+  onEdit,
+  onAdd,
+  onEditCash,
+}: Props) {
   const empty = holdings.length === 0;
 
   return (
@@ -46,7 +53,7 @@ export function HoldingsListEmpty({ holdings, availableCashAud, onEdit, onAdd }:
       {empty ? (
         <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-12 text-center">
           <p className="text-sm text-zinc-400">
-            No holdings yet — add ticker, qty, and avg cost basis (AUD)
+            No holdings yet — add a security (ticker + qty + cost) or a collectable
           </p>
           <button
             type="button"
@@ -60,6 +67,20 @@ export function HoldingsListEmpty({ holdings, availableCashAud, onEdit, onAdd }:
         <ul className="divide-y divide-zinc-900">
           {holdings.map((h) => {
             const gainPositive = h.gainAud != null && h.gainAud >= 0;
+            const isCollectable = h.kind === "collectable";
+            const title = isCollectable ? h.name ?? h.ticker : h.ticker;
+            const subtitle = isCollectable
+              ? [
+                  "Collectable",
+                  h.notes ? h.notes.slice(0, 40) : null,
+                  h.costBasis > 0 ? `cost ${h.costCurrency}` : "value only",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
+              : `${h.quantity} | $${formatPrice(h.priceAud)}${
+                  h.costCurrency === "USD" ? " · cost USD" : ""
+                }${h.name ? ` · ${h.name}` : ""}`;
+
             return (
               <li key={h.id}>
                 <button
@@ -71,14 +92,11 @@ export function HoldingsListEmpty({ holdings, availableCashAud, onEdit, onAdd }:
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-black"
                     style={{ backgroundColor: h.color }}
                   >
-                    {h.ticker.slice(0, 2)}
+                    {isCollectable ? "◆" : h.ticker.slice(0, 2)}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-white">{h.ticker}</p>
-                    <p className="truncate text-xs text-zinc-500">
-                      {h.quantity} | ${formatPrice(h.priceAud)}
-                      {h.name ? ` · ${h.name}` : ""}
-                    </p>
+                    <p className="font-semibold text-white">{title}</p>
+                    <p className="truncate text-xs text-zinc-500">{subtitle}</p>
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-white">{formatAud(h.marketValueAud, 2)}</p>
@@ -91,7 +109,9 @@ export function HoldingsListEmpty({ holdings, availableCashAud, onEdit, onAdd }:
                             : "text-rose-400"
                       }`}
                     >
-                      {formatRowGain(h.gainAud, h.gainPct)}
+                      {isCollectable && h.costBasis <= 0
+                        ? "est. value"
+                        : formatRowGain(h.gainAud, h.gainPct)}
                     </p>
                   </div>
                 </button>
@@ -101,18 +121,25 @@ export function HoldingsListEmpty({ holdings, availableCashAud, onEdit, onAdd }:
         </ul>
       )}
 
-      <div className="mt-4 flex items-center gap-3 rounded-lg border border-zinc-900 px-3 py-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-900 text-zinc-400">
+      <button
+        type="button"
+        onClick={onEditCash}
+        className="mt-4 flex w-full items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-3 text-left hover:border-zinc-700 hover:bg-zinc-900/60"
+      >
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-zinc-300">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
             <rect x="2" y="6" width="20" height="12" rx="2" />
             <circle cx="12" cy="12" r="2.5" />
           </svg>
         </div>
-        <p className="flex-1 text-sm font-medium text-white">Available Cash</p>
-        <p className="text-sm text-zinc-400">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-white">Available Cash</p>
+          <p className="text-[11px] text-zinc-500">Included in total A$ &amp; allocation · tap to edit</p>
+        </div>
+        <p className="text-sm font-semibold text-white">
           {availableCashAud == null ? "A$—" : formatAud(availableCashAud, 2)}
         </p>
-      </div>
+      </button>
     </section>
   );
 }

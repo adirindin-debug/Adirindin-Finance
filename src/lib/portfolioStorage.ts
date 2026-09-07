@@ -2,6 +2,8 @@ import {
   DEFAULT_PORTFOLIO,
   HOLDING_COLORS,
   PORTFOLIO_STORAGE_KEY,
+  type AssetKind,
+  type CostCurrency,
   type PortfolioConfig,
   type PortfolioHolding,
 } from "./portfolioTypes";
@@ -13,27 +15,106 @@ function newId(): string {
   return `h-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function normalizeHolding(raw: Partial<PortfolioHolding>, index: number): PortfolioHolding | null {
+function asCurrency(raw: unknown, fallback: CostCurrency = "AUD"): CostCurrency {
+  const s = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  return s === "USD" ? "USD" : fallback;
+}
+
+function asKind(raw: unknown): AssetKind {
+  return raw === "collectable" ? "collectable" : "security";
+}
+
+/** Short display code for collectables (not a Yahoo ticker). */
+export function collectableTickerFromName(name: string): string {
+  const cleaned = name
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "")
+    .slice(0, 8);
+  return cleaned || "ITEM";
+}
+
+/**
+ * Normalize one holding. Migrates legacy rows that only had `costBasisAud`
+ * (treated as AUD) and no `kind` (defaults to security). Does not wipe data.
+ */
+function normalizeHolding(raw: Record<string, unknown>, index: number): PortfolioHolding | null {
+  const kind = asKind(raw.kind);
+  const costCurrency = asCurrency(raw.costCurrency, "AUD");
+
+  // Legacy: costBasisAud → costBasis (AUD). Prefer explicit costBasis when present.
+  const legacyAud = Number(raw.costBasisAud);
+  const explicitCost = Number(raw.costBasis);
+  let costBasis: number;
+  if (Number.isFinite(explicitCost) && explicitCost >= 0) {
+    costBasis = explicitCost;
+  } else if (Number.isFinite(legacyAud) && legacyAud >= 0) {
+    costBasis = legacyAud;
+  } else {
+    costBasis = 0;
+  }
+
+  const name =
+    typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : undefined;
+  const notes =
+    typeof raw.notes === "string" && raw.notes.trim() ? raw.notes.trim() : undefined;
+  const acquiredAt =
+    typeof raw.acquiredAt === "string" && raw.acquiredAt.trim()
+      ? raw.acquiredAt.trim()
+      : undefined;
+  const color =
+    typeof raw.color === "string" && raw.color
+      ? raw.color
+      : HOLDING_COLORS[index % HOLDING_COLORS.length];
+
+  if (kind === "collectable") {
+    if (!name) return null;
+    const estimatedValue = Number(raw.estimatedValue);
+    if (!Number.isFinite(estimatedValue) || estimatedValue < 0) return null;
+    const estimatedValueCurrency = asCurrency(
+      raw.estimatedValueCurrency,
+      "AUD",
+    );
+    const quantityRaw = Number(raw.quantity);
+    const quantity =
+      Number.isFinite(quantityRaw) && quantityRaw > 0 ? quantityRaw : 1;
+    const tickerRaw =
+      typeof raw.ticker === "string" && raw.ticker.trim()
+        ? raw.ticker.trim().toUpperCase()
+        : collectableTickerFromName(name);
+
+    return {
+      id: typeof raw.id === "string" && raw.id ? raw.id : newId(),
+      kind: "collectable",
+      ticker: tickerRaw,
+      name,
+      quantity,
+      costBasis,
+      costCurrency,
+      estimatedValue,
+      estimatedValueCurrency,
+      notes,
+      color,
+      acquiredAt,
+    };
+  }
+
+  // Security
   const ticker = typeof raw.ticker === "string" ? raw.ticker.trim().toUpperCase() : "";
   const quantity = Number(raw.quantity);
-  const costBasisAud = Number(raw.costBasisAud);
   if (!ticker || !Number.isFinite(quantity) || quantity <= 0) return null;
-  if (!Number.isFinite(costBasisAud) || costBasisAud < 0) return null;
+  if (!Number.isFinite(costBasis) || costBasis < 0) return null;
 
   return {
     id: typeof raw.id === "string" && raw.id ? raw.id : newId(),
+    kind: "security",
     ticker,
-    name: typeof raw.name === "string" && raw.name.trim() ? raw.name.trim() : undefined,
+    name,
     quantity,
-    costBasisAud,
-    color:
-      typeof raw.color === "string" && raw.color
-        ? raw.color
-        : HOLDING_COLORS[index % HOLDING_COLORS.length],
-    acquiredAt:
-      typeof raw.acquiredAt === "string" && raw.acquiredAt.trim()
-        ? raw.acquiredAt.trim()
-        : undefined,
+    costBasis,
+    costCurrency,
+    color,
+    acquiredAt,
   };
 }
 
@@ -41,7 +122,7 @@ export function normalizePortfolio(raw: Partial<PortfolioConfig> | null | undefi
   const holdingsIn = Array.isArray(raw?.holdings) ? raw!.holdings : [];
   const holdings: PortfolioHolding[] = [];
   holdingsIn.forEach((h, i) => {
-    const n = normalizeHolding(h as Partial<PortfolioHolding>, i);
+    const n = normalizeHolding(h as unknown as Record<string, unknown>, i);
     if (n) holdings.push(n);
   });
 

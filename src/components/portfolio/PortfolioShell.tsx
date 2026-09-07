@@ -16,7 +16,7 @@ import {
 } from "@/lib/portfolioStorage";
 import { computeLiveHoldings } from "@/lib/portfolioCompute";
 import { PortfolioSummary } from "./PortfolioSummary";
-import { PerformanceChartEmpty } from "./PerformanceChartEmpty";
+import { PerformanceChart } from "./PerformanceChart";
 import { AllocationDonutEmpty } from "./AllocationDonutEmpty";
 import { HoldingsListEmpty } from "./HoldingsListEmpty";
 import { PortfolioEditor } from "./PortfolioEditor";
@@ -29,6 +29,7 @@ export function PortfolioShell({ seed }: Props) {
   const [portfolio, setPortfolio] = useState<PortfolioConfig>(seed);
   const [hydrated, setHydrated] = useState(false);
   const [quotes, setQuotes] = useState<QuoteResult[]>([]);
+  const [audPerUsd, setAudPerUsd] = useState<number | null>(null);
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [quotesError, setQuotesError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -46,9 +47,10 @@ export function PortfolioShell({ seed }: Props) {
     savePortfolioToStorage(portfolio);
   }, [portfolio, hydrated]);
 
-  const tickersKey = useMemo(
+  const securityTickersKey = useMemo(
     () =>
       portfolio.holdings
+        .filter((h) => h.kind === "security")
         .map((h) => h.ticker.toUpperCase())
         .sort()
         .join(","),
@@ -56,24 +58,41 @@ export function PortfolioShell({ seed }: Props) {
   );
 
   const fetchQuotes = useCallback(async () => {
-    if (!tickersKey) {
+    // Always fetch AUDUSD when we have USD costs or collectables in USD,
+    // even with zero security tickers — use a sentinel request via any USD holding.
+    const needsFx =
+      portfolio.holdings.some(
+        (h) =>
+          h.costCurrency === "USD" ||
+          (h.kind === "collectable" && h.estimatedValueCurrency === "USD"),
+      ) || securityTickersKey.length > 0;
+
+    if (!needsFx) {
       setQuotes([]);
+      setAudPerUsd(null);
       setQuotesError(null);
       setQuotesLoading(false);
       return;
     }
+
     setQuotesLoading(true);
     try {
-      const res = await fetch(`/api/portfolio-quotes?tickers=${encodeURIComponent(tickersKey)}`);
+      const qs = securityTickersKey
+        ? `tickers=${encodeURIComponent(securityTickersKey)}`
+        : "fxOnly=1";
+      const res = await fetch(`/api/portfolio-quotes?${qs}`);
       const data = (await res.json()) as {
         quotes?: QuoteResult[];
+        audPerUsd?: number | null;
         error?: string | null;
       };
       if (!res.ok) {
         setQuotesError(data.error || `HTTP ${res.status}`);
         setQuotes(data.quotes ?? []);
+        setAudPerUsd(data.audPerUsd ?? null);
       } else {
         setQuotes(data.quotes ?? []);
+        setAudPerUsd(data.audPerUsd ?? null);
         setQuotesError(data.error || null);
       }
     } catch (e) {
@@ -81,7 +100,7 @@ export function PortfolioShell({ seed }: Props) {
     } finally {
       setQuotesLoading(false);
     }
-  }, [tickersKey]);
+  }, [securityTickersKey, portfolio.holdings]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -91,8 +110,8 @@ export function PortfolioShell({ seed }: Props) {
   }, [hydrated, fetchQuotes]);
 
   const { holdings: liveHoldings, summary } = useMemo(
-    () => computeLiveHoldings(portfolio, quotes),
-    [portfolio, quotes],
+    () => computeLiveHoldings(portfolio, quotes, audPerUsd),
+    [portfolio, quotes, audPerUsd],
   );
 
   const editing = useMemo(
@@ -131,15 +150,23 @@ export function PortfolioShell({ seed }: Props) {
         holdings[idx] = nextHolding;
         return { ...prev, holdings };
       }
-      // Same ticker → replace existing (merge qty? for v1 replace)
-      const byTicker = prev.holdings.findIndex(
-        (h) => h.ticker.toUpperCase() === nextHolding.ticker.toUpperCase() && h.id !== nextHolding.id,
-      );
-      if (byTicker >= 0 && idx < 0) {
-        // Adding duplicate ticker while not editing → update that row
-        const holdings = [...prev.holdings];
-        holdings[byTicker] = { ...nextHolding, id: holdings[byTicker].id, color: holdings[byTicker].color };
-        return { ...prev, holdings };
+      // Same ticker security → replace existing (collectables allow duplicate names)
+      if (nextHolding.kind === "security") {
+        const byTicker = prev.holdings.findIndex(
+          (h) =>
+            h.kind === "security" &&
+            h.ticker.toUpperCase() === nextHolding.ticker.toUpperCase() &&
+            h.id !== nextHolding.id,
+        );
+        if (byTicker >= 0) {
+          const holdings = [...prev.holdings];
+          holdings[byTicker] = {
+            ...nextHolding,
+            id: holdings[byTicker].id,
+            color: holdings[byTicker].color,
+          };
+          return { ...prev, holdings };
+        }
       }
       return { ...prev, holdings: [...prev.holdings, nextHolding] };
     });
@@ -160,6 +187,7 @@ export function PortfolioShell({ seed }: Props) {
     clearPortfolioStorage();
     setPortfolio({ ...DEFAULT_PORTFOLIO, holdings: [] });
     setQuotes([]);
+    setAudPerUsd(null);
     setEditorOpen(false);
   }
 
@@ -185,24 +213,28 @@ export function PortfolioShell({ seed }: Props) {
     }
   }
 
+  const showSummary =
+    hasHoldings || (portfolio.availableCashAud != null && portfolio.availableCashAud > 0);
+
   return (
     <div className="mx-auto max-w-2xl bg-black px-4 py-8 sm:px-6 sm:py-10">
       <PortfolioSummary
         portfolioName={portfolio.name}
-        hasHoldings={hasHoldings}
-        summary={hasHoldings ? summary : null}
+        hasHoldings={showSummary}
+        summary={showSummary ? summary : null}
         quotesLoading={quotesLoading}
         quotesError={quotesError}
         onEditName={openMeta}
         onAdd={openAdd}
       />
-      <PerformanceChartEmpty hasHoldings={hasHoldings} />
-      <AllocationDonutEmpty holdings={liveHoldings} />
+      <PerformanceChart portfolio={portfolio} hasHoldings={hasHoldings} />
+      <AllocationDonutEmpty holdings={liveHoldings} cashAud={summary.cashAud} />
       <HoldingsListEmpty
         holdings={liveHoldings}
         availableCashAud={portfolio.availableCashAud}
         onEdit={openEdit}
         onAdd={openAdd}
+        onEditCash={openMeta}
       />
 
       <p className="mt-10 text-center text-[11px] leading-relaxed text-zinc-600">

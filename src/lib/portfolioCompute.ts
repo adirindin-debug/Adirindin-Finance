@@ -1,21 +1,67 @@
 import {
+  CASH_COLOR,
   HOLDING_COLORS,
+  type CostCurrency,
   type HoldingLive,
   type PortfolioConfig,
   type PortfolioLiveSummary,
   type QuoteResult,
 } from "./portfolioTypes";
 
+/** Convert an amount in costCurrency to AUD using audPerUsd (AUD per 1 USD). */
+export function toAud(
+  amount: number,
+  currency: CostCurrency | string,
+  audPerUsd: number | null,
+): number {
+  const c = (currency || "AUD").toUpperCase();
+  if (c === "AUD") return amount;
+  if (c === "USD") {
+    if (audPerUsd == null || !(audPerUsd > 0)) return amount; // fallback 1:1 if FX missing
+    return amount * audPerUsd;
+  }
+  if (audPerUsd == null || !(audPerUsd > 0)) return amount;
+  return amount * audPerUsd;
+}
+
 export function computeLiveHoldings(
   portfolio: PortfolioConfig,
   quotes: QuoteResult[],
+  audPerUsd: number | null = null,
 ): { holdings: HoldingLive[]; summary: PortfolioLiveSummary } {
   const quoteMap = new Map(quotes.map((q) => [q.ticker.toUpperCase(), q]));
 
   const base: HoldingLive[] = portfolio.holdings.map((h, i) => {
+    const color = h.color ?? HOLDING_COLORS[i % HOLDING_COLORS.length];
+
+    if (h.kind === "collectable") {
+      const estCur = h.estimatedValueCurrency ?? "AUD";
+      const est = h.estimatedValue ?? 0;
+      const unitAud = toAud(est, estCur, audPerUsd);
+      const marketValueAud = unitAud * h.quantity;
+      const costTotalAud = toAud(h.costBasis, h.costCurrency, audPerUsd) * h.quantity;
+      const hasCost = h.costBasis > 0;
+      const gainAud = hasCost ? marketValueAud - costTotalAud : null;
+      const gainPct =
+        hasCost && costTotalAud > 0 ? (gainAud! / costTotalAud) * 100 : null;
+
+      return {
+        ...h,
+        color,
+        priceAud: unitAud,
+        marketValueAud,
+        costTotalAud: hasCost ? costTotalAud : 0,
+        gainAud,
+        gainPct,
+        weightPct: null,
+      };
+    }
+
+    // Security
     const q = quoteMap.get(h.ticker.toUpperCase());
     const priceAud = q?.priceAud ?? null;
-    const costTotalAud = h.quantity * h.costBasisAud;
+    const costPerUnitAud = toAud(h.costBasis, h.costCurrency, audPerUsd);
+    const costTotalAud = h.quantity * costPerUnitAud;
     const marketValueAud =
       priceAud != null && Number.isFinite(priceAud) ? h.quantity * priceAud : null;
     const gainAud =
@@ -25,7 +71,7 @@ export function computeLiveHoldings(
 
     return {
       ...h,
-      color: h.color ?? HOLDING_COLORS[i % HOLDING_COLORS.length],
+      color,
       priceAud,
       marketValueAud,
       costTotalAud,
@@ -42,13 +88,14 @@ export function computeLiveHoldings(
   const totalCostAud = base.reduce((s, h) => s + h.costTotalAud, 0);
   const cashAud =
     portfolio.availableCashAud != null && Number.isFinite(portfolio.availableCashAud)
-      ? portfolio.availableCashAud
+      ? Math.max(0, portfolio.availableCashAud)
       : 0;
   const totalMarketValueAud = investedValueAud + cashAud;
   const totalGainAud = investedValueAud - totalCostAud;
   const totalGainPct = totalCostAud > 0 ? (totalGainAud / totalCostAud) * 100 : null;
 
-  const weightBase = investedValueAud > 0 ? investedValueAud : 0;
+  // Weights vs full portfolio (invested + cash) so cash can appear as a slice
+  const weightBase = totalMarketValueAud > 0 ? totalMarketValueAud : 0;
   const holdings = base.map((h) => ({
     ...h,
     weightPct:
@@ -57,7 +104,6 @@ export function computeLiveHoldings(
         : null,
   }));
 
-  // Sort by market value desc (highest holdings)
   holdings.sort((a, b) => (b.marketValueAud ?? 0) - (a.marketValueAud ?? 0));
 
   return {
@@ -72,6 +118,13 @@ export function computeLiveHoldings(
     },
   };
 }
+
+export function cashWeightPct(cashAud: number, totalMarketValueAud: number): number | null {
+  if (!(totalMarketValueAud > 0) || !(cashAud > 0)) return null;
+  return (cashAud / totalMarketValueAud) * 100;
+}
+
+export { CASH_COLOR };
 
 export function formatAud(n: number | null | undefined, digits = 2): string {
   if (n == null || !Number.isFinite(n)) return "A$—";

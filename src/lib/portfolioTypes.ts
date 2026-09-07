@@ -1,19 +1,43 @@
 /** Portfolio tracker types — user-entered holdings + live quotes (AUD). */
 
+export type AssetKind = "security" | "collectable";
+export type CostCurrency = "AUD" | "USD";
+
 export type PortfolioHolding = {
   /** Stable id for edit/delete (generated client-side) */
   id: string;
-  /** Exchange ticker, e.g. "CBA.AX" or "MSTR" or "BTC-USD" */
+  /** Security (Yahoo ticker) vs collectable (manual estimate) */
+  kind: AssetKind;
+  /**
+   * Exchange ticker for securities, e.g. "CBA.AX" / "MSTR" / "BTC-USD".
+   * For collectables: a short display code derived from the label (not a Yahoo symbol).
+   */
   ticker: string;
-  /** Display name (optional) */
+  /** Display name (optional for securities; required label for collectables) */
   name?: string;
-  /** Units held */
+  /** Units held (collectables typically 1) */
   quantity: number;
-  /** Average cost basis per unit in AUD */
-  costBasisAud: number;
+  /**
+   * Cost basis in `costCurrency`.
+   * Securities: average cost per unit.
+   * Collectables: optional total cost (gains shown only when set > 0).
+   */
+  costBasis: number;
+  /** Currency the costBasis was entered in */
+  costCurrency: CostCurrency;
+  /** Collectable: estimated current value in estimatedValueCurrency */
+  estimatedValue?: number;
+  estimatedValueCurrency?: CostCurrency;
+  /** Collectable notes */
+  notes?: string;
   /** Optional brand/accent color for allocation legend */
   color?: string;
-  /** Optional purchase date (ISO) — reserved for performance history */
+  /**
+   * Optional purchase date (ISO YYYY-MM-DD).
+   * Used to reconstruct performance history: qty held from this date onward.
+   * If missing, holding is assumed held for the full chart window from the
+   * earlier of window start or first available price for that ticker.
+   */
   acquiredAt?: string;
 };
 
@@ -61,6 +85,9 @@ export const HOLDING_COLORS = [
   "#facc15",
 ];
 
+/** Cash slice colour in allocation donut / list */
+export const CASH_COLOR = "#71717a";
+
 export type QuoteResult = {
   ticker: string;
   price: number;
@@ -70,11 +97,14 @@ export type QuoteResult = {
 };
 
 export type HoldingLive = PortfolioHolding & {
+  /** Live AUD unit price (securities) or estimated AUD unit value (collectables) */
   priceAud: number | null;
   marketValueAud: number | null;
+  /** Cost total converted to AUD using live FX when costCurrency is USD */
   costTotalAud: number;
   gainAud: number | null;
   gainPct: number | null;
+  /** Weight vs total portfolio (invested + cash) */
   weightPct: number | null;
   color: string;
 };
