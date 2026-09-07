@@ -1,31 +1,32 @@
 import type { Metadata } from "next";
 import { PortfolioShell } from "@/components/portfolio/PortfolioShell";
 import { DEFAULT_PORTFOLIO, type PortfolioConfig } from "@/lib/portfolioTypes";
+import { normalizePortfolio } from "@/lib/portfolioStorage";
 import holdingsJson from "@/data/portfolioHoldings.json";
 
 export const metadata: Metadata = {
   title: "Portfolio",
   description:
-    "Empty portfolio tracker shell for Adirindin Finance — add holdings later. Educational only; not financial advice.",
+    "Track your holdings in AUD — live quotes, allocation, and P&L vs your cost basis. Educational only; not financial advice.",
 };
 
-function loadPortfolio(): PortfolioConfig {
+function loadSeed(): PortfolioConfig {
   const raw = holdingsJson as Partial<PortfolioConfig>;
-  return {
+  return normalizePortfolio({
     name: raw.name?.trim() || DEFAULT_PORTFOLIO.name,
     currency: "AUD",
     availableCashAud:
       raw.availableCashAud === undefined ? DEFAULT_PORTFOLIO.availableCashAud : raw.availableCashAud,
     holdings: Array.isArray(raw.holdings) ? raw.holdings : [],
-  };
+  });
 }
 
 export default function PortfolioPage() {
-  const portfolio = loadPortfolio();
+  const seed = loadSeed();
 
   return (
     <div className="min-h-full bg-black">
-      <PortfolioShell portfolio={portfolio} />
+      <PortfolioShell seed={seed} />
     </div>
   );
 }

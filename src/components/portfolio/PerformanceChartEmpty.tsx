@@ -29,13 +29,12 @@ export function PerformanceChartEmpty({ hasHoldings }: Props) {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                disabled={!hasHoldings}
                 onClick={() => setTf(t)}
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   active
                     ? "bg-zinc-800 text-white"
                     : "text-zinc-500 hover:text-zinc-300"
-                } disabled:cursor-not-allowed disabled:opacity-60`}
+                }`}
               >
                 {t}
               </button>
@@ -49,7 +48,7 @@ export function PerformanceChartEmpty({ hasHoldings }: Props) {
           viewBox="0 0 640 220"
           className="h-48 w-full sm:h-56"
           role="img"
-          aria-label="Empty performance chart"
+          aria-label="Performance chart placeholder"
         >
           <line x1="48" y1="24" x2="612" y2="24" stroke="#27272a" strokeDasharray="4 6" />
           <line x1="48" y1="110" x2="612" y2="110" stroke="#1f1f23" strokeDasharray="4 6" />
@@ -60,7 +59,6 @@ export function PerformanceChartEmpty({ hasHoldings }: Props) {
           <text x="8" y="200" fill="#52525b" fontSize="11" fontFamily="system-ui,sans-serif">
             A$0
           </text>
-          {/* Flat baseline placeholder */}
           <path
             d="M48 196 H612"
             fill="none"
@@ -70,13 +68,13 @@ export function PerformanceChartEmpty({ hasHoldings }: Props) {
           />
         </svg>
 
-        {!hasHoldings && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4">
-            <p className="rounded-lg bg-black/70 px-4 py-2 text-center text-sm text-zinc-400">
-              Add holdings to see performance vs indices
-            </p>
-          </div>
-        )}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4">
+          <p className="rounded-lg bg-black/70 px-4 py-2 text-center text-sm text-zinc-400">
+            {hasHoldings
+              ? "Add holdings first; historical vs indices next — optional acquiredAt on holdings enables future backfill"
+              : "Add holdings first; historical vs indices next"}
+          </p>
+        </div>
       </div>
 
       <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
