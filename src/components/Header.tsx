@@ -6,7 +6,6 @@ const nav = [
   { href: "/approach", label: "Approach" },
   { href: "/research", label: "Research" },
   { href: "/portfolio", label: "Portfolio" },
-  { href: "/dashboard", label: "Cycle map" },
   { href: "/tools/real-estate-cycle", label: "RE cycle" },
   { href: "/contact", label: "Contact" },
 ];
