@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 type SeriesId = "btc" | "ndx" | "spx" | "aord";
+type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "all";
+type ChartMode = "line" | "bar";
 
 type PctPoint = { t: number; pct: number };
 
@@ -18,7 +20,13 @@ type ApiPayload = {
   ok: boolean;
   title?: string;
   definition?: string;
-  windowDays?: number;
+  window?: WindowKey;
+  windowLabel?: string;
+  windowShort?: string;
+  mode?: "rolling" | "cumulative";
+  windowDays?: number | null;
+  windowSec?: number | null;
+  commonStart?: string;
   source?: string;
   series?: SeriesPayload[];
   errors?: Record<string, string>;
@@ -32,6 +40,15 @@ const SERIES_STYLE: Record<SeriesId, { color: string; short: string }> = {
   spx: { color: "#3dcc9a", short: "SPX" },
   aord: { color: "#e8873a", short: "AORD" },
 };
+
+const WINDOWS: { key: WindowKey; label: string }[] = [
+  { key: "1y", label: "1Y" },
+  { key: "3y", label: "3Y" },
+  { key: "4y", label: "4Y" },
+  { key: "5y", label: "5Y" },
+  { key: "10y", label: "10Y" },
+  { key: "all", label: "ALL" },
+];
 
 const W = 920;
 const H = 420;
@@ -102,13 +119,102 @@ function buildSharedAxis(series: SeriesPayload[]) {
   return { paths, yRange, minT, maxT, yScale, xScale };
 }
 
+function buildBarLayout(series: SeriesPayload[]) {
+  const values = series
+    .map((s) => ({
+      id: s.id,
+      label: SERIES_STYLE[s.id].short,
+      ticker: s.ticker,
+      pct: s.latestPct,
+      color: SERIES_STYLE[s.id].color,
+    }))
+    .filter((v) => v.pct != null) as Array<{
+    id: SeriesId;
+    label: string;
+    ticker: string;
+    pct: number;
+    color: string;
+  }>;
+
+  if (!values.length) return null;
+
+  let minPct = Math.min(0, ...values.map((v) => v.pct));
+  let maxPct = Math.max(0, ...values.map((v) => v.pct));
+  const padY = Math.max((maxPct - minPct) * 0.12, 8);
+  const yRange = { min: minPct - padY, max: maxPct + padY };
+
+  const iw = W - PAD.left - PAD.right;
+  const ih = H - PAD.top - PAD.bottom;
+  const yScale = (pct: number) =>
+    PAD.top +
+    (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
+
+  const groupGap = 28;
+  const barW = Math.min(72, (iw - groupGap * (values.length - 1)) / values.length);
+  const totalW = values.length * barW + (values.length - 1) * groupGap;
+  const startX = PAD.left + (iw - totalW) / 2;
+  const zeroY = yScale(0);
+
+  const bars = values.map((v, i) => {
+    const x = startX + i * (barW + groupGap);
+    const yVal = yScale(v.pct);
+    const y = Math.min(yVal, zeroY);
+    const h = Math.abs(yVal - zeroY);
+    return { ...v, x, y, h, barW, zeroY };
+  });
+
+  return { bars, yRange, yScale, zeroY };
+}
+
 function ticks(min: number, max: number, n = 5) {
   const out: number[] = [];
   for (let i = 0; i <= n; i++) out.push(min + ((max - min) * i) / n);
   return out;
 }
 
+function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
+  if (windowKey === "all") {
+    const since = payload?.commonStart ? ` since ${payload.commonStart}` : "";
+    return {
+      heading: "All-time cumulative chart",
+      subtitle: `Cumulative % from first common date${since} · shared scale · educational · NFA`,
+      kpiSuffix: "cumulative %",
+      chartTitle: payload?.title ?? "Cumulative % since first common date",
+      chartHint: "Shared % scale · cumulative from common start · not price levels",
+      aria: "Cumulative percentage returns from first common date for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries",
+      loading: "Loading cumulative % gains…",
+      footerLead:
+        "Educational compare of cumulative percentage returns from the first date where all four series have data",
+      errorLabel: "all-time compare chart",
+    };
+  }
+  const label =
+    payload?.windowLabel ??
+    ({
+      "1y": "1-year",
+      "3y": "3-year",
+      "4y": "4-year",
+      "5y": "5-year",
+      "10y": "10-year",
+    }[windowKey] as string);
+  const days = payload?.windowDays;
+  const daysBit = days != null ? `~${days}d` : windowKey;
+  return {
+    heading: `${label} running chart`,
+    subtitle: `Relative ${label} % gains · shared scale · educational · NFA`,
+    kpiSuffix: `current ${windowKey.toUpperCase()} %`,
+    chartTitle: payload?.title ?? `${label} rolling % gains`,
+    chartHint: `Shared % scale · trailing ${daysBit} · not price levels`,
+    aria: `Rolling ${label} percentage gains on a shared Y-axis for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries`,
+    loading: `Loading ${label} running % gains…`,
+    footerLead: `Educational compare of rolling ${label} percentage returns (same calendar-day lookback for each series)`,
+    errorLabel: `${label} compare chart`,
+  };
+}
+
 export function BtcFourYearChart() {
+  const [windowKey, setWindowKey] = useState<WindowKey>("4y");
+  const [chartMode, setChartMode] = useState<ChartMode>("line");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<ApiPayload | null>(null);
@@ -119,7 +225,7 @@ export function BtcFourYearChart() {
       try {
         setStatus("loading");
         setError(null);
-        const r = await fetch("/api/four-year-gains");
+        const r = await fetch(`/api/four-year-gains?window=${windowKey}`);
         const data = (await r.json()) as ApiPayload;
         if (cancelled) return;
         if (!r.ok || !data.ok || !data.series?.length) {
@@ -136,16 +242,35 @@ export function BtcFourYearChart() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [windowKey]);
 
-  const chart = useMemo(
-    () => (payload?.series?.length ? buildSharedAxis(payload.series) : null),
-    [payload],
+  const copy = useMemo(
+    () => windowCopy(windowKey, payload),
+    [windowKey, payload],
   );
 
+  const chart = useMemo(
+    () =>
+      payload?.series?.length && chartMode === "line"
+        ? buildSharedAxis(payload.series)
+        : null,
+    [payload, chartMode],
+  );
+
+  const barLayout = useMemo(
+    () =>
+      payload?.series?.length && chartMode === "bar"
+        ? buildBarLayout(payload.series)
+        : null,
+    [payload, chartMode],
+  );
+
+  const activeYRange = chart?.yRange ?? barLayout?.yRange ?? null;
+  const activeYScale = chart?.yScale ?? barLayout?.yScale ?? null;
+
   const yTicks = useMemo(
-    () => (chart ? ticks(chart.yRange.min, chart.yRange.max) : []),
-    [chart],
+    () => (activeYRange ? ticks(activeYRange.min, activeYRange.max) : []),
+    [activeYRange],
   );
 
   const xTicks = useMemo(() => {
@@ -165,20 +290,68 @@ export function BtcFourYearChart() {
   }, [chart, payload]);
 
   const zeroY = useMemo(() => {
-    if (!chart) return null;
-    if (chart.yRange.min > 0 || chart.yRange.max < 0) return null;
-    return chart.yScale(0);
-  }, [chart]);
+    if (!activeYRange || !activeYScale) return null;
+    if (activeYRange.min > 0 || activeYRange.max < 0) return null;
+    return activeYScale(0);
+  }, [activeYRange, activeYScale]);
+
+  const toggleBtn =
+    "rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors";
+  const toggleOn = "bg-accent text-white";
+  const toggleOff = "bg-transparent text-muted hover:text-foreground";
 
   return (
-    <section className="mt-12" aria-label="4-year running percentage gains compare">
+    <section
+      className="mt-12"
+      aria-label="Multi-timeframe percentage gains compare"
+    >
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
         <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-accent">
-          4-year running chart
+          {copy.heading}
         </h2>
-        <p className="text-xs text-muted">
-          Relative ~4y % gains · shared scale · educational · NFA
-        </p>
+        <p className="text-xs text-muted">{copy.subtitle}</p>
+      </div>
+
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div
+          className="inline-flex flex-wrap gap-0.5 rounded-lg border border-border bg-card p-0.5"
+          role="group"
+          aria-label="Timeframe"
+        >
+          {WINDOWS.map((w) => (
+            <button
+              key={w.key}
+              type="button"
+              className={`${toggleBtn} ${windowKey === w.key ? toggleOn : toggleOff}`}
+              aria-pressed={windowKey === w.key}
+              onClick={() => setWindowKey(w.key)}
+            >
+              {w.label}
+            </button>
+          ))}
+        </div>
+        <div
+          className="inline-flex gap-0.5 rounded-lg border border-border bg-card p-0.5"
+          role="group"
+          aria-label="Chart type"
+        >
+          <button
+            type="button"
+            className={`${toggleBtn} ${chartMode === "line" ? toggleOn : toggleOff}`}
+            aria-pressed={chartMode === "line"}
+            onClick={() => setChartMode("line")}
+          >
+            Line
+          </button>
+          <button
+            type="button"
+            className={`${toggleBtn} ${chartMode === "bar" ? toggleOn : toggleOff}`}
+            aria-pressed={chartMode === "bar"}
+            onClick={() => setChartMode("bar")}
+          >
+            Bar
+          </button>
+        </div>
       </div>
 
       {status === "ready" && payload?.series && (
@@ -208,7 +381,7 @@ export function BtcFourYearChart() {
                   {pct == null ? "—" : fmtPct(pct)}
                 </p>
                 <p className="text-[10px] text-muted">
-                  {s.ticker} · current 4y %
+                  {s.ticker} · {copy.kpiSuffix}
                 </p>
               </div>
             );
@@ -219,33 +392,37 @@ export function BtcFourYearChart() {
       <div className="overflow-hidden rounded-xl border border-border bg-black">
         {status === "loading" && (
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
-            <p className="text-sm text-muted">Loading 4-year running % gains…</p>
+            <p className="text-sm text-muted">{copy.loading}</p>
             <p className="text-xs text-muted/70">
-              BTC-USD · Nasdaq 100 (^NDX) · S&amp;P 500 (^GSPC) · All Ordinaries (^AORD)
+              BTC-USD · Nasdaq 100 (^NDX) · S&amp;P 500 (^GSPC) · All Ordinaries
+              (^AORD)
             </p>
           </div>
         )}
         {status === "error" && (
           <div className="flex min-h-[320px] items-center justify-center px-4 py-10 text-center">
             <p className="max-w-md text-sm text-muted">
-              Could not load the 4-year compare chart ({error}). Live market data may be
-              temporarily unavailable — try again later, or open the{" "}
-              <a href="/dashboard/btc-cycle" className="text-accent hover:underline">
+              Could not load the {copy.errorLabel} ({error}). Live market data may
+              be temporarily unavailable — try again later, or open the{" "}
+              <a
+                href="/dashboard/btc-cycle"
+                className="text-accent hover:underline"
+              >
                 detailed cycle map
               </a>
               .
             </p>
           </div>
         )}
-        {status === "ready" && chart && (
+        {status === "ready" && chartMode === "line" && chart && activeYScale && (
           <svg
             viewBox={`0 0 ${W} ${H}`}
             className="block w-full"
             role="img"
-            aria-label="Rolling 4-year percentage gains on a shared Y-axis for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries"
+            aria-label={copy.aria}
             style={{ background: "#000", height: 420 }}
           >
-            <title>4-year running % gains (shared scale)</title>
+            <title>{copy.chartTitle}</title>
             <text
               x={PAD.left}
               y={18}
@@ -254,7 +431,7 @@ export function BtcFourYearChart() {
               fontFamily="system-ui, sans-serif"
               fontWeight="600"
             >
-              4-year running % gains
+              {copy.chartTitle}
             </text>
             <text
               x={W - PAD.right}
@@ -264,7 +441,7 @@ export function BtcFourYearChart() {
               fontFamily="system-ui, sans-serif"
               textAnchor="end"
             >
-              Shared % scale · trailing ~{payload?.windowDays ?? 1461}d · not price levels
+              {copy.chartHint}
             </text>
 
             <text
@@ -279,7 +456,7 @@ export function BtcFourYearChart() {
             </text>
 
             {yTicks.map((v) => {
-              const y = chart.yScale(v);
+              const y = activeYScale(v);
               return (
                 <g key={`Y-${v}`}>
                   <line
@@ -334,7 +511,6 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {/* Legend */}
             {payload?.series?.map((s, i) => {
               const style = SERIES_STYLE[s.id];
               const x = PAD.left + i * 155;
@@ -361,7 +537,6 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {/* Draw equities first (under), BTC on top */}
             {chart.paths
               .filter((p) => p.id !== "btc")
               .map((p) => (
@@ -390,15 +565,166 @@ export function BtcFourYearChart() {
               ))}
           </svg>
         )}
+        {status === "ready" && chartMode === "bar" && barLayout && activeYScale && (
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="block w-full"
+            role="img"
+            aria-label={`Latest ${copy.kpiSuffix} as grouped bars for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries`}
+            style={{ background: "#000", height: 420 }}
+          >
+            <title>
+              Latest {windowKey === "all" ? "cumulative" : windowKey.toUpperCase()}{" "}
+              % return (bars)
+            </title>
+            <text
+              x={PAD.left}
+              y={18}
+              fill="#e8eef7"
+              fontSize="14"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="600"
+            >
+              Latest{" "}
+              {windowKey === "all"
+                ? "cumulative %"
+                : `${windowKey.toUpperCase()} %`}{" "}
+              by asset
+            </text>
+            <text
+              x={W - PAD.right}
+              y={16}
+              fill="#8b9bb4"
+              fontSize="10"
+              fontFamily="system-ui, sans-serif"
+              textAnchor="end"
+            >
+              Grouped bars · current window only · shared % scale
+            </text>
+
+            <text
+              x={PAD.left}
+              y={34}
+              fill="#8b9bb4"
+              fontSize="9"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="600"
+            >
+              % gain (shared)
+            </text>
+
+            {yTicks.map((v) => {
+              const y = activeYScale(v);
+              return (
+                <g key={`BY-${v}`}>
+                  <line
+                    x1={PAD.left}
+                    x2={W - PAD.right}
+                    y1={y}
+                    y2={y}
+                    stroke="#1a1a1a"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={PAD.left - 8}
+                    y={y + 3}
+                    fill="#9eb0c8"
+                    fontSize="10"
+                    fontFamily="system-ui, sans-serif"
+                    textAnchor="end"
+                    opacity="0.9"
+                  >
+                    {fmtPct(v, 0)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {zeroY != null && (
+              <line
+                x1={PAD.left}
+                x2={W - PAD.right}
+                y1={zeroY}
+                y2={zeroY}
+                stroke="#3a4558"
+                strokeWidth="1"
+                strokeDasharray="4 3"
+              />
+            )}
+
+            {barLayout.bars.map((b) => (
+              <g key={b.id}>
+                <rect
+                  x={b.x}
+                  y={b.y}
+                  width={b.barW}
+                  height={Math.max(b.h, 1)}
+                  fill={b.color}
+                  rx={3}
+                  opacity={0.92}
+                />
+                <text
+                  x={b.x + b.barW / 2}
+                  y={b.pct >= 0 ? b.y - 8 : b.y + b.h + 14}
+                  fill={b.color}
+                  fontSize="12"
+                  fontFamily="system-ui, sans-serif"
+                  fontWeight="600"
+                  textAnchor="middle"
+                >
+                  {fmtPct(b.pct)}
+                </text>
+                <text
+                  x={b.x + b.barW / 2}
+                  y={H - 28}
+                  fill="#c8d0dc"
+                  fontSize="11"
+                  fontFamily="system-ui, sans-serif"
+                  fontWeight="600"
+                  textAnchor="middle"
+                >
+                  {b.label}
+                </text>
+                <text
+                  x={b.x + b.barW / 2}
+                  y={H - 14}
+                  fill="#8b9bb4"
+                  fontSize="9"
+                  fontFamily="system-ui, sans-serif"
+                  textAnchor="middle"
+                >
+                  {b.ticker}
+                </text>
+              </g>
+            ))}
+          </svg>
+        )}
       </div>
       <p className="mt-2 text-xs text-muted">
-        Educational compare of rolling ~4-year percentage returns (same ~1461 calendar-day
-        lookback for each series) — not absolute price levels.{" "}
-        <strong className="font-medium text-muted">Shared % scale:</strong> all four series use
-        one Y-axis so Bitcoin&apos;s relative outperformance is visible (equities may look
-        flatter at the bottom — that is intentional). Data via Yahoo Finance chart API: BTC-USD,
-        ^NDX, ^GSPC, ^AORD. Partial series may appear if one feed fails. For the full BTC+MSTR
-        cycle desk, open{" "}
+        {copy.footerLead}
+        {windowKey === "all" && payload?.commonStart
+          ? ` (${payload.commonStart})`
+          : ""}{" "}
+        — not absolute price levels.{" "}
+        <strong className="font-medium text-muted">Shared % scale:</strong> all
+        four series use one Y-axis so Bitcoin&apos;s relative outperformance is
+        visible (equities may look flatter — that is intentional).{" "}
+        {windowKey === "all" ? (
+          <>
+            <strong className="font-medium text-muted">ALL semantics:</strong>{" "}
+            cumulative % from the first date where BTC-USD, ^NDX, ^GSPC, and
+            ^AORD all have data (not a rolling lookback).{" "}
+          </>
+        ) : (
+          <>
+            Rolling definition: close_t / close_at_or_before_t−window − 1.{" "}
+          </>
+        )}
+        <strong className="font-medium text-muted">Bar mode:</strong> latest %
+        for the selected window as grouped bars (clearest for outperformance);
+        Line mode shows the full rolling/cumulative history. Data via Yahoo
+        Finance chart API: BTC-USD, ^NDX, ^GSPC, ^AORD. Partial series may
+        appear if one feed fails. For the full BTC+MSTR cycle desk, open{" "}
         <a href="/dashboard" className="text-accent hover:underline">
           Cycle desk
         </a>
