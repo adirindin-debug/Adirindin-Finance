@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 
 type SeriesId = "btc" | "ndx" | "spx" | "aord";
 type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "all";
@@ -69,6 +76,44 @@ function fmtDate(ts: number) {
     month: "short",
   });
 }
+
+function fmtTooltipDate(ts: number) {
+  return new Date(ts * 1000).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** Nearest point by timestamp; points assumed sorted ascending by t. */
+function nearestPoint(points: PctPoint[], t: number): PctPoint | null {
+  if (!points.length) return null;
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].t < t) lo = mid + 1;
+    else hi = mid;
+  }
+  let best = points[lo];
+  if (lo > 0 && Math.abs(points[lo - 1].t - t) <= Math.abs(best.t - t)) {
+    best = points[lo - 1];
+  }
+  return best;
+}
+
+type LineHover = {
+  svgX: number;
+  t: number;
+  dateLabel: string;
+  values: Array<{
+    id: SeriesId;
+    short: string;
+    color: string;
+    pct: number | null;
+    y: number | null;
+  }>;
+};
 
 function rangeFor(points: PctPoint[]) {
   if (!points.length) return null;
@@ -166,7 +211,7 @@ function buildSharedAxis(
       return { id: s.id, d, color: SERIES_STYLE[s.id].color };
     });
 
-  return { paths, yRange, minT, maxT, yScale, xScale };
+  return { paths, clipped, yRange, minT, maxT, yScale, xScale };
 }
 
 function buildBarLayout(series: SeriesPayload[]) {
@@ -288,6 +333,12 @@ export function BtcFourYearChart() {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<ApiPayload | null>(null);
+  const [lineHover, setLineHover] = useState<LineHover | null>(null);
+  const lineSvgRef = useRef<SVGSVGElement | null>(null);
+
+  useEffect(() => {
+    setLineHover(null);
+  }, [windowKey, chartMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -362,6 +413,68 @@ export function BtcFourYearChart() {
     if (activeYRange.min > 0 || activeYRange.max < 0) return null;
     return activeYScale(0);
   }, [activeYRange, activeYScale]);
+
+  const onLineMouseMove = useCallback(
+    (e: ReactMouseEvent<SVGSVGElement>) => {
+      if (!chart || !chart.clipped?.length) {
+        setLineHover(null);
+        return;
+      }
+      const svg = lineSvgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const svgX = ((e.clientX - rect.left) / rect.width) * W;
+      const svgY = ((e.clientY - rect.top) / rect.height) * H;
+      const iw = W - PAD.left - PAD.right;
+      const ih = H - PAD.top - PAD.bottom;
+      if (
+        svgX < PAD.left ||
+        svgX > W - PAD.right ||
+        svgY < PAD.top ||
+        svgY > PAD.top + ih
+      ) {
+        setLineHover(null);
+        return;
+      }
+      const { minT, maxT, yScale } = chart;
+      const t = minT + ((svgX - PAD.left) / (iw || 1)) * (maxT - minT || 1);
+      const maxGapSec = Math.max((maxT - minT) * 0.03, 3 * 86400);
+
+      const values = chart.clipped.map((s) => {
+        const style = SERIES_STYLE[s.id];
+        const pt = nearestPoint(s.points, t);
+        if (!pt || Math.abs(pt.t - t) > maxGapSec) {
+          return {
+            id: s.id,
+            short: style.short,
+            color: style.color,
+            pct: null as number | null,
+            y: null as number | null,
+          };
+        }
+        return {
+          id: s.id,
+          short: style.short,
+          color: style.color,
+          pct: pt.pct,
+          y: yScale(pt.pct),
+        };
+      });
+
+      setLineHover({
+        svgX: Math.max(PAD.left, Math.min(W - PAD.right, svgX)),
+        t,
+        dateLabel: fmtTooltipDate(t),
+        values,
+      });
+    },
+    [chart],
+  );
+
+  const onLineMouseLeave = useCallback(() => {
+    setLineHover(null);
+  }, []);
 
   const toggleBtn =
     "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
@@ -501,12 +614,16 @@ export function BtcFourYearChart() {
           </div>
         )}
         {status === "ready" && chartMode === "line" && chart && activeYScale && (
+          <div className="relative">
           <svg
+            ref={lineSvgRef}
             viewBox={`0 0 ${W} ${H}`}
             className="block w-full"
             role="img"
             aria-label={copy.aria}
             style={{ background: "#000", height: 420 }}
+            onMouseMove={onLineMouseMove}
+            onMouseLeave={onLineMouseLeave}
           >
             <title>{copy.chartTitle}</title>
             <text
@@ -649,7 +766,80 @@ export function BtcFourYearChart() {
                   strokeLinecap="round"
                 />
               ))}
+
+            {/* Invisible hit target for hover (plot area) */}
+            <rect
+              x={PAD.left}
+              y={PAD.top}
+              width={W - PAD.left - PAD.right}
+              height={H - PAD.top - PAD.bottom}
+              fill="transparent"
+              style={{ cursor: "crosshair" }}
+            />
+
+            {lineHover && (
+              <g pointerEvents="none">
+                <line
+                  x1={lineHover.svgX}
+                  x2={lineHover.svgX}
+                  y1={PAD.top}
+                  y2={H - PAD.bottom}
+                  stroke="#9eb0c8"
+                  strokeWidth="1"
+                  strokeDasharray="3 3"
+                  opacity={0.85}
+                />
+                {lineHover.values.map(
+                  (v) =>
+                    v.y != null && (
+                      <circle
+                        key={v.id}
+                        cx={lineHover.svgX}
+                        cy={v.y}
+                        r={4}
+                        fill={v.color}
+                        stroke="#000"
+                        strokeWidth="1.5"
+                      />
+                    ),
+                )}
+              </g>
+            )}
           </svg>
+          {lineHover && (
+            <div
+              className="pointer-events-none absolute z-10 min-w-[140px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
+              style={{
+                left: `clamp(8px, calc(${(lineHover.svgX / W) * 100}% + 12px), calc(100% - 168px))`,
+                top: 48,
+              }}
+            >
+              <p className="mb-1.5 text-[11px] font-semibold text-[#e8eef7]">
+                {lineHover.dateLabel}
+              </p>
+              <ul className="space-y-1">
+                {lineHover.values.map((v) => (
+                  <li
+                    key={v.id}
+                    className="flex items-center justify-between gap-3 text-[11px] tabular-nums"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ background: v.color }}
+                        aria-hidden
+                      />
+                      <span style={{ color: v.color }}>{v.short}</span>
+                    </span>
+                    <span style={{ color: v.color }}>
+                      {v.pct == null ? "—" : fmtPct(v.pct)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          </div>
         )}
         {status === "ready" && chartMode === "bar" && barLayout && activeYScale && (
           <svg
