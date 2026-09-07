@@ -61,9 +61,11 @@
     .controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .controls button {
       background: transparent; color: var(--muted); border: 1px solid var(--line);
-      border-radius: 999px; padding: 3px 10px; font-size: 11px; cursor: pointer;
-      font-family: inherit;
+      border-radius: 999px; padding: 3px 9px; font-size: 11px; cursor: pointer;
+      font-family: inherit; line-height: 1.2;
     }
+    .controls.move-tf { justify-content: flex-end; max-width: 100%; }
+    .controls.move-tf button { padding: 3px 8px; font-size: 10.5px; }
     .controls button.on, .controls button:hover { color: var(--text); border-color: #3a5273; background: #122033; }
     .controls button.mstr-btn { border-color: rgba(240,163,107,0.35); color: var(--mstr); }
     .controls button.mstr-btn.on { background: rgba(240,163,107,0.14); border-color: var(--mstr); color: #ffd2a8; }
@@ -157,12 +159,17 @@
       <div class="panel">
         <div class="panel-head">
           <div><strong>This move</strong> · <span id="moveRangeLbl">May 2026 → now</span></div>
-          <div class="controls">
+          <div class="controls move-tf">
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
+            <button data-days="30" type="button">30D</button>
             <button data-days="60" type="button">60D</button>
+            <button data-days="90" type="button">90D</button>
             <button data-days="120" class="on" type="button">120D</button>
             <button data-days="180" type="button">180D</button>
             <button data-days="365" type="button">1Y</button>
+            <button data-days="730" type="button">2Y</button>
+            <button data-move="ytd" type="button">YTD</button>
+            <button data-move="all" type="button">ALL</button>
           </div>
         </div>
         <div id="moveChart"></div>
@@ -240,6 +247,7 @@
       logScale: true,
       xRangeMode: "all",
       moveDays: 120,
+      moveMode: "days",
       live: false,
       showMstr: storageGet(STORE_MSTR) === "1",
       mstrWeekly: [],
@@ -372,17 +380,32 @@
       }
     }
     async function fetchDaily() {
-      const end = new Date();
-      const start = new Date(end.getTime() - 400 * 86400000);
-      const url = "https://api.exchange.coinbase.com/products/BTC-USD/candles"
-        + "?granularity=86400"
-        + "&start=" + start.toISOString()
-        + "&end=" + end.toISOString();
+      /* Coinbase caps ~300 candles/call — chunk enough history for 2Y / ALL. */
+      const endSec = Math.floor(Date.now() / 1000);
+      const startSec = endSec - Math.ceil(800 * 86400);
+      const chunk = 280 * 86400;
       try {
-        const rows = await getJSON(url);
-        return rows
-          .map((r) => ({ t: new Date(r[0] * 1000), l: +r[1], h: +r[2], o: +r[3], c: +r[4] }))
-          .sort((a, b) => a.t - b.t);
+        const out = [];
+        for (let s = startSec; s < endSec; s += chunk) {
+          const e = Math.min(s + chunk, endSec);
+          const url = "https://api.exchange.coinbase.com/products/BTC-USD/candles"
+            + "?granularity=86400"
+            + "&start=" + new Date(s * 1000).toISOString()
+            + "&end=" + new Date(e * 1000).toISOString();
+          const rows = await getJSON(url);
+          for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            out.push({ t: new Date(r[0] * 1000), l: +r[1], h: +r[2], o: +r[3], c: +r[4] });
+          }
+        }
+        out.sort((a, b) => a.t - b.t);
+        const seen = new Set();
+        return out.filter(function (p) {
+          const k = p.t.toISOString().slice(0, 10);
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
       } catch (e) {
         const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440");
         const key = Object.keys(j.result).find((k) => k !== "last");
@@ -468,6 +491,55 @@
       if (mode === "4y") return [new Date(Date.now() - 4 * 365.25 * 86400000), future];
       return [first, future];
     }
+    function cycleYRange() {
+      const xr = cycleXRange();
+      const x0 = xr[0], x1 = xr[1];
+      const prices = [];
+      for (let i = 0; i < state.weekly.length; i++) {
+        const d = state.weekly[i];
+        if (d.t >= x0 && d.t <= x1) prices.push(d.c);
+      }
+      for (let i = 0; i < CYCLE_EVENTS.length; i++) {
+        const e = CYCLE_EVENTS[i];
+        if (e.t >= x0 && e.t <= x1 && e.y > 0) prices.push(e.y);
+      }
+      if (state.price) prices.push(state.price);
+      if (!prices.length) {
+        if (state.logScale) return [Math.log10(0.05), Math.log10(200000)];
+        return [0, 160000];
+      }
+      let ymin = Math.min.apply(null, prices);
+      let ymax = Math.max.apply(null, prices);
+      if (state.logScale) {
+        ymin = Math.max(ymin / 1.55, 0.05);
+        ymax = Math.max(ymax * 1.45, ymin * 2);
+        /* Keep a little headroom above framework top when it is in-window */
+        if (FRAMEWORK.oct2025TopDate >= x0 && FRAMEWORK.oct2025TopDate <= x1) {
+          ymax = Math.max(ymax, FRAMEWORK.oct2025Top * 1.2);
+        }
+        return [Math.log10(ymin), Math.log10(ymax)];
+      }
+      const pad = Math.max((ymax - ymin) * 0.1, ymax * 0.04, 1500);
+      return [Math.max(0, ymin - pad), ymax + pad];
+    }
+    function moveCutoff() {
+      if (state.moveMode === "ytd") {
+        const now = new Date();
+        return new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+      }
+      if (state.moveMode === "all") {
+        return state.daily.length ? state.daily[0].t : new Date(0);
+      }
+      return new Date(Date.now() - state.moveDays * 86400000);
+    }
+    function updateMoveRangeLbl() {
+      const start = moveCutoff();
+      if (state.moveMode === "all") {
+        $("moveRangeLbl").textContent = "all available → now";
+        return;
+      }
+      $("moveRangeLbl").textContent = start.toLocaleString("en-US", { month: "short", year: "numeric" }) + " → now";
+    }
     function drawCycle() {
       const w = state.weekly;
       if (!w.length) return;
@@ -538,25 +610,24 @@
           font: { size: 10, color: COL.mstr },
         });
       }
-      const yminLog = 0.05;
-      const ymaxLog = Math.max(200000, FRAMEWORK.oct2025Top * 1.25, state.price || 0);
       const layout = plotLayout({
         dragmode: "zoom",
+        uirevision: "cycle-" + (state.xRangeMode || "all") + (state.logScale ? "-log" : "-lin"),
         xaxis: {
           gridcolor: COL.grid,
           range: cycleXRange(),
           rangeslider: { visible: false },
           tickfont: { size: 10, color: COL.font },
           fixedrange: false,
+          autorange: false,
         },
         yaxis: {
           type: state.logScale ? "log" : "linear",
           gridcolor: COL.grid, tickprefix: "$",
           tickfont: { size: 10, color: COL.font },
           fixedrange: false,
-          range: state.logScale
-            ? [Math.log10(yminLog), Math.log10(ymaxLog)]
-            : [0, Math.max(160000, state.price || 0, FRAMEWORK.oct2025Top)],
+          autorange: false,
+          range: cycleYRange(),
         },
         shapes, annotations,
         margin: { l: 62, r: overlay ? 64 : 72, t: 12, b: 40 },
@@ -579,7 +650,7 @@
     function drawMove() {
       const d = state.daily;
       if (!d.length) return;
-      const cutoff = new Date(Date.now() - state.moveDays * 86400000);
+      const cutoff = moveCutoff();
       const rows = d.filter((r) => r.t >= cutoff);
       const x = rows.map((r) => r.t);
       const y = rows.map((r) => r.c);
@@ -632,16 +703,28 @@
           arrowwidth: 1,
         });
       }
-      const ymin = Math.min(54000, ...y, FRAMEWORK.juneWashout) - 1500;
-      const ymax = Math.max(92000, ...y, ma50 || 0) + 2500;
+      const levels = y.slice();
+      if (ma50) levels.push(ma50);
+      if (ma200) levels.push(ma200);
+      if (FRAMEWORK.midBull) levels.push(FRAMEWORK.midBull);
+      if (FRAMEWORK.juneWashout) levels.push(FRAMEWORK.juneWashout);
+      if (state.price) levels.push(state.price);
+      const lo = Math.min.apply(null, levels);
+      const hi = Math.max.apply(null, levels);
+      const pad = Math.max((hi - lo) * 0.08, 1500);
+      const ymin = lo - pad;
+      const ymax = hi + pad;
       const layout = plotLayout({
+        uirevision: "move-" + (state.moveMode || "days") + "-" + state.moveDays,
         xaxis: {
           gridcolor: COL.grid, range: [cutoff, endX],
           tickfont: { size: 10, color: COL.font },
+          autorange: false,
         },
         yaxis: {
           gridcolor: COL.grid, tickprefix: "$", range: [ymin, ymax],
           tickfont: { size: 10, color: COL.font },
+          autorange: false,
         },
         shapes, annotations,
         margin: { l: 58, r: overlay ? 64 : 210, t: 28, b: 36 },
@@ -658,7 +741,7 @@
     function mstrVsBtcHint() {
       if (!state.showMstr) return "Strategy Inc · tap overlay";
       if (!state.mstrLive) return "cached to " + EMBEDDED_MSTR.asOf + " · Yahoo blocked";
-      const cutoff = new Date(Date.now() - state.moveDays * 86400000);
+      const cutoff = moveCutoff();
       const btc = state.daily.filter((r) => r.t >= cutoff);
       const mstr = state.mstrDaily.filter((r) => r.t >= cutoff);
       if (btc.length < 2 || mstr.length < 2) return "Strategy Inc · overlay on";
@@ -744,6 +827,7 @@
       state.ma200 = sma(closes, 200);
       drawCycle();
       drawMove();
+      updateMoveRangeLbl();
       paintStats();
     }
     async function refreshSpot() {
@@ -774,13 +858,26 @@
         drawCycle();
       };
     });
+    function clearMoveButtons() {
+      document.querySelectorAll("[data-days], [data-move]").forEach((b) => b.classList.remove("on"));
+    }
     document.querySelectorAll("[data-days]").forEach((btn) => {
       btn.onclick = () => {
-        document.querySelectorAll("[data-days]").forEach((b) => b.classList.remove("on"));
+        clearMoveButtons();
         btn.classList.add("on");
+        state.moveMode = "days";
         state.moveDays = +btn.dataset.days;
-        const start = new Date(Date.now() - state.moveDays * 86400000);
-        $("moveRangeLbl").textContent = start.toLocaleString("en-US", { month: "short", year: "numeric" }) + " → now";
+        updateMoveRangeLbl();
+        drawMove();
+        paintStats();
+      };
+    });
+    document.querySelectorAll("[data-move]").forEach((btn) => {
+      btn.onclick = () => {
+        clearMoveButtons();
+        btn.classList.add("on");
+        state.moveMode = btn.dataset.move;
+        updateMoveRangeLbl();
         drawMove();
         paintStats();
       };

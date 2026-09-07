@@ -1,8 +1,13 @@
 "use client";
 
-export function BtcCycleFrame() {
+type Props = {
+  /** Homepage embed: slightly taller iframe, quieter blank-chart tip */
+  compact?: boolean;
+};
+
+export function BtcCycleFrame({ compact = false }: Props) {
   return (
-    <div className="mt-6 space-y-3">
+    <div className={compact ? "space-y-3" : "mt-6 space-y-3"}>
       <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted">
         If the chart is blank,{" "}
         <a
@@ -19,9 +24,10 @@ export function BtcCycleFrame() {
         <iframe
           src="/btc-cycle-map.html?embed=1"
           className="w-full border-0"
-          style={{ height: 1200, background: "#000" }}
+          style={{ height: compact ? 1320 : 1260, background: "#000" }}
           title="BTC 4-Year Cycle Map"
           allow="fullscreen"
+          loading={compact ? "lazy" : undefined}
         />
       </div>
     </div>

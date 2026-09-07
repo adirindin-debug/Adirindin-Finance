@@ -12,7 +12,7 @@ const tools = [
     href: "/dashboard/btc-cycle",
     title: "BTC + MSTR 4-Year Cycle Map",
     blurb:
-      "Detailed live Bitcoin price with halving-anchored cycle framing and an optional Strategy (MSTR) overlay. Full observation desk for study — not a forecast. (Home shows a simple 4-year overview only.)",
+      "Detailed live Bitcoin price with halving-anchored cycle framing and an optional Strategy (MSTR) overlay. Full observation desk for study — not a forecast. (Also on the home scroll desk.)",
     meta: "Detailed tool · live feeds · black theme · @Dirindin533",
     cta: "Open detailed BTC cycle map",
   },
@@ -32,7 +32,7 @@ export default function DashboardHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Cycle desk</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Detailed educational cycle maps for study. The home page has a simple 4-year BTC overview; cards below open the full desks (BTC+MSTR map, RE cycle). Framing only — not investment advice, not personal recommendations, and not a promise of returns.
+        Detailed educational cycle maps for study. The home page scrolls the same charts in one desk; cards below open the focused BTC+MSTR and RE tools. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
         Anthony / Adirindin (@Dirindin533).
       </p>
 
@@ -56,7 +56,7 @@ export default function DashboardHubPage() {
         <Link href="/btc-cycle-map.html" className="text-accent hover:underline">
           Open full-page BTC cycle map
         </Link>
-        . Simple 4-year overview lives on the{" "}
+        . Full chart scroll lives on the{" "}
         <Link href="/" className="text-accent hover:underline">
           home page
         </Link>
