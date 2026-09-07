@@ -1,5 +1,5 @@
 /**
- * Classic “18 Year Real Estate Cycle” schematic (Anthony-style educational diagram).
+ * Classic “18 Year Real Estate Cycle” schematic (educational diagram).
  * Jagged phase line with stacked historical/framework years — not prices, not a forecast.
  */
 
@@ -8,17 +8,28 @@ type YearStack = {
   /** Emphasize framework years (underline) — still schematic, not predictions */
   emphasize?: string[];
   placement: "above" | "below";
+  /** Horizontal offset from vertex (keeps stacks from colliding) */
+  dx?: number;
+  /** Extra vertical clearance from the vertex */
+  dyClear?: number;
 };
 
-/** Vertex coordinates for the jagged educational cycle line (not price data). */
+/**
+ * Vertex coordinates for the jagged educational cycle line (not price data).
+ * Geometry matches the classic diagram: longer/higher land-boom ascent after the
+ * mid-cycle slowdown, then a steep drawdown into the trough and next recovery.
+ */
 const POINTS = [
-  { id: "recovery", x: 72, y: 255 },
-  { id: "midPeak", x: 210, y: 145 },
-  { id: "midSlow", x: 312, y: 188 },
-  { id: "landBoom", x: 420, y: 132 },
-  { id: "peak", x: 520, y: 88 },
-  { id: "downturn", x: 640, y: 275 },
-  { id: "next", x: 732, y: 245 },
+  { id: "recovery", x: 68, y: 248 },
+  { id: "midPeak", x: 198, y: 138 },
+  { id: "midSlow", x: 278, y: 178 },
+  /** ~halfway up the long post-slowdown ascent */
+  { id: "landBoom", x: 390, y: 118 },
+  /** Major peak — higher & further right than mid-peak (long land-boom leg) */
+  { id: "peak", x: 560, y: 52 },
+  /** Sharp V trough after peak */
+  { id: "downturn", x: 648, y: 298 },
+  { id: "next", x: 738, y: 248 },
 ] as const;
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
@@ -29,6 +40,8 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   midPeak: {
     years: ["2019", "2000", "1981"],
     placement: "above",
+    dx: -6,
+    dyClear: 4,
   },
   midSlow: {
     years: ["2022", "2002", "1982"],
@@ -42,16 +55,21 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     years: ["2026", "2007", "1989"],
     emphasize: ["2026"],
     placement: "above",
+    /** Sit to the right of the peak so Land Boom label stays clear */
+    dx: 28,
+    dyClear: 8,
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
     emphasize: ["2028"],
     placement: "below",
+    dx: -4,
   },
   next: {
     years: ["2030", "2011", "1993", "1974"],
     emphasize: ["2030"],
     placement: "above",
+    dx: 8,
   },
 };
 
@@ -61,18 +79,17 @@ function YearColumn({
   x,
   pointY,
   stack,
-  extraOffset = 0,
 }: {
   x: number;
   pointY: number;
   stack: YearStack;
-  extraOffset?: number;
 }) {
   const lineH = 13;
   const gap = 1;
   const n = stack.years.length;
   const totalH = n * lineH + Math.max(0, n - 1) * gap;
-  const clear = 14 + extraOffset;
+  const clear = 14 + (stack.dyClear ?? 0);
+  const cx = x + (stack.dx ?? 0);
   const startY =
     stack.placement === "above"
       ? pointY - clear - totalH + lineH
@@ -80,13 +97,29 @@ function YearColumn({
 
   return (
     <g>
+      {/* Short leader when stack is offset horizontally */}
+      {stack.dx != null && Math.abs(stack.dx) >= 12 && (
+        <line
+          x1={x}
+          y1={pointY - (stack.placement === "above" ? 8 : -8)}
+          x2={cx}
+          y2={
+            stack.placement === "above"
+              ? startY + totalH - lineH * 0.2
+              : startY - lineH * 0.35
+          }
+          stroke="#3a4558"
+          strokeWidth="1"
+          strokeDasharray="2 2"
+        />
+      )}
       {stack.years.map((yr, i) => {
         const y = startY + i * (lineH + gap);
         const emph = stack.emphasize?.includes(yr);
         return (
           <text
             key={yr}
-            x={x}
+            x={cx}
             y={y}
             textAnchor="middle"
             fill={emph ? "#f0d78c" : "#c8d0dc"}
@@ -160,7 +193,7 @@ export default function RealEstateCycleChart() {
 
   return (
     <svg
-      viewBox="0 0 800 455"
+      viewBox="0 0 800 470"
       className="mt-6 h-auto w-full"
       role="img"
       aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years, mid-cycle dip, land boom marker, peak and downturn — educational only, not a forecast"
@@ -175,7 +208,7 @@ export default function RealEstateCycleChart() {
         </filter>
       </defs>
 
-      <rect width="800" height="455" fill="#0a0a0a" rx="8" />
+      <rect width="800" height="470" fill="#0a0a0a" rx="8" />
 
       <text
         x="400"
@@ -204,7 +237,7 @@ export default function RealEstateCycleChart() {
         x={recovery.x}
         y="52"
         width={midSlow.x - recovery.x}
-        height="250"
+        height="270"
         fill="#3dcc9a"
         opacity="0.05"
       />
@@ -212,7 +245,7 @@ export default function RealEstateCycleChart() {
         x={midSlow.x}
         y="52"
         width={peak.x - midSlow.x}
-        height="250"
+        height="270"
         fill="#d4a017"
         opacity="0.06"
       />
@@ -220,13 +253,13 @@ export default function RealEstateCycleChart() {
         x={peak.x}
         y="52"
         width={next.x - peak.x}
-        height="250"
+        height="270"
         fill="#ef6b6b"
         opacity="0.05"
       />
 
       {/* Subtle horizontal grid */}
-      {[100, 140, 180, 220, 260].map((y) => (
+      {[80, 120, 160, 200, 240, 280].map((y) => (
         <line key={y} x1="48" y1={y} x2="752" y2={y} stroke="#1a1a1a" strokeWidth="1" />
       ))}
 
@@ -254,30 +287,8 @@ export default function RealEstateCycleChart() {
         />
       ))}
 
-      {/* Land Boom gold marker on ascending leg */}
+      {/* Land Boom gold marker — label left of marker so peak stack stays clear */}
       <g>
-        <text
-          x={landBoom.x}
-          y={landBoom.y - 38}
-          textAnchor="middle"
-          fill="#d4a017"
-          fontSize="12"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-        >
-          Land Boom
-        </text>
-        <text
-          x={landBoom.x}
-          y={landBoom.y - 22}
-          textAnchor="middle"
-          fill="#f0d78c"
-          fontSize="11"
-          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-          fontWeight="700"
-        >
-          2024
-        </text>
         <circle
           cx={landBoom.x}
           cy={landBoom.y}
@@ -287,6 +298,28 @@ export default function RealEstateCycleChart() {
           strokeWidth="2"
         />
         <circle cx={landBoom.x} cy={landBoom.y} r="3.5" fill="#0a0a0a" />
+        <text
+          x={landBoom.x - 16}
+          y={landBoom.y - 18}
+          textAnchor="end"
+          fill="#d4a017"
+          fontSize="12"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="700"
+        >
+          Land Boom
+        </text>
+        <text
+          x={landBoom.x - 16}
+          y={landBoom.y - 4}
+          textAnchor="end"
+          fill="#f0d78c"
+          fontSize="11"
+          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+          fontWeight="700"
+        >
+          2024
+        </text>
       </g>
 
       {/* Year stacks (land boom year rendered with marker) */}
@@ -301,21 +334,14 @@ export default function RealEstateCycleChart() {
         ] as const
       ).map((id) => {
         const pt = POINTS.find((p) => p.id === id)!;
-        const extra = id === "peak" ? 4 : id === "midPeak" ? 2 : 0;
         return (
-          <YearColumn
-            key={id}
-            x={pt.x}
-            pointY={pt.y}
-            stack={YEAR_STACKS[id]}
-            extraOffset={extra}
-          />
+          <YearColumn key={id} x={pt.x} pointY={pt.y} stack={YEAR_STACKS[id]} />
         );
       })}
 
       {/* Mid-cycle peak caption — left of vertex so year stack stays clear */}
       <text
-        x={midPeak.x - 56}
+        x={midPeak.x - 52}
         y={midPeak.y + 4}
         textAnchor="end"
         fill="#8b9bb4"
@@ -325,10 +351,10 @@ export default function RealEstateCycleChart() {
         Mid-cycle peak
       </text>
 
-      {/* Phase labels under the plot (below downturn year stack) */}
+      {/* Phase labels under the plot */}
       <text
         x={recovery.x}
-        y={368}
+        y={378}
         textAnchor="middle"
         fill="#a8b4c8"
         fontSize="10"
@@ -339,7 +365,7 @@ export default function RealEstateCycleChart() {
       </text>
       <text
         x={midSlow.x}
-        y={368}
+        y={378}
         textAnchor="middle"
         fill="#a8b4c8"
         fontSize="10"
@@ -350,7 +376,7 @@ export default function RealEstateCycleChart() {
       </text>
       <text
         x={downturn.x}
-        y={368}
+        y={378}
         textAnchor="middle"
         fill="#a8b4c8"
         fontSize="10"
@@ -361,13 +387,13 @@ export default function RealEstateCycleChart() {
       </text>
 
       {/* 7 · 7 · 4 span arrows */}
-      <SpanArrow x1={recovery.x} x2={midSlow.x} y={392} label="~7 years" />
-      <SpanArrow x1={midSlow.x} x2={peak.x} y={392} label="~7 years" />
-      <SpanArrow x1={peak.x} x2={next.x} y={392} label="~4 years" />
+      <SpanArrow x1={recovery.x} x2={midSlow.x} y={402} label="~7 years" />
+      <SpanArrow x1={midSlow.x} x2={peak.x} y={402} label="~7 years" />
+      <SpanArrow x1={peak.x} x2={next.x} y={402} label="~4 years" />
 
       <text
         x="400"
-        y="440"
+        y="452"
         textAnchor="middle"
         fill="#6b7a90"
         fontSize="9"

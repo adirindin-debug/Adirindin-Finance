@@ -127,6 +127,17 @@ export default function RealEstateCyclePage() {
         ))}
       </div>
 
+
+      <section className="mt-8 rounded-xl border border-border bg-card p-6">
+        <h2 className="text-lg font-semibold text-foreground">Attribution &amp; sources</h2>
+        <p className="mt-3 text-sm leading-relaxed text-muted">
+          This page does not invent the ~18-year land cycle. The modern framing is widely associated
+          with Fred Harrison&apos;s work (building on earlier land-cycle research, often traced to Homer
+          Hoyt). Educators Phil Anderson and Jason Pizzino have discussed and taught this framework —
+          which is how Anthony first came across it. Educational study aid only · not financial advice.
+        </p>
+      </section>
+
       <section className="mt-10 rounded-xl border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-foreground">Australian investor lens</h2>
         <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-muted">
