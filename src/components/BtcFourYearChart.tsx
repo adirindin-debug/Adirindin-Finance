@@ -35,7 +35,7 @@ const SERIES_STYLE: Record<SeriesId, { color: string; short: string }> = {
 
 const W = 920;
 const H = 420;
-const PAD = { top: 40, right: 58, bottom: 48, left: 58 };
+const PAD = { top: 40, right: 28, bottom: 48, left: 58 };
 
 function fmtPct(n: number, digits = 1) {
   const sign = n > 0 ? "+" : "";
@@ -63,9 +63,7 @@ function rangeFor(points: PctPoint[]) {
   return { min: minPct - padY, max: maxPct + padY };
 }
 
-function buildDualAxis(series: SeriesPayload[]) {
-  const btc = series.find((s) => s.id === "btc");
-  const equities = series.filter((s) => s.id !== "btc");
+function buildSharedAxis(series: SeriesPayload[]) {
   const allPts = series.flatMap((s) => s.points);
   if (!allPts.length) return null;
 
@@ -76,27 +74,19 @@ function buildDualAxis(series: SeriesPayload[]) {
     if (p.t > maxT) maxT = p.t;
   }
 
-  const leftRange = rangeFor(btc?.points ?? []) ?? { min: 0, max: 100 };
-  const rightRange = rangeFor(equities.flatMap((s) => s.points)) ?? {
-    min: 0,
-    max: 100,
-  };
+  const yRange = rangeFor(allPts) ?? { min: 0, max: 100 };
 
   const iw = W - PAD.left - PAD.right;
   const ih = H - PAD.top - PAD.bottom;
   const xScale = (t: number) =>
     PAD.left + ((t - minT) / (maxT - minT || 1)) * iw;
-  const yLeft = (pct: number) =>
+  const yScale = (pct: number) =>
     PAD.top +
-    (1 - (pct - leftRange.min) / (leftRange.max - leftRange.min || 1)) * ih;
-  const yRight = (pct: number) =>
-    PAD.top +
-    (1 - (pct - rightRange.min) / (rightRange.max - rightRange.min || 1)) * ih;
+    (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
 
   const paths = series
     .filter((s) => s.points.length > 1)
     .map((s) => {
-      const yScale = s.id === "btc" ? yLeft : yRight;
       let d = "";
       s.points.forEach((p, i) => {
         const x = xScale(p.t);
@@ -106,10 +96,10 @@ function buildDualAxis(series: SeriesPayload[]) {
             ? `M ${x.toFixed(2)} ${y.toFixed(2)}`
             : ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
       });
-      return { id: s.id, d, color: SERIES_STYLE[s.id].color, axis: s.id === "btc" ? "left" : "right" };
+      return { id: s.id, d, color: SERIES_STYLE[s.id].color };
     });
 
-  return { paths, leftRange, rightRange, minT, maxT, yLeft, yRight, xScale };
+  return { paths, yRange, minT, maxT, yScale, xScale };
 }
 
 function ticks(min: number, max: number, n = 5) {
@@ -149,16 +139,12 @@ export function BtcFourYearChart() {
   }, []);
 
   const chart = useMemo(
-    () => (payload?.series?.length ? buildDualAxis(payload.series) : null),
+    () => (payload?.series?.length ? buildSharedAxis(payload.series) : null),
     [payload],
   );
 
-  const leftTicks = useMemo(
-    () => (chart ? ticks(chart.leftRange.min, chart.leftRange.max) : []),
-    [chart],
-  );
-  const rightTicks = useMemo(
-    () => (chart ? ticks(chart.rightRange.min, chart.rightRange.max) : []),
+  const yTicks = useMemo(
+    () => (chart ? ticks(chart.yRange.min, chart.yRange.max) : []),
     [chart],
   );
 
@@ -178,10 +164,10 @@ export function BtcFourYearChart() {
     return idxs.map((i) => pts[i]);
   }, [chart, payload]);
 
-  const zeroLeft = useMemo(() => {
+  const zeroY = useMemo(() => {
     if (!chart) return null;
-    if (chart.leftRange.min > 0 || chart.leftRange.max < 0) return null;
-    return chart.yLeft(0);
+    if (chart.yRange.min > 0 || chart.yRange.max < 0) return null;
+    return chart.yScale(0);
   }, [chart]);
 
   return (
@@ -191,7 +177,7 @@ export function BtcFourYearChart() {
           4-year running chart
         </h2>
         <p className="text-xs text-muted">
-          Relative ~4y % gains · split scale · educational · NFA
+          Relative ~4y % gains · shared scale · educational · NFA
         </p>
       </div>
 
@@ -223,7 +209,6 @@ export function BtcFourYearChart() {
                 </p>
                 <p className="text-[10px] text-muted">
                   {s.ticker} · current 4y %
-                  {s.id === "btc" ? " · left axis" : " · right axis"}
                 </p>
               </div>
             );
@@ -257,10 +242,10 @@ export function BtcFourYearChart() {
             viewBox={`0 0 ${W} ${H}`}
             className="block w-full"
             role="img"
-            aria-label="Rolling 4-year percentage gains with dual Y-axes: BTC on left, equity indices on right"
+            aria-label="Rolling 4-year percentage gains on a shared Y-axis for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries"
             style={{ background: "#000", height: 420 }}
           >
-            <title>4-year running % gains (dual axis)</title>
+            <title>4-year running % gains (shared scale)</title>
             <text
               x={PAD.left}
               y={18}
@@ -279,37 +264,24 @@ export function BtcFourYearChart() {
               fontFamily="system-ui, sans-serif"
               textAnchor="end"
             >
-              Dual axis · trailing ~{payload?.windowDays ?? 1461}d · not price levels
+              Shared % scale · trailing ~{payload?.windowDays ?? 1461}d · not price levels
             </text>
 
-            {/* Axis captions */}
             <text
               x={PAD.left}
-              y={34}
-              fill="#f7931a"
-              fontSize="9"
-              fontFamily="system-ui, sans-serif"
-              fontWeight="600"
-            >
-              BTC % (left)
-            </text>
-            <text
-              x={W - PAD.right}
               y={34}
               fill="#8b9bb4"
               fontSize="9"
               fontFamily="system-ui, sans-serif"
               fontWeight="600"
-              textAnchor="end"
             >
-              Equities % (right)
+              % gain (shared)
             </text>
 
-            {/* Left grid + BTC ticks */}
-            {leftTicks.map((v) => {
-              const y = chart.yLeft(v);
+            {yTicks.map((v) => {
+              const y = chart.yScale(v);
               return (
-                <g key={`L-${v}`}>
+                <g key={`Y-${v}`}>
                   <line
                     x1={PAD.left}
                     x2={W - PAD.right}
@@ -321,7 +293,7 @@ export function BtcFourYearChart() {
                   <text
                     x={PAD.left - 8}
                     y={y + 3}
-                    fill="#f7931a"
+                    fill="#9eb0c8"
                     fontSize="10"
                     fontFamily="system-ui, sans-serif"
                     textAnchor="end"
@@ -333,30 +305,12 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {/* Right equity ticks */}
-            {rightTicks.map((v) => {
-              const y = chart.yRight(v);
-              return (
-                <text
-                  key={`R-${v}`}
-                  x={W - PAD.right + 8}
-                  y={y + 3}
-                  fill="#9eb0c8"
-                  fontSize="10"
-                  fontFamily="system-ui, sans-serif"
-                  textAnchor="start"
-                >
-                  {fmtPct(v, 0)}
-                </text>
-              );
-            })}
-
-            {zeroLeft != null && (
+            {zeroY != null && (
               <line
                 x1={PAD.left}
                 x2={W - PAD.right}
-                y1={zeroLeft}
-                y2={zeroLeft}
+                y1={zeroY}
+                y2={zeroY}
                 stroke="#3a4558"
                 strokeWidth="1"
                 strokeDasharray="4 3"
@@ -402,7 +356,6 @@ export function BtcFourYearChart() {
                     fontFamily="system-ui, sans-serif"
                   >
                     {style.short} ({s.ticker})
-                    {s.id === "btc" ? " L" : " R"}
                   </text>
                 </g>
               );
@@ -441,11 +394,11 @@ export function BtcFourYearChart() {
       <p className="mt-2 text-xs text-muted">
         Educational compare of rolling ~4-year percentage returns (same ~1461 calendar-day
         lookback for each series) — not absolute price levels.{" "}
-        <strong className="font-medium text-muted">Dual Y-axis:</strong> BTC on the left scale,
-        Nasdaq 100 / S&amp;P 500 / All Ords share the right scale so equity moves stay readable
-        beside BTC&apos;s larger % swings. Data via Yahoo Finance chart API: BTC-USD, ^NDX,
-        ^GSPC, ^AORD. Partial series may appear if one feed fails. For the full BTC+MSTR cycle
-        desk, open{" "}
+        <strong className="font-medium text-muted">Shared % scale:</strong> all four series use
+        one Y-axis so Bitcoin&apos;s relative outperformance is visible (equities may look
+        flatter at the bottom — that is intentional). Data via Yahoo Finance chart API: BTC-USD,
+        ^NDX, ^GSPC, ^AORD. Partial series may appear if one feed fails. For the full BTC+MSTR
+        cycle desk, open{" "}
         <a href="/dashboard" className="text-accent hover:underline">
           Cycle desk
         </a>
