@@ -265,9 +265,13 @@ export default function RealEstateCycleChart() {
     year: "numeric",
   });
 
+  /** Extra top band so title/subtitle sit clear of the high peak / NOW marker */
+  const TOP_PAD = 60;
+  const SVG_H = 500 + TOP_PAD;
+
   return (
     <svg
-      viewBox="0 0 840 500"
+      viewBox={`0 0 840 ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
       aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years, mid-cycle dip, land boom marker, NOW time marker, peak and downturn — educational only, not a forecast"
@@ -283,7 +287,7 @@ export default function RealEstateCycleChart() {
         </filter>
       </defs>
 
-      <rect width="840" height="500" fill="#0a0a0a" rx="8" />
+      <rect width="840" height={SVG_H} fill="#0a0a0a" rx="8" />
 
       <text
         x="420"
@@ -307,6 +311,8 @@ export default function RealEstateCycleChart() {
         Schematic · ~18 / 18.6y framing · stacked years = classic series · not a forecast · NFA
       </text>
 
+      {/* Shift chart geometry down into the padded canvas; title stays in the top band */}
+      <g transform={`translate(0, ${TOP_PAD})`}>
       {/* Soft 7–7–4 guide bands */}
       <rect
         x={recovery.x}
@@ -530,6 +536,7 @@ export default function RealEstateCycleChart() {
         Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions.
         NOW is schematic placement on that timeline, not a forecast.
       </text>
+      </g>
     </svg>
   );
 }
