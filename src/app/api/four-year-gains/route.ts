@@ -120,25 +120,15 @@ function rollingWindowPct(closes: ClosePoint[], winSec: number): PctPoint[] {
 }
 
 /**
- * Cumulative % from a shared base timestamp (first date where all series have data).
- * Base = last close at or before commonStart for each series.
+ * Cumulative % from this series' own first available close (longest run).
+ * Line starts at 0% on that series' inception date.
  */
-function cumulativeFromBase(
-  closes: ClosePoint[],
-  commonStart: number,
-): PctPoint[] {
+function cumulativeFromOwnFirst(closes: ClosePoint[]): PctPoint[] {
   if (closes.length < 2) return [];
-  let baseIdx = -1;
-  for (let i = 0; i < closes.length; i++) {
-    if (closes[i].t <= commonStart) baseIdx = i;
-    else break;
-  }
-  // If series starts after commonStart, use first close (should not happen if commonStart is max of firsts)
-  if (baseIdx < 0) baseIdx = 0;
-  const base = closes[baseIdx];
+  const base = closes[0];
   if (base.c <= 0) return [];
   const out: PctPoint[] = [];
-  for (let i = baseIdx; i < closes.length; i++) {
+  for (let i = 0; i < closes.length; i++) {
     const pct = (closes[i].c / base.c - 1) * 100;
     if (!Number.isFinite(pct)) continue;
     out.push({ t: closes[i].t, pct });
@@ -156,6 +146,10 @@ function downsample(points: PctPoint[], maxPts: number): PctPoint[] {
   return out;
 }
 
+function isoDate(ts: number) {
+  return new Date(ts * 1000).toISOString().slice(0, 10);
+}
+
 function windowMeta(key: WindowKey) {
   if (key === "all") {
     return {
@@ -165,9 +159,9 @@ function windowMeta(key: WindowKey) {
       mode: "cumulative" as const,
       windowDays: null as number | null,
       windowSec: null as number | null,
-      title: "Cumulative % since first common date",
+      title: "Cumulative % from each series' earliest history",
       definition:
-        "ALL = cumulative percentage return from the first calendar date where BTC-USD, ^NDX, ^GSPC, and ^AORD all have a close (shared inception). Each series: close_t / close_at_common_start − 1. Not a rolling lookback. Educational only — not financial advice (NFA).",
+        "ALL = cumulative percentage return from each series' own first available Yahoo close (longest-running history). BTC-USD from its first date; ^NDX, ^GSPC, and ^AORD from their much earlier inceptions. Each line starts at 0% on its own start date (different x starts OK). Shared % scale. Not a rolling lookback and not aligned to a common start. Educational only — not financial advice (NFA).",
     };
   }
   const years = WINDOW_YEARS[key];
@@ -216,44 +210,34 @@ export async function GET(request: Request) {
     );
   }
 
-  let commonStart: number | null = null;
-  let commonStartIso: string | undefined;
-
-  if (windowKey === "all") {
-    // Prefer first date where ALL four have data; fall back to loaded subset if some fail
-    const firsts = loaded
-      .map((s) => closesById[s.id]![0].t)
-      .filter((t) => Number.isFinite(t));
-    if (firsts.length) {
-      commonStart = Math.max(...firsts);
-      commonStartIso = new Date(commonStart * 1000).toISOString().slice(0, 10);
-    }
-  }
-
   const series: Array<{
     id: SeriesId;
     label: string;
     ticker: string;
     points: PctPoint[];
     latestPct: number | null;
+    startDate?: string;
   }> = [];
+
+  const seriesStarts: Partial<Record<SeriesId, string>> = {};
 
   for (const sMeta of SERIES) {
     const closes = closesById[sMeta.id];
     if (!closes?.length) continue;
     try {
       let pct: PctPoint[];
-      if (windowKey === "all" && commonStart != null) {
-        pct = cumulativeFromBase(closes, commonStart);
-      } else if (windowKey !== "all") {
+      let startDate: string | undefined;
+      if (windowKey === "all") {
+        pct = cumulativeFromOwnFirst(closes);
+        startDate = isoDate(closes[0].t);
+        seriesStarts[sMeta.id] = startDate;
+      } else {
         const winSec = windowSec(WINDOW_YEARS[windowKey]);
         pct = rollingWindowPct(closes, winSec);
         // Display roughly the last lookback-length of rolling returns (need prior window of prices)
         const cutoff = Math.floor(Date.now() / 1000) - winSec;
         const recent = pct.filter((p) => p.t >= cutoff);
         pct = recent.length ? recent : pct;
-      } else {
-        pct = [];
       }
       const points = downsample(pct, 900);
       series.push({
@@ -262,6 +246,7 @@ export async function GET(request: Request) {
         ticker: sMeta.ticker,
         points,
         latestPct: points.length ? points[points.length - 1].pct : null,
+        ...(startDate ? { startDate } : {}),
       });
     } catch (e) {
       errors[sMeta.id] = e instanceof Error ? e.message : "compute failed";
@@ -278,21 +263,15 @@ export async function GET(request: Request) {
         error: "Could not compute any series",
         errors,
         ...meta,
-        commonStart: commonStartIso,
       },
       { status: 502 },
     );
   }
 
-  const title =
-    windowKey === "all" && commonStartIso
-      ? `Cumulative % since ${commonStartIso}`
-      : meta.title;
-
   return Response.json(
     {
       ok: true,
-      title,
+      title: meta.title,
       definition: meta.definition,
       window: meta.window,
       windowLabel: meta.windowLabel,
@@ -300,7 +279,12 @@ export async function GET(request: Request) {
       mode: meta.mode,
       windowDays: meta.windowDays,
       windowSec: meta.windowSec,
-      commonStart: commonStartIso,
+      // Kept for backward compat; ALL no longer uses a shared common start
+      commonStart: null,
+      seriesStarts:
+        windowKey === "all" && Object.keys(seriesStarts).length
+          ? seriesStarts
+          : undefined,
       availableWindows: ["1y", "3y", "4y", "5y", "10y", "all"],
       source: "Yahoo Finance chart API (query1)",
       tickers: SERIES.map((s) => ({

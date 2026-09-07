@@ -14,6 +14,7 @@ type SeriesPayload = {
   ticker: string;
   points: PctPoint[];
   latestPct: number | null;
+  startDate?: string;
 };
 
 type ApiPayload = {
@@ -26,7 +27,8 @@ type ApiPayload = {
   mode?: "rolling" | "cumulative";
   windowDays?: number | null;
   windowSec?: number | null;
-  commonStart?: string;
+  commonStart?: string | null;
+  seriesStarts?: Partial<Record<SeriesId, string>>;
   source?: string;
   series?: SeriesPayload[];
   errors?: Record<string, string>;
@@ -172,19 +174,38 @@ function ticks(min: number, max: number, n = 5) {
   return out;
 }
 
+function formatStartsLine(payload: ApiPayload | null): string {
+  if (!payload?.series?.length) return "";
+  const bits = payload.series
+    .map((s) => {
+      const d =
+        s.startDate ??
+        payload.seriesStarts?.[s.id] ??
+        (s.points[0] ? new Date(s.points[0].t * 1000).toISOString().slice(0, 10) : null);
+      if (!d) return null;
+      return `${SERIES_STYLE[s.id].short} ${d}`;
+    })
+    .filter(Boolean);
+  return bits.length ? bits.join(" · ") : "";
+}
+
 function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
   if (windowKey === "all") {
-    const since = payload?.commonStart ? ` since ${payload.commonStart}` : "";
+    const starts = formatStartsLine(payload);
     return {
       heading: "All-time cumulative chart",
-      subtitle: `Cumulative % from first common date${since} · shared scale · educational · NFA`,
-      kpiSuffix: "cumulative %",
-      chartTitle: payload?.title ?? "Cumulative % since first common date",
-      chartHint: "Shared % scale · cumulative from common start · not price levels",
-      aria: "Cumulative percentage returns from first common date for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries",
+      subtitle:
+        "Cumulative % from each series' earliest available history (longest run) · shared scale · educational · NFA",
+      kpiSuffix: "cumulative % from own start",
+      chartTitle:
+        payload?.title ?? "Cumulative % from each series' earliest history",
+      chartHint:
+        "Shared % scale · each line from own inception · not price levels",
+      aria: "Cumulative percentage returns from each series' own earliest available history for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries",
       loading: "Loading cumulative % gains…",
       footerLead:
-        "Educational compare of cumulative percentage returns from the first date where all four series have data",
+        "Educational compare of cumulative percentage returns from each series' own first available Yahoo close (longest-running history; lines may start on different dates)",
+      startsLine: starts,
       errorLabel: "all-time compare chart",
     };
   }
@@ -208,6 +229,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
     aria: `Rolling ${label} percentage gains on a shared Y-axis for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries`,
     loading: `Loading ${label} running % gains…`,
     footerLead: `Educational compare of rolling ${label} percentage returns (same calendar-day lookback for each series)`,
+    startsLine: "",
     errorLabel: `${label} compare chart`,
   };
 }
@@ -275,6 +297,18 @@ export function BtcFourYearChart() {
 
   const xTicks = useMemo(() => {
     if (!chart || !payload?.series?.length) return [];
+    // For ALL, span the full shared x-axis (minT–maxT) so early equity years show
+    if (windowKey === "all") {
+      const { minT, maxT } = chart;
+      const mid1 = minT + (maxT - minT) / 3;
+      const mid2 = minT + (2 * (maxT - minT)) / 3;
+      return [
+        { t: minT, pct: 0 },
+        { t: mid1, pct: 0 },
+        { t: mid2, pct: 0 },
+        { t: maxT, pct: 0 },
+      ];
+    }
     const densest = [...payload.series].sort(
       (a, b) => b.points.length - a.points.length,
     )[0];
@@ -287,7 +321,7 @@ export function BtcFourYearChart() {
       pts.length - 1,
     ];
     return idxs.map((i) => pts[i]);
-  }, [chart, payload]);
+  }, [chart, payload, windowKey]);
 
   const zeroY = useMemo(() => {
     if (!activeYRange || !activeYScale) return null;
@@ -359,6 +393,12 @@ export function BtcFourYearChart() {
           {payload.series.map((s) => {
             const style = SERIES_STYLE[s.id];
             const pct = s.latestPct;
+            const start =
+              s.startDate ??
+              payload.seriesStarts?.[s.id] ??
+              (windowKey === "all" && s.points[0]
+                ? new Date(s.points[0].t * 1000).toISOString().slice(0, 10)
+                : null);
             return (
               <div
                 key={s.id}
@@ -382,6 +422,7 @@ export function BtcFourYearChart() {
                 </p>
                 <p className="text-[10px] text-muted">
                   {s.ticker} · {copy.kpiSuffix}
+                  {start ? ` · from ${start}` : ""}
                 </p>
               </div>
             );
@@ -587,7 +628,7 @@ export function BtcFourYearChart() {
             >
               Latest{" "}
               {windowKey === "all"
-                ? "cumulative %"
+                ? "cumulative % (own inception)"
                 : `${windowKey.toUpperCase()} %`}{" "}
               by asset
             </text>
@@ -702,18 +743,17 @@ export function BtcFourYearChart() {
       </div>
       <p className="mt-2 text-xs text-muted">
         {copy.footerLead}
-        {windowKey === "all" && payload?.commonStart
-          ? ` (${payload.commonStart})`
-          : ""}{" "}
-        — not absolute price levels.{" "}
+        {copy.startsLine ? ` — starts: ${copy.startsLine}` : ""}. Not absolute
+        price levels.{" "}
         <strong className="font-medium text-muted">Shared % scale:</strong> all
         four series use one Y-axis so Bitcoin&apos;s relative outperformance is
         visible (equities may look flatter — that is intentional).{" "}
         {windowKey === "all" ? (
           <>
             <strong className="font-medium text-muted">ALL semantics:</strong>{" "}
-            cumulative % from the first date where BTC-USD, ^NDX, ^GSPC, and
-            ^AORD all have data (not a rolling lookback).{" "}
+            cumulative % from each series&apos; own earliest available Yahoo
+            close (longest run); lines may start on different dates — not clipped
+            to BTC&apos;s first date and not a rolling lookback.{" "}
           </>
         ) : (
           <>
