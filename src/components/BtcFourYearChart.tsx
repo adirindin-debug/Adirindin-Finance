@@ -330,9 +330,10 @@ export function BtcFourYearChart() {
   }, [activeYRange, activeYScale]);
 
   const toggleBtn =
-    "rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors";
-  const toggleOn = "bg-accent text-white";
-  const toggleOff = "bg-transparent text-muted hover:text-foreground";
+    "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
+  const toggleOn = "bg-accent text-white shadow-sm";
+  const toggleOff =
+    "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
 
   return (
     <section
@@ -346,45 +347,55 @@ export function BtcFourYearChart() {
         <p className="text-xs text-muted">{copy.subtitle}</p>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div
-          className="inline-flex flex-wrap gap-0.5 rounded-lg border border-border bg-card p-0.5"
-          role="group"
-          aria-label="Timeframe"
-        >
-          {WINDOWS.map((w) => (
-            <button
-              key={w.key}
-              type="button"
-              className={`${toggleBtn} ${windowKey === w.key ? toggleOn : toggleOff}`}
-              aria-pressed={windowKey === w.key}
-              onClick={() => setWindowKey(w.key)}
-            >
-              {w.label}
-            </button>
-          ))}
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+            Window
+          </span>
+          <div
+            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+            role="group"
+            aria-label="Timeframe"
+          >
+            {WINDOWS.map((w) => (
+              <button
+                key={w.key}
+                type="button"
+                className={`${toggleBtn} ${windowKey === w.key ? toggleOn : toggleOff}`}
+                aria-pressed={windowKey === w.key}
+                onClick={() => setWindowKey(w.key)}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div
-          className="inline-flex gap-0.5 rounded-lg border border-border bg-card p-0.5"
-          role="group"
-          aria-label="Chart type"
-        >
-          <button
-            type="button"
-            className={`${toggleBtn} ${chartMode === "line" ? toggleOn : toggleOff}`}
-            aria-pressed={chartMode === "line"}
-            onClick={() => setChartMode("line")}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+            View
+          </span>
+          <div
+            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+            role="group"
+            aria-label="Chart type"
           >
-            Line
-          </button>
-          <button
-            type="button"
-            className={`${toggleBtn} ${chartMode === "bar" ? toggleOn : toggleOff}`}
-            aria-pressed={chartMode === "bar"}
-            onClick={() => setChartMode("bar")}
-          >
-            Bar
-          </button>
+            <button
+              type="button"
+              className={`${toggleBtn} ${chartMode === "line" ? toggleOn : toggleOff}`}
+              aria-pressed={chartMode === "line"}
+              onClick={() => setChartMode("line")}
+            >
+              Line
+            </button>
+            <button
+              type="button"
+              className={`${toggleBtn} ${chartMode === "bar" ? toggleOn : toggleOff}`}
+              aria-pressed={chartMode === "bar"}
+              onClick={() => setChartMode("bar")}
+            >
+              Bar
+            </button>
+          </div>
         </div>
       </div>
 
