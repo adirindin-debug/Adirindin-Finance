@@ -16,20 +16,21 @@ type YearStack = {
 
 /**
  * Vertex coordinates for the jagged educational cycle line (not price data).
- * Geometry matches the classic diagram: longer/higher land-boom ascent after the
- * mid-cycle slowdown, then a steep drawdown into the trough and next recovery.
+ * Classic silhouette: modest first half → long steep land-boom to a high major
+ * peak → clear proportional drawdown to ~mid-slowdown depth → lift into next recovery.
  */
 const POINTS = [
-  { id: "recovery", x: 68, y: 248 },
-  { id: "midPeak", x: 198, y: 138 },
-  { id: "midSlow", x: 278, y: 178 },
+  { id: "recovery", x: 68, y: 295 },
+  { id: "midPeak", x: 190, y: 172 },
+  { id: "midSlow", x: 265, y: 218 },
   /** ~halfway up the long post-slowdown ascent */
-  { id: "landBoom", x: 390, y: 118 },
-  /** Major peak — higher & further right than mid-peak (long land-boom leg) */
-  { id: "peak", x: 560, y: 52 },
-  /** Sharp V trough after peak */
-  { id: "downturn", x: 648, y: 298 },
-  { id: "next", x: 738, y: 248 },
+  { id: "landBoom", x: 420, y: 128 },
+  /** Major peak — high & far right so the land-boom leg dominates the chart */
+  { id: "peak", x: 582, y: 48 },
+  /** Clear decline, trough near mid-slowdown depth (not below recovery) */
+  { id: "downturn", x: 658, y: 220 },
+  /** Gentle lift toward next recovery — similar height to mid-cycle peak */
+  { id: "next", x: 742, y: 172 },
 ] as const;
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
@@ -237,7 +238,7 @@ export default function RealEstateCycleChart() {
         x={recovery.x}
         y="52"
         width={midSlow.x - recovery.x}
-        height="270"
+        height="285"
         fill="#3dcc9a"
         opacity="0.05"
       />
@@ -245,7 +246,7 @@ export default function RealEstateCycleChart() {
         x={midSlow.x}
         y="52"
         width={peak.x - midSlow.x}
-        height="270"
+        height="285"
         fill="#d4a017"
         opacity="0.06"
       />
@@ -253,13 +254,13 @@ export default function RealEstateCycleChart() {
         x={peak.x}
         y="52"
         width={next.x - peak.x}
-        height="270"
+        height="285"
         fill="#ef6b6b"
         opacity="0.05"
       />
 
       {/* Subtle horizontal grid */}
-      {[80, 120, 160, 200, 240, 280].map((y) => (
+      {[80, 120, 160, 200, 240, 280, 320].map((y) => (
         <line key={y} x1="48" y1={y} x2="752" y2={y} stroke="#1a1a1a" strokeWidth="1" />
       ))}
 
