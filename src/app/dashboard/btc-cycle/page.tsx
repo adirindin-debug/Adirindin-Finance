@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BtcCycleFrame } from "@/components/BtcCycleFrame";
 
 export const metadata: Metadata = {
   title: "BTC 4-Year Cycle Map",
@@ -22,8 +23,9 @@ export default function BtcCyclePage() {
             BTC + MSTR 4-Year Cycle Map
           </h1>
           <p className="mt-3 max-w-3xl text-sm text-muted">
-            Observation-only cycle chart with live feeds and optional Strategy (MSTR) overlay. Educational
-            framing for study — not forecasts or personal financial advice (NFA).
+            Detailed observation-only cycle chart with live feeds and optional Strategy (MSTR) overlay.
+            Educational framing for study — not forecasts or personal financial advice (NFA). For a simple
+            4-year overview, see the home page chart.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -41,15 +43,7 @@ export default function BtcCyclePage() {
           </Link>
         </div>
       </div>
-      <div className="mt-6 overflow-hidden rounded-xl border border-border bg-black">
-        <iframe
-          src="/btc-cycle-map.html?embed=1"
-          title="BTC 4-Year Cycle Map"
-          className="block w-full border-0"
-          style={{ height: 980, width: "100%", border: 0 }}
-          loading="lazy"
-        />
-      </div>
+      <BtcCycleFrame />
       <p className="mt-4 text-xs text-muted">
         Map retains its own data sources and disclaimers. @Dirindin533 · educational only.
       </p>

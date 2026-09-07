@@ -12,17 +12,17 @@ const tools = [
     href: "/dashboard/btc-cycle",
     title: "BTC + MSTR 4-Year Cycle Map",
     blurb:
-      "Live Bitcoin price with halving-anchored cycle framing and an optional Strategy (MSTR) overlay. Observation-only chart for study — not a forecast.",
-    meta: "Live feeds · black theme · @Dirindin533",
-    cta: "Open BTC cycle map",
+      "Detailed live Bitcoin price with halving-anchored cycle framing and an optional Strategy (MSTR) overlay. Full observation desk for study — not a forecast. (Home shows a simple 4-year overview only.)",
+    meta: "Detailed tool · live feeds · black theme · @Dirindin533",
+    cta: "Open detailed BTC cycle map",
   },
   {
     href: "/tools/real-estate-cycle",
     title: "18.6y Real Estate Cycle",
     blurb:
-      "Classic ~18.6-year land / property cycle phases used in research communities, with an Australian investor lens. Framework and observation — not a prediction model.",
-    meta: "Phase timeline · AU lens · educational",
-    cta: "Open RE cycle desk",
+      "Detailed ~18.6-year land / property cycle phases used in research communities, with an Australian investor lens. Framework and observation — not a prediction model.",
+    meta: "Detailed tool · phase timeline · AU lens · educational",
+    cta: "Open detailed RE cycle desk",
   },
 ];
 
@@ -32,7 +32,7 @@ export default function DashboardHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Cycle desk</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Educational cycle maps for study. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
+        Detailed educational cycle maps for study. The home page has a simple 4-year BTC overview; cards below open the full desks (BTC+MSTR map, RE cycle). Framing only — not investment advice, not personal recommendations, and not a promise of returns.
         Anthony / Adirindin (@Dirindin533).
       </p>
 
@@ -55,6 +55,10 @@ export default function DashboardHubPage() {
         Prefer the standalone chart?{" "}
         <Link href="/btc-cycle-map.html" className="text-accent hover:underline">
           Open full-page BTC cycle map
+        </Link>
+        . Simple 4-year overview lives on the{" "}
+        <Link href="/" className="text-accent hover:underline">
+          home page
         </Link>
         .
       </p>

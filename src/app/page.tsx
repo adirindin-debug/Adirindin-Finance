@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MarketStrip } from "@/components/MarketStrip";
+import { BtcFourYearChart } from "@/components/BtcFourYearChart";
 
 export default function HomePage() {
   return (
@@ -17,6 +18,7 @@ export default function HomePage() {
         <Link href="/approach" className="rounded-md border border-border bg-card px-5 py-2.5 text-sm text-foreground">Approach</Link>
       </div>
       <MarketStrip />
+      <BtcFourYearChart />
     </div>
   );
 }
