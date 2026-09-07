@@ -15,6 +15,9 @@ export function Footer() {
           <p>Adirindin Finance — educational content only.</p>
         </div>
         <div className="flex flex-wrap gap-3">
+          <Link href="/portfolio" className="hover:text-accent">
+            Portfolio
+          </Link>
           <Link href="/dashboard" className="hover:text-accent">
             Cycle desk
           </Link>
