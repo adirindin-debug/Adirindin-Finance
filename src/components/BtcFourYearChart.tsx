@@ -1,49 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const CB = "https://api.exchange.coinbase.com";
-const PLOTLY_CDN = "https://cdn.plot.ly/plotly-2.35.2.min.js";
 
 type Point = { t: number; c: number };
-
-declare global {
-  interface Window {
-    Plotly?: {
-      newPlot: (
-        el: HTMLElement,
-        data: unknown[],
-        layout: Record<string, unknown>,
-        config?: Record<string, unknown>,
-      ) => Promise<unknown>;
-      purge?: (el: HTMLElement) => void;
-    };
-  }
-}
-
-let plotlyLoading: Promise<void> | null = null;
-
-function loadPlotly(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (window.Plotly) return Promise.resolve();
-  if (plotlyLoading) return plotlyLoading;
-  plotlyLoading = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>(`script[src="${PLOTLY_CDN}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Plotly script failed")));
-      if (window.Plotly) resolve();
-      return;
-    }
-    const s = document.createElement("script");
-    s.src = PLOTLY_CDN;
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Plotly CDN blocked"));
-    document.head.appendChild(s);
-  });
-  return plotlyLoading;
-}
 
 async function fetchJson(url: string) {
   const r = await fetch(url);
@@ -66,7 +27,6 @@ async function fetchDailyCloses(daysBack: number): Promise<Point[]> {
     }
   }
   out.sort((a, b) => a.t - b.t);
-  // de-dupe by timestamp
   const seen = new Set<number>();
   return out.filter((p) => {
     if (seen.has(p.t)) return false;
@@ -75,84 +35,95 @@ async function fetchDailyCloses(daysBack: number): Promise<Point[]> {
   });
 }
 
+function fmtUsd(n: number) {
+  return n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
+}
+
+function fmtDate(ts: number) {
+  return new Date(ts * 1000).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+  });
+}
+
+const W = 920;
+const H = 380;
+const PAD = { top: 28, right: 24, bottom: 40, left: 64 };
+
+function buildPath(points: Point[]): { d: string; minC: number; maxC: number; minT: number; maxT: number } {
+  const minT = points[0].t;
+  const maxT = points[points.length - 1].t;
+  let minC = points[0].c;
+  let maxC = points[0].c;
+  for (const p of points) {
+    if (p.c < minC) minC = p.c;
+    if (p.c > maxC) maxC = p.c;
+  }
+  const padY = (maxC - minC) * 0.06 || maxC * 0.02;
+  const y0 = minC - padY;
+  const y1 = maxC + padY;
+  const iw = W - PAD.left - PAD.right;
+  const ih = H - PAD.top - PAD.bottom;
+  const xScale = (t: number) => PAD.left + ((t - minT) / (maxT - minT || 1)) * iw;
+  const yScale = (c: number) => PAD.top + (1 - (c - y0) / (y1 - y0 || 1)) * ih;
+
+  let d = "";
+  points.forEach((p, i) => {
+    const x = xScale(p.t);
+    const y = yScale(p.c);
+    d += i === 0 ? `M ${x.toFixed(2)} ${y.toFixed(2)}` : ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
+  });
+  return { d, minC: y0, maxC: y1, minT, maxT };
+}
+
 export function BtcFourYearChart() {
-  const elRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [points, setPoints] = useState<Point[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    const el = elRef.current;
-    if (!el) return;
-
     (async () => {
       try {
         setStatus("loading");
-        const [, points] = await Promise.all([loadPlotly(), fetchDailyCloses(365 * 4 + 30)]);
+        setError(null);
+        const data = await fetchDailyCloses(365 * 4 + 30);
         if (cancelled) return;
-        if (!window.Plotly) throw new Error("Plotly unavailable");
-        if (!points.length) throw new Error("No candle data");
-
-        const x = points.map((p) => new Date(p.t * 1000).toISOString().slice(0, 10));
-        const y = points.map((p) => p.c);
-
-        await window.Plotly.newPlot(
-          el,
-          [
-            {
-              x,
-              y,
-              type: "scatter",
-              mode: "lines",
-              line: { color: "#4c9fff", width: 1.6 },
-              hovertemplate: "%{x}<br>$%{y:,.0f}<extra></extra>",
-            },
-          ],
-          {
-            title: {
-              text: "BTC 4-year view",
-              font: { color: "#e8eef7", size: 16, family: "system-ui, sans-serif" },
-              x: 0,
-              xanchor: "left",
-            },
-            paper_bgcolor: "#000000",
-            plot_bgcolor: "#000000",
-            margin: { l: 56, r: 20, t: 48, b: 40 },
-            font: { color: "#8b9bb4", family: "system-ui, sans-serif", size: 11 },
-            xaxis: {
-              gridcolor: "#1a1a1a",
-              zeroline: false,
-              showline: false,
-            },
-            yaxis: {
-              gridcolor: "#1a1a1a",
-              zeroline: false,
-              tickprefix: "$",
-              separatethousands: true,
-            },
-            showlegend: false,
-          },
-          { responsive: true, displayModeBar: false },
-        );
-        if (!cancelled) setStatus("ready");
+        if (!data.length) throw new Error("No candle data");
+        setPoints(data);
+        setStatus("ready");
       } catch (e) {
         if (cancelled) return;
         setStatus("error");
         setError(e instanceof Error ? e.message : "Chart unavailable");
       }
     })();
-
     return () => {
       cancelled = true;
-      if (el && window.Plotly?.purge) {
-        try {
-          window.Plotly.purge(el);
-        } catch {
-          /* ignore */
-        }
-      }
     };
   }, []);
+
+  const chart = useMemo(() => (points.length ? buildPath(points) : null), [points]);
+
+  const yTicks = useMemo(() => {
+    if (!chart) return [];
+    const n = 4;
+    const ticks: number[] = [];
+    for (let i = 0; i <= n; i++) {
+      ticks.push(chart.minC + ((chart.maxC - chart.minC) * i) / n);
+    }
+    return ticks;
+  }, [chart]);
+
+  const xTicks = useMemo(() => {
+    if (!chart || !points.length) return [];
+    const idxs = [0, Math.floor(points.length / 3), Math.floor((2 * points.length) / 3), points.length - 1];
+    return idxs.map((i) => points[i]);
+  }, [chart, points]);
 
   return (
     <section className="mt-12" aria-label="BTC 4-year running chart">
@@ -163,7 +134,13 @@ export function BtcFourYearChart() {
         <p className="text-xs text-muted">Educational overview · not financial advice (NFA)</p>
       </div>
       <div className="overflow-hidden rounded-xl border border-border bg-black">
-        {status === "error" ? (
+        {status === "loading" && (
+          <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
+            <p className="text-sm text-muted">Loading Coinbase daily history…</p>
+            <p className="text-xs text-muted/70">Fetching ~4 years of BTC-USD closes</p>
+          </div>
+        )}
+        {status === "error" && (
           <div className="flex min-h-[320px] items-center justify-center px-4 py-10 text-center">
             <p className="max-w-md text-sm text-muted">
               Could not load the 4-year BTC chart ({error}). Live feed may be blocked — try again later, or open the{" "}
@@ -173,11 +150,79 @@ export function BtcFourYearChart() {
               .
             </p>
           </div>
-        ) : (
-          <div ref={elRef} className="w-full" style={{ height: 380, background: "#000" }} />
         )}
-        {status === "loading" && (
-          <p className="border-t border-border/40 px-4 py-2 text-xs text-muted">Loading Coinbase daily history…</p>
+        {status === "ready" && chart && (
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="block w-full"
+            role="img"
+            aria-label="BTC-USD daily close over approximately four years"
+            style={{ background: "#000", height: 380 }}
+          >
+            <title>BTC 4-year view</title>
+            <text x={PAD.left} y={18} fill="#e8eef7" fontSize="14" fontFamily="system-ui, sans-serif" fontWeight="600">
+              BTC 4-year view
+            </text>
+            {yTicks.map((v) => {
+              const ih = H - PAD.top - PAD.bottom;
+              const y =
+                PAD.top + (1 - (v - chart.minC) / (chart.maxC - chart.minC || 1)) * ih;
+              return (
+                <g key={v}>
+                  <line
+                    x1={PAD.left}
+                    x2={W - PAD.right}
+                    y1={y}
+                    y2={y}
+                    stroke="#1a1a1a"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={PAD.left - 8}
+                    y={y + 3}
+                    fill="#8b9bb4"
+                    fontSize="10"
+                    fontFamily="system-ui, sans-serif"
+                    textAnchor="end"
+                  >
+                    {fmtUsd(v)}
+                  </text>
+                </g>
+              );
+            })}
+            {xTicks.map((p) => {
+              const iw = W - PAD.left - PAD.right;
+              const x =
+                PAD.left +
+                ((p.t - chart.minT) / (chart.maxT - chart.minT || 1)) * iw;
+              return (
+                <text
+                  key={p.t}
+                  x={x}
+                  y={H - 14}
+                  fill="#8b9bb4"
+                  fontSize="10"
+                  fontFamily="system-ui, sans-serif"
+                  textAnchor="middle"
+                >
+                  {fmtDate(p.t)}
+                </text>
+              );
+            })}
+            <path d={chart.d} fill="none" stroke="#4c9fff" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
+            {points.length > 0 && (
+              <text
+                x={W - PAD.right}
+                y={18}
+                fill="#8b9bb4"
+                fontSize="11"
+                fontFamily="system-ui, sans-serif"
+                textAnchor="end"
+              >
+                Last {fmtUsd(points[points.length - 1].c)}
+              </text>
+            )}
+          </svg>
         )}
       </div>
       <p className="mt-2 text-xs text-muted">
