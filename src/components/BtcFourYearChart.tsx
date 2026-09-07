@@ -27,6 +27,8 @@ type ApiPayload = {
   mode?: "rolling" | "cumulative";
   windowDays?: number | null;
   windowSec?: number | null;
+  displayFrom?: number | null;
+  displayTo?: number | null;
   commonStart?: string | null;
   seriesStarts?: Partial<Record<SeriesId, string>>;
   source?: string;
@@ -82,16 +84,62 @@ function rangeFor(points: PctPoint[]) {
   return { min: minPct - padY, max: maxPct + padY };
 }
 
-function buildSharedAxis(series: SeriesPayload[]) {
+/**
+ * Shared x-domain:
+ * - Rolling: API displayFrom/displayTo ([cutoff, now]) — never poisoned by a stray long series
+ * - ALL: earliest series inception → now; each line still starts at its own 0%
+ */
+function resolveXDomain(
+  series: SeriesPayload[],
+  payload: ApiPayload,
+  windowKey: WindowKey,
+): { minT: number; maxT: number } | null {
+  const nowSec =
+    payload.displayTo ??
+    Math.floor(Date.now() / 1000);
+
+  if (windowKey !== "all") {
+    if (
+      payload.displayFrom != null &&
+      Number.isFinite(payload.displayFrom) &&
+      payload.displayFrom < nowSec
+    ) {
+      return { minT: payload.displayFrom, maxT: nowSec };
+    }
+    if (payload.windowSec != null && payload.windowSec > 0) {
+      return { minT: nowSec - payload.windowSec, maxT: nowSec };
+    }
+  }
+
   const allPts = series.flatMap((s) => s.points);
   if (!allPts.length) return null;
-
   let minT = allPts[0].t;
   let maxT = allPts[0].t;
   for (const p of allPts) {
     if (p.t < minT) minT = p.t;
     if (p.t > maxT) maxT = p.t;
   }
+  if (maxT < nowSec) maxT = nowSec;
+  return { minT, maxT };
+}
+
+function buildSharedAxis(
+  series: SeriesPayload[],
+  payload: ApiPayload,
+  windowKey: WindowKey,
+) {
+  const domain = resolveXDomain(series, payload, windowKey);
+  if (!domain) return null;
+  const { minT, maxT } = domain;
+
+  // Only plot points inside the shared domain (per-series; no cross contamination)
+  const clipped = series.map((s) => ({
+    ...s,
+    points: s.points.filter((p) => p.t >= minT && p.t <= maxT),
+  }));
+
+  const allPts = clipped.flatMap((s) => s.points);
+  if (!allPts.length) return null;
 
   const yRange = rangeFor(allPts) ?? { min: 0, max: 100 };
 
@@ -103,7 +151,7 @@ function buildSharedAxis(series: SeriesPayload[]) {
     PAD.top +
     (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
 
-  const paths = series
+  const paths = clipped
     .filter((s) => s.points.length > 1)
     .map((s) => {
       let d = "";
@@ -274,9 +322,9 @@ export function BtcFourYearChart() {
   const chart = useMemo(
     () =>
       payload?.series?.length && chartMode === "line"
-        ? buildSharedAxis(payload.series)
+        ? buildSharedAxis(payload.series, payload, windowKey)
         : null,
-    [payload, chartMode],
+    [payload, chartMode, windowKey],
   );
 
   const barLayout = useMemo(
@@ -296,32 +344,18 @@ export function BtcFourYearChart() {
   );
 
   const xTicks = useMemo(() => {
-    if (!chart || !payload?.series?.length) return [];
-    // For ALL, span the full shared x-axis (minT–maxT) so early equity years show
-    if (windowKey === "all") {
-      const { minT, maxT } = chart;
-      const mid1 = minT + (maxT - minT) / 3;
-      const mid2 = minT + (2 * (maxT - minT)) / 3;
-      return [
-        { t: minT, pct: 0 },
-        { t: mid1, pct: 0 },
-        { t: mid2, pct: 0 },
-        { t: maxT, pct: 0 },
-      ];
-    }
-    const densest = [...payload.series].sort(
-      (a, b) => b.points.length - a.points.length,
-    )[0];
-    if (!densest?.points.length) return [];
-    const pts = densest.points;
-    const idxs = [
-      0,
-      Math.floor(pts.length / 3),
-      Math.floor((2 * pts.length) / 3),
-      pts.length - 1,
+    if (!chart) return [];
+    // Always tick from the shared domain so 1Y never shows 1988 labels
+    const { minT, maxT } = chart;
+    const mid1 = minT + (maxT - minT) / 3;
+    const mid2 = minT + (2 * (maxT - minT)) / 3;
+    return [
+      { t: minT, pct: 0 },
+      { t: mid1, pct: 0 },
+      { t: mid2, pct: 0 },
+      { t: maxT, pct: 0 },
     ];
-    return idxs.map((i) => pts[i]);
-  }, [chart, payload, windowKey]);
+  }, [chart]);
 
   const zeroY = useMemo(() => {
     if (!activeYRange || !activeYScale) return null;
