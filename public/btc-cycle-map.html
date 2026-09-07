@@ -56,6 +56,7 @@
     .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 0; color: var(--muted); font-size: 12px; gap: 10px; flex-wrap: wrap; }
     .panel-head strong { color: var(--text); font-weight: 600; }
     #cycleChart, #moveChart { width: 100%; height: 360px; }
+    #cycleChart { height: 460px; }
     #moveChart { height: 340px; }
     .controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
     .controls button {
@@ -91,7 +92,7 @@
     <header>
       <div>
         <h1>BTC 4-YEAR CYCLE MAP</h1>
-        <div class="sub">Your framework · 4-year tops · ~12-month bears · live price + computed weekly MAs</div>
+        <div class="sub">Full history · cycle tops & bottoms · zoomable · live price + weekly MAs</div>
       </div>
       <div class="meta">
         <div class="brand">@Dirindin533</div>
@@ -123,12 +124,12 @@
       <div class="stat">
         <div class="lbl">Oct 2025 top</div>
         <div class="val" style="color:#ef6b6b">$126.2k</div>
-        <div class="hint">cycle high · framework</div>
+        <div class="hint">projected · framework</div>
       </div>
       <div class="stat">
         <div class="lbl">Low window</div>
-        <div class="val" style="color:#3dcc9a">Oct 26</div>
-        <div class="hint" id="daysLeft">~12-month bear clock</div>
+        <div class="val" style="color:#3dcc9a">Aug 26</div>
+        <div class="hint" id="daysLeft">projected low window</div>
       </div>
       <div class="stat mstr-stat">
         <div class="lbl">MSTR</div>
@@ -140,8 +141,12 @@
     <div class="charts">
       <div class="panel">
         <div class="panel-head">
-          <div><strong>Full cycle</strong> · log scale</div>
+          <div><strong>Full cycle map</strong> · tops &amp; bottoms · scroll/drag to zoom</div>
           <div class="controls">
+            <button type="button" data-xrange="all" class="on">All</button>
+            <button type="button" data-xrange="2017">2017+</button>
+            <button type="button" data-xrange="4y">4Y</button>
+            <button type="button" data-xrange="reset">Reset</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
             <button id="btnLog" class="on" type="button">Log</button>
             <button id="btnLin" type="button">Linear</button>
@@ -164,8 +169,8 @@
       </div>
     </div>
     <footer>
-      <div class="read">Read: 4-year cycle still the base case. Oct-25 top → ~12-month bear window into Oct-26. $70k was mid-range and is gone. The 50-week MA is the line that decides bounce vs trend. MSTR is a leveraged BTC proxy, not a second cycle clock — use the overlay to see whether the equity is tracking or overshooting the coin.</div>
-      Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. BTC from Coinbase / Kraken. MSTR is baked into this file (split-adjusted through 26 Aug 2026) so Safari / local files still draw. Live Yahoo is used only when the browser allows it. MAs are simple weekly closes.
+      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 / Oct 2025 tops; Dec 2010 / Jan 2012 / Jan 2015 / Dec 2018 / Jan 2023 / Aug 2026 lows). Projected markers are dashed and labelled ?. Scroll-wheel or drag to zoom; use All / 2017+ / 4Y / Reset. MSTR overlay is optional. Educational only — NFA.</div>
+      Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. Early BTC weekly (~2010–2013) embedded from blockchain.info market-price; live weekly from Kraken, daily/spot from Coinbase/Kraken. MSTR is baked into this file (split-adjusted through 26 Aug 2026) so Safari / local files still draw. Live Yahoo is used only when the browser allows it. MAs are simple weekly closes.
     </footer>
   </div>
   <script>
@@ -177,14 +182,29 @@
     const FRAMEWORK = {
       handle: "@Dirindin533",
       oct2025Top: 126198,
-      oct2025TopDate: "2025-10-06",
-      projectedLow: "2026-10-15",
+      oct2025TopDate: "2025-10-01",
+      projectedLow: "2026-08-01",
       juneWashout: 59000,
       midBull: 70000,
       pinMa50: null,
       pinMa200: null,
       mstrTreasury: "2020-08-11",
     };
+    /* Cycle tops/bottoms from Anthony TradingView map (tops+bottoms only). */
+    const CYCLE_EVENTS = [
+      { t: "2010-12-15", y: 0.23, name: "DEC 2010 LOW", kind: "low", color: "#3dcc9a", projected: false },
+      { t: "2012-01-15", y: 5.5, name: "JAN 2012 LOW", kind: "low", color: "#d7e2f0", projected: false },
+      { t: "2013-11-30", y: 1134, name: "NOV 2013 TOP", kind: "top", color: "#ef6b6b", projected: false },
+      { t: "2015-01-14", y: 172, name: "JAN 2015 LOW", kind: "low", color: "#3dcc9a", projected: false },
+      { t: "2017-12-17", y: 19783, name: "DEC 2017 TOP", kind: "top", color: "#ef6b6b", projected: false },
+      { t: "2018-12-15", y: 3236, name: "DEC 2018 LOW", kind: "low", color: "#3dcc9a", projected: false },
+      { t: "2021-11-10", y: 69000, name: "NOV 2021 TOP", kind: "top", color: "#ef6b6b", projected: false },
+      { t: "2023-01-15", y: 16600, name: "JAN 2023 LOW", kind: "low", color: "#3dcc9a", projected: false },
+      { t: "2025-10-01", y: 126198, name: "OCT 2025 TOP ?", kind: "top", color: "#ef6b6b", projected: true },
+      { t: "2026-08-01", y: 45000, name: "AUG 2026 LOW ?", kind: "low", color: "#3dcc9a", projected: true },
+    ];
+    /* Weekly closes ~2010–Oct 2013 (blockchain.info market-price, sampled weekly). Merged under live Kraken. */
+    const EARLY_BTC_WEEKLY = [["2010-08-18",0.07],["2010-08-25",0.07],["2010-09-01",0.06],["2010-09-08",0.06],["2010-09-15",0.09],["2010-09-22",0.06],["2010-09-29",0.06],["2010-10-06",0.06],["2010-10-13",0.1],["2010-10-20",0.1],["2010-10-27",0.19],["2010-11-03",0.21],["2010-11-10",0.32],["2010-11-17",0.28],["2010-11-24",0.29],["2010-12-01",0.26],["2010-12-08",0.23],["2010-12-15",0.23],["2010-12-22",0.27],["2010-12-29",0.29],["2011-01-05",0.3],["2011-01-12",0.33],["2011-01-19",0.38],["2011-01-26",0.43],["2011-02-02",0.92],["2011-02-09",0.91],["2011-02-16",1.08],["2011-02-23",0.89],["2011-03-02",0.97],["2011-03-09",0.9],["2011-03-16",0.9],["2011-03-23",0.81],["2011-03-30",0.8],["2011-04-06",0.72],["2011-04-13",0.92],["2011-04-20",1.19],["2011-04-27",1.78],["2011-05-04",3.51],["2011-05-11",5.41],["2011-05-18",8.27],["2011-05-25",7.27],["2011-06-01",9.47],["2011-06-08",22.14],["2011-06-15",20.75],["2011-06-22",15.39],["2011-06-29",17.47],["2011-07-06",15.36],["2011-07-13",14.52],["2011-07-20",14.54],["2011-07-27",14.34],["2011-08-03",13.37],["2011-08-10",11.76],["2011-08-17",11.36],["2011-08-24",11.47],["2011-08-31",9.11],["2011-09-07",7.64],["2011-09-14",6.19],["2011-09-21",6.67],["2011-09-28",5.1],["2011-10-05",5.03],["2011-10-12",4.16],["2011-10-19",2.84],["2011-10-26",3.0],["2011-11-02",3.37],["2011-11-09",3.19],["2011-11-16",2.67],["2011-11-23",2.36],["2011-11-30",2.98],["2011-12-07",3.06],["2011-12-14",3.29],["2011-12-21",4.41],["2011-12-28",4.09],["2012-01-04",5.37],["2012-01-11",6.95],["2012-01-18",6.97],["2012-01-25",6.5],["2012-02-01",5.65],["2012-02-08",5.74],["2012-02-15",5.43],["2012-02-22",4.46],["2012-02-29",4.98],["2012-03-07",5.05],["2012-03-14",5.42],["2012-03-21",4.95],["2012-03-28",4.77],["2012-04-04",5.0],["2012-04-11",4.9],["2012-04-18",5.06],["2012-04-25",5.19],["2012-05-02",5.04],["2012-05-09",5.1],["2012-05-16",5.09],["2012-05-23",5.13],["2012-05-30",5.16],["2012-06-06",5.49],["2012-06-13",5.76],["2012-06-20",6.56],["2012-06-27",6.48],["2012-07-04",6.71],["2012-07-11",7.24],["2012-07-18",9.47],["2012-07-25",8.91],["2012-08-01",9.46],["2012-08-08",11.07],["2012-08-15",12.3],["2012-08-22",10.29],["2012-08-29",11.34],["2012-09-05",10.59],["2012-09-12",11.24],["2012-09-19",12.21],["2012-09-26",12.24],["2012-10-03",12.88],["2012-10-10",12.3],["2012-10-17",11.99],["2012-10-24",11.96],["2012-10-31",10.92],["2012-11-07",10.97],["2012-11-14",11.11],["2012-11-21",11.83],["2012-11-28",12.5],["2012-12-05",13.09],["2012-12-12",13.64],["2012-12-19",13.4],["2012-12-26",13.44],["2013-01-02",13.52],["2013-01-09",13.84],["2013-01-16",14.53],["2013-01-23",17.59],["2013-01-30",19.78],["2013-02-06",20.92],["2013-02-13",25.15],["2013-02-20",29.48],["2013-02-27",31.2],["2013-03-06",40.65],["2013-03-13",44.32],["2013-03-20",59.53],["2013-03-27",78.79],["2013-04-03",117.34],["2013-04-10",231.05],["2013-04-17",68.0],["2013-04-24",142.5],["2013-05-01",139.0],["2013-05-08",111.7],["2013-05-15",112.0],["2013-05-22",122.7],["2013-05-29",129.0],["2013-06-05",121.42],["2013-06-12",109.0],["2013-06-19",107.39],["2013-06-26",103.89],["2013-07-03",91.05],["2013-07-10",76.7],["2013-07-17",97.05],["2013-07-24",95.56],["2013-07-31",107.8],["2013-08-07",106.56],["2013-08-14",109.35],["2013-08-21",104.88],["2013-08-28",117.72],["2013-09-04",129.13],["2013-09-11",122.02],["2013-09-18",139.15],["2013-09-25",123.75],["2013-10-02",127.54]];
     const EMBEDDED_MSTR = {
       asOf: "2026-08-27",
       last: 137.40,
@@ -218,6 +238,7 @@
       ma50: null,
       ma200: null,
       logScale: true,
+      xRangeMode: "all",
       moveDays: 120,
       live: false,
       showMstr: storageGet(STORE_MSTR) === "1",
@@ -319,13 +340,36 @@
         return Number(row.c[0]);
       }
     }
+    function unpackEarlyWeekly() {
+      return EARLY_BTC_WEEKLY.map(function (row) {
+        return { t: new Date(row[0] + "T00:00:00Z"), o: row[1], h: row[1], l: row[1], c: row[1] };
+      });
+    }
+    function mergeWeekly(early, live) {
+      const out = early.slice();
+      const seen = new Set(early.map(function (r) { return r.t.toISOString().slice(0, 10); }));
+      for (let i = 0; i < live.length; i++) {
+        const key = live[i].t.toISOString().slice(0, 10);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(live[i]);
+      }
+      out.sort(function (a, b) { return a.t - b.t; });
+      return out;
+    }
     async function fetchWeekly() {
-      const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=10080");
-      const key = Object.keys(j.result).find((k) => k !== "last");
-      return j.result[key].map((r) => ({
-        t: new Date(r[0] * 1000),
-        o: +r[1], h: +r[2], l: +r[3], c: +r[4],
-      }));
+      const early = unpackEarlyWeekly();
+      try {
+        const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=10080");
+        const key = Object.keys(j.result).find((k) => k !== "last");
+        const live = j.result[key].map((r) => ({
+          t: new Date(r[0] * 1000),
+          o: +r[1], h: +r[2], l: +r[3], c: +r[4],
+        }));
+        return mergeWeekly(early, live);
+      } catch (e) {
+        return early;
+      }
     }
     async function fetchDaily() {
       const end = new Date();
@@ -416,36 +460,42 @@
         title: { text: "MSTR", font: { size: 10, color: COL.mstr }, standoff: 6 },
       };
     }
+    function cycleXRange() {
+      const future = new Date("2027-01-01T00:00:00Z");
+      const first = state.weekly.length ? state.weekly[0].t : new Date("2010-08-01T00:00:00Z");
+      const mode = state.xRangeMode || "all";
+      if (mode === "2017") return [new Date("2017-01-01T00:00:00Z"), future];
+      if (mode === "4y") return [new Date(Date.now() - 4 * 365.25 * 86400000), future];
+      return [first, future];
+    }
     function drawCycle() {
       const w = state.weekly;
       if (!w.length) return;
       const x = w.map((d) => d.t);
       const y = w.map((d) => d.c);
-      const future = new Date("2027-01-01T00:00:00Z");
       const overlay = state.showMstr && state.mstrWeekly.length;
-      const events = [
-        { t: "2017-12-17", y: 19783, name: "2017 TOP", color: COL.red },
-        { t: "2018-12-15", y: 3236, name: "2018 LOW", color: COL.green },
-        { t: "2021-11-10", y: 69000, name: "2021 TOP", color: COL.red },
-        { t: "2022-11-21", y: 15500, name: "2022 LOW", color: COL.green },
-        { t: FRAMEWORK.oct2025TopDate, y: FRAMEWORK.oct2025Top, name: "OCT 2025 TOP", color: COL.red },
-      ];
+      const events = CYCLE_EVENTS;
       const traces = [
         {
           type: "scatter", mode: "lines",
           x, y, name: "BTC weekly",
           line: { color: COL.line, width: 2 },
-          hovertemplate: "%{x|%b %Y}<br>BTC $%{y:,.0f}<extra></extra>",
+          hovertemplate: "%{x|%b %Y}<br>BTC $%{y:,.2f}<extra></extra>",
         },
         {
           type: "scatter", mode: "markers+text",
           x: events.map((e) => e.t),
-          y: events.map((e) => e.y),
+          y: events.map((e) => Math.max(e.y, 0.05)),
           text: events.map((e) => e.name),
-          textposition: ["top center", "bottom center", "top center", "bottom center", "top right"],
-          textfont: { size: 10, color: events.map((e) => e.color) },
-          marker: { size: 8, color: events.map((e) => e.color), line: { color: "#07101c", width: 1 } },
-          hovertemplate: "%{text}<br>%{x|%b %Y}<br>$%{y:,.0f}<extra></extra>",
+          textposition: events.map((e) => e.kind === "top" ? "top center" : "bottom center"),
+          textfont: { size: 9, color: events.map((e) => e.color) },
+          marker: {
+            size: events.map((e) => e.projected ? 9 : 8),
+            color: events.map((e) => e.color),
+            symbol: events.map((e) => e.projected ? "diamond" : "circle"),
+            line: { color: "#07101c", width: 1 },
+          },
+          hovertemplate: "%{text}<br>%{x|%b %Y}<br>$%{y:,.2f}<extra></extra>",
         },
       ];
       if (overlay) traces.push(mstrTrace(state.mstrWeekly, "MSTR weekly"));
@@ -460,45 +510,56 @@
           hovertemplate: "BTC NOW<br>$%{y:,.0f}<extra></extra>",
         });
       }
-      const shapes = [
-        vline("2017-12-17", COL.red),
-        vline("2018-12-15", COL.green),
-        vline("2021-11-10", COL.red),
-        vline("2022-11-21", COL.green),
-        vline(FRAMEWORK.oct2025TopDate, COL.red),
-        vline(FRAMEWORK.projectedLow, COL.green, "dash", 1.6),
-      ];
+      const shapes = events.map(function (e) {
+        return vline(e.t, e.color, e.projected ? "dash" : "solid", e.projected ? 1.7 : 1.35);
+      });
       const annotations = [
         {
-          x: FRAMEWORK.projectedLow, y: 0.08, yref: "paper",
-          text: "PROJECTED LOW<br>WINDOW  Oct 26",
+          x: FRAMEWORK.projectedLow, y: 0.06, yref: "paper",
+          text: "PROJECTED LOW WINDOW<br>Aug 2026  ?",
           showarrow: false, xanchor: "left", xshift: 6,
           font: { size: 10, color: COL.green },
           align: "left",
+        },
+        {
+          x: FRAMEWORK.oct2025TopDate, y: 0.94, yref: "paper",
+          text: "PROJECTED TOP<br>Oct 2025  ?",
+          showarrow: false, xanchor: "right", xshift: -6,
+          font: { size: 10, color: COL.red },
+          align: "right",
         },
       ];
       if (overlay) {
         shapes.push(vline(FRAMEWORK.mstrTreasury, "rgba(240,163,107,0.55)", "dot", 1.2));
         annotations.push({
-          x: FRAMEWORK.mstrTreasury, y: 0.92, yref: "paper",
+          x: FRAMEWORK.mstrTreasury, y: 0.88, yref: "paper",
           text: "MSTR treasury",
           showarrow: false, xanchor: "left", xshift: 6,
           font: { size: 10, color: COL.mstr },
         });
       }
+      const yminLog = 0.05;
+      const ymaxLog = Math.max(200000, FRAMEWORK.oct2025Top * 1.25, state.price || 0);
       const layout = plotLayout({
+        dragmode: "zoom",
         xaxis: {
-          gridcolor: COL.grid, range: [new Date("2017-01-01"), future],
+          gridcolor: COL.grid,
+          range: cycleXRange(),
+          rangeslider: { visible: false },
           tickfont: { size: 10, color: COL.font },
+          fixedrange: false,
         },
         yaxis: {
           type: state.logScale ? "log" : "linear",
           gridcolor: COL.grid, tickprefix: "$",
           tickfont: { size: 10, color: COL.font },
-          range: state.logScale ? [Math.log10(2000), Math.log10(160000)] : [0, 140000],
+          fixedrange: false,
+          range: state.logScale
+            ? [Math.log10(yminLog), Math.log10(ymaxLog)]
+            : [0, Math.max(160000, state.price || 0, FRAMEWORK.oct2025Top)],
         },
         shapes, annotations,
-        margin: { l: 58, r: overlay ? 64 : 90, t: 10, b: 36 },
+        margin: { l: 62, r: overlay ? 64 : 72, t: 12, b: 40 },
         showlegend: overlay,
         legend: overlay ? {
           x: 0.01, y: 0.98, bgcolor: "rgba(11,21,36,0.7)",
@@ -507,7 +568,13 @@
         } : undefined,
       });
       if (overlay) layout.yaxis2 = yaxis2(state.logScale);
-      Plotly.react("cycleChart", traces, layout, { responsive: true, displayModeBar: false });
+      Plotly.react("cycleChart", traces, layout, {
+        responsive: true,
+        displayModeBar: true,
+        displaylogo: false,
+        scrollZoom: true,
+        modeBarButtonsToRemove: ["lasso2d", "select2d", "autoScale2d"],
+      });
     }
     function drawMove() {
       const d = state.daily;
@@ -586,7 +653,7 @@
         } : undefined,
       });
       if (overlay) layout.yaxis2 = yaxis2(false);
-      Plotly.react("moveChart", traces, layout, { responsive: true, displayModeBar: false });
+      Plotly.react("moveChart", traces, layout, { responsive: true, displayModeBar: true, displaylogo: false, scrollZoom: true, modeBarButtonsToRemove: ["lasso2d", "select2d"] });
     }
     function mstrVsBtcHint() {
       if (!state.showMstr) return "Strategy Inc · tap overlay";
@@ -695,6 +762,18 @@
     }
     $("btnLog").onclick = () => { state.logScale = true; $("btnLog").classList.add("on"); $("btnLin").classList.remove("on"); drawCycle(); };
     $("btnLin").onclick = () => { state.logScale = false; $("btnLin").classList.add("on"); $("btnLog").classList.remove("on"); drawCycle(); };
+    document.querySelectorAll("[data-xrange]").forEach((btn) => {
+      btn.onclick = () => {
+        document.querySelectorAll("[data-xrange]").forEach((b) => b.classList.remove("on"));
+        btn.classList.add("on");
+        const mode = btn.dataset.xrange;
+        state.xRangeMode = mode === "reset" ? "all" : mode;
+        if (mode === "reset") {
+          document.querySelectorAll("[data-xrange]").forEach((b) => b.classList.toggle("on", b.dataset.xrange === "all"));
+        }
+        drawCycle();
+      };
+    });
     document.querySelectorAll("[data-days]").forEach((btn) => {
       btn.onclick = () => {
         document.querySelectorAll("[data-days]").forEach((b) => b.classList.remove("on"));
