@@ -18,6 +18,9 @@ export function Footer() {
           <Link href="/portfolio" className="hover:text-accent">
             Portfolio
           </Link>
+          <Link href="/charts" className="hover:text-accent">
+            Charts
+          </Link>
           <Link href="/dashboard/btc-cycle" className="hover:text-accent">
             Cycle map
           </Link>

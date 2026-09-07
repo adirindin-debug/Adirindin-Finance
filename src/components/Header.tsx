@@ -5,6 +5,7 @@ const nav = [
   { href: "/", label: "Home" },
   { href: "/research", label: "Research" },
   { href: "/portfolio", label: "Portfolio" },
+  { href: "/charts", label: "Charts" },
   { href: "/dashboard/btc-cycle", label: "Cycle map" },
   { href: "/tools/real-estate-cycle", label: "RE cycle" },
   { href: "/contact", label: "Contact" },
