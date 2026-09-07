@@ -26,10 +26,7 @@ type ApiPayload = {
   asOf?: string;
 };
 
-const SERIES_STYLE: Record<
-  SeriesId,
-  { color: string; short: string }
-> = {
+const SERIES_STYLE: Record<SeriesId, { color: string; short: string }> = {
   btc: { color: "#f7931a", short: "BTC" },
   ndx: { color: "#4c9fff", short: "NDX" },
   spx: { color: "#3dcc9a", short: "SPX" },
@@ -37,8 +34,8 @@ const SERIES_STYLE: Record<
 };
 
 const W = 920;
-const H = 400;
-const PAD = { top: 36, right: 28, bottom: 44, left: 56 };
+const H = 420;
+const PAD = { top: 40, right: 58, bottom: 48, left: 58 };
 
 function fmtPct(n: number, digits = 1) {
   const sign = n > 0 ? "+" : "";
@@ -52,53 +49,73 @@ function fmtDate(ts: number) {
   });
 }
 
-function buildMultiPath(
-  series: SeriesPayload[],
-): {
-  paths: { id: SeriesId; d: string; color: string }[];
-  minPct: number;
-  maxPct: number;
-  minT: number;
-  maxT: number;
-} | null {
-  const all = series.flatMap((s) => s.points);
-  if (!all.length) return null;
-
-  let minT = all[0].t;
-  let maxT = all[0].t;
-  let minPct = all[0].pct;
-  let maxPct = all[0].pct;
-  for (const p of all) {
-    if (p.t < minT) minT = p.t;
-    if (p.t > maxT) maxT = p.t;
+function rangeFor(points: PctPoint[]) {
+  if (!points.length) return null;
+  let minPct = points[0].pct;
+  let maxPct = points[0].pct;
+  for (const p of points) {
     if (p.pct < minPct) minPct = p.pct;
     if (p.pct > maxPct) maxPct = p.pct;
   }
-  // Include zero baseline in range when nearby
   if (minPct > 0) minPct = 0;
   if (maxPct < 0) maxPct = 0;
+  const padY = Math.max((maxPct - minPct) * 0.08, 8);
+  return { min: minPct - padY, max: maxPct + padY };
+}
 
-  const padY = Math.max((maxPct - minPct) * 0.08, 5);
-  const y0 = minPct - padY;
-  const y1 = maxPct + padY;
+function buildDualAxis(series: SeriesPayload[]) {
+  const btc = series.find((s) => s.id === "btc");
+  const equities = series.filter((s) => s.id !== "btc");
+  const allPts = series.flatMap((s) => s.points);
+  if (!allPts.length) return null;
+
+  let minT = allPts[0].t;
+  let maxT = allPts[0].t;
+  for (const p of allPts) {
+    if (p.t < minT) minT = p.t;
+    if (p.t > maxT) maxT = p.t;
+  }
+
+  const leftRange = rangeFor(btc?.points ?? []) ?? { min: 0, max: 100 };
+  const rightRange = rangeFor(equities.flatMap((s) => s.points)) ?? {
+    min: 0,
+    max: 100,
+  };
+
   const iw = W - PAD.left - PAD.right;
   const ih = H - PAD.top - PAD.bottom;
-  const xScale = (t: number) => PAD.left + ((t - minT) / (maxT - minT || 1)) * iw;
-  const yScale = (pct: number) => PAD.top + (1 - (pct - y0) / (y1 - y0 || 1)) * ih;
+  const xScale = (t: number) =>
+    PAD.left + ((t - minT) / (maxT - minT || 1)) * iw;
+  const yLeft = (pct: number) =>
+    PAD.top +
+    (1 - (pct - leftRange.min) / (leftRange.max - leftRange.min || 1)) * ih;
+  const yRight = (pct: number) =>
+    PAD.top +
+    (1 - (pct - rightRange.min) / (rightRange.max - rightRange.min || 1)) * ih;
 
   const paths = series
     .filter((s) => s.points.length > 1)
     .map((s) => {
+      const yScale = s.id === "btc" ? yLeft : yRight;
       let d = "";
       s.points.forEach((p, i) => {
         const x = xScale(p.t);
         const y = yScale(p.pct);
-        d += i === 0 ? `M ${x.toFixed(2)} ${y.toFixed(2)}` : ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
+        d +=
+          i === 0
+            ? `M ${x.toFixed(2)} ${y.toFixed(2)}`
+            : ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
       });
-      return { id: s.id, d, color: SERIES_STYLE[s.id].color };
+      return { id: s.id, d, color: SERIES_STYLE[s.id].color, axis: s.id === "btc" ? "left" : "right" };
     });
 
-  return { paths, minPct: y0, maxPct: y1, minT, maxT };
+  return { paths, leftRange, rightRange, minT, maxT, yLeft, yRight, xScale };
+}
+
+function ticks(min: number, max: number, n = 5) {
+  const out: number[] = [];
+  for (let i = 0; i <= n; i++) out.push(min + ((max - min) * i) / n);
+  return out;
 }
 
 export function BtcFourYearChart() {
@@ -132,23 +149,21 @@ export function BtcFourYearChart() {
   }, []);
 
   const chart = useMemo(
-    () => (payload?.series?.length ? buildMultiPath(payload.series) : null),
+    () => (payload?.series?.length ? buildDualAxis(payload.series) : null),
     [payload],
   );
 
-  const yTicks = useMemo(() => {
-    if (!chart) return [];
-    const n = 5;
-    const ticks: number[] = [];
-    for (let i = 0; i <= n; i++) {
-      ticks.push(chart.minPct + ((chart.maxPct - chart.minPct) * i) / n);
-    }
-    return ticks;
-  }, [chart]);
+  const leftTicks = useMemo(
+    () => (chart ? ticks(chart.leftRange.min, chart.leftRange.max) : []),
+    [chart],
+  );
+  const rightTicks = useMemo(
+    () => (chart ? ticks(chart.rightRange.min, chart.rightRange.max) : []),
+    [chart],
+  );
 
   const xTicks = useMemo(() => {
     if (!chart || !payload?.series?.length) return [];
-    // Use densest series for x labels
     const densest = [...payload.series].sort(
       (a, b) => b.points.length - a.points.length,
     )[0];
@@ -163,14 +178,10 @@ export function BtcFourYearChart() {
     return idxs.map((i) => pts[i]);
   }, [chart, payload]);
 
-  const zeroY = useMemo(() => {
+  const zeroLeft = useMemo(() => {
     if (!chart) return null;
-    if (chart.minPct > 0 || chart.maxPct < 0) return null;
-    const ih = H - PAD.top - PAD.bottom;
-    return (
-      PAD.top +
-      (1 - (0 - chart.minPct) / (chart.maxPct - chart.minPct || 1)) * ih
-    );
+    if (chart.leftRange.min > 0 || chart.leftRange.max < 0) return null;
+    return chart.yLeft(0);
   }, [chart]);
 
   return (
@@ -180,7 +191,7 @@ export function BtcFourYearChart() {
           4-year running chart
         </h2>
         <p className="text-xs text-muted">
-          Relative ~4y % gains · educational · NFA
+          Relative ~4y % gains · split scale · educational · NFA
         </p>
       </div>
 
@@ -210,7 +221,10 @@ export function BtcFourYearChart() {
                 >
                   {pct == null ? "—" : fmtPct(pct)}
                 </p>
-                <p className="text-[10px] text-muted">{s.ticker} · current 4y %</p>
+                <p className="text-[10px] text-muted">
+                  {s.ticker} · current 4y %
+                  {s.id === "btc" ? " · left axis" : " · right axis"}
+                </p>
               </div>
             );
           })}
@@ -243,13 +257,13 @@ export function BtcFourYearChart() {
             viewBox={`0 0 ${W} ${H}`}
             className="block w-full"
             role="img"
-            aria-label="Rolling 4-year percentage gains for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries"
-            style={{ background: "#000", height: 400 }}
+            aria-label="Rolling 4-year percentage gains with dual Y-axes: BTC on left, equity indices on right"
+            style={{ background: "#000", height: 420 }}
           >
-            <title>4-year running % gains</title>
+            <title>4-year running % gains (dual axis)</title>
             <text
               x={PAD.left}
-              y={20}
+              y={18}
               fill="#e8eef7"
               fontSize="14"
               fontFamily="system-ui, sans-serif"
@@ -259,42 +273,43 @@ export function BtcFourYearChart() {
             </text>
             <text
               x={W - PAD.right}
-              y={18}
+              y={16}
               fill="#8b9bb4"
               fontSize="10"
               fontFamily="system-ui, sans-serif"
               textAnchor="end"
             >
-              Trailing ~{payload?.windowDays ?? 1461}d return · not price levels
+              Dual axis · trailing ~{payload?.windowDays ?? 1461}d · not price levels
             </text>
 
-            {/* Legend */}
-            {payload?.series?.map((s, i) => {
-              const style = SERIES_STYLE[s.id];
-              const x = PAD.left + i * 150;
-              return (
-                <g key={s.id} transform={`translate(${x}, ${H - 16})`}>
-                  <line x1={0} y1={-3} x2={16} y2={-3} stroke={style.color} strokeWidth="2.5" />
-                  <text
-                    x={22}
-                    y={0}
-                    fill="#c8d0dc"
-                    fontSize="10"
-                    fontFamily="system-ui, sans-serif"
-                  >
-                    {style.short} ({s.ticker})
-                  </text>
-                </g>
-              );
-            })}
+            {/* Axis captions */}
+            <text
+              x={PAD.left}
+              y={34}
+              fill="#f7931a"
+              fontSize="9"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="600"
+            >
+              BTC % (left)
+            </text>
+            <text
+              x={W - PAD.right}
+              y={34}
+              fill="#8b9bb4"
+              fontSize="9"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="600"
+              textAnchor="end"
+            >
+              Equities % (right)
+            </text>
 
-            {yTicks.map((v) => {
-              const ih = H - PAD.top - PAD.bottom;
-              const y =
-                PAD.top +
-                (1 - (v - chart.minPct) / (chart.maxPct - chart.minPct || 1)) * ih;
+            {/* Left grid + BTC ticks */}
+            {leftTicks.map((v) => {
+              const y = chart.yLeft(v);
               return (
-                <g key={v}>
+                <g key={`L-${v}`}>
                   <line
                     x1={PAD.left}
                     x2={W - PAD.right}
@@ -306,10 +321,11 @@ export function BtcFourYearChart() {
                   <text
                     x={PAD.left - 8}
                     y={y + 3}
-                    fill="#8b9bb4"
+                    fill="#f7931a"
                     fontSize="10"
                     fontFamily="system-ui, sans-serif"
                     textAnchor="end"
+                    opacity="0.9"
                   >
                     {fmtPct(v, 0)}
                   </text>
@@ -317,12 +333,30 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {zeroY != null && (
+            {/* Right equity ticks */}
+            {rightTicks.map((v) => {
+              const y = chart.yRight(v);
+              return (
+                <text
+                  key={`R-${v}`}
+                  x={W - PAD.right + 8}
+                  y={y + 3}
+                  fill="#9eb0c8"
+                  fontSize="10"
+                  fontFamily="system-ui, sans-serif"
+                  textAnchor="start"
+                >
+                  {fmtPct(v, 0)}
+                </text>
+              );
+            })}
+
+            {zeroLeft != null && (
               <line
                 x1={PAD.left}
                 x2={W - PAD.right}
-                y1={zeroY}
-                y2={zeroY}
+                y1={zeroLeft}
+                y2={zeroLeft}
                 stroke="#3a4558"
                 strokeWidth="1"
                 strokeDasharray="4 3"
@@ -330,15 +364,12 @@ export function BtcFourYearChart() {
             )}
 
             {xTicks.map((p) => {
-              const iw = W - PAD.left - PAD.right;
-              const x =
-                PAD.left +
-                ((p.t - chart.minT) / (chart.maxT - chart.minT || 1)) * iw;
+              const x = chart.xScale(p.t);
               return (
                 <text
                   key={p.t}
                   x={x}
-                  y={H - 28}
+                  y={H - 30}
                   fill="#8b9bb4"
                   fontSize="10"
                   fontFamily="system-ui, sans-serif"
@@ -349,25 +380,72 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {chart.paths.map((p) => (
-              <path
-                key={p.id}
-                d={p.d}
-                fill="none"
-                stroke={p.color}
-                strokeWidth="1.9"
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
-            ))}
+            {/* Legend */}
+            {payload?.series?.map((s, i) => {
+              const style = SERIES_STYLE[s.id];
+              const x = PAD.left + i * 155;
+              return (
+                <g key={s.id} transform={`translate(${x}, ${H - 12})`}>
+                  <line
+                    x1={0}
+                    y1={-3}
+                    x2={16}
+                    y2={-3}
+                    stroke={style.color}
+                    strokeWidth="2.5"
+                  />
+                  <text
+                    x={22}
+                    y={0}
+                    fill="#c8d0dc"
+                    fontSize="10"
+                    fontFamily="system-ui, sans-serif"
+                  >
+                    {style.short} ({s.ticker})
+                    {s.id === "btc" ? " L" : " R"}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Draw equities first (under), BTC on top */}
+            {chart.paths
+              .filter((p) => p.id !== "btc")
+              .map((p) => (
+                <path
+                  key={p.id}
+                  d={p.d}
+                  fill="none"
+                  stroke={p.color}
+                  strokeWidth="2"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ))}
+            {chart.paths
+              .filter((p) => p.id === "btc")
+              .map((p) => (
+                <path
+                  key={p.id}
+                  d={p.d}
+                  fill="none"
+                  stroke={p.color}
+                  strokeWidth="2.1"
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ))}
           </svg>
         )}
       </div>
       <p className="mt-2 text-xs text-muted">
         Educational compare of rolling ~4-year percentage returns (same ~1461 calendar-day
-        lookback for each series) — not absolute price levels. Data via Yahoo Finance chart
-        API: BTC-USD, ^NDX (Nasdaq 100), ^GSPC (S&amp;P 500), ^AORD (All Ordinaries). Partial
-        series may appear if one feed fails. For the full BTC+MSTR cycle desk, open{" "}
+        lookback for each series) — not absolute price levels.{" "}
+        <strong className="font-medium text-muted">Dual Y-axis:</strong> BTC on the left scale,
+        Nasdaq 100 / S&amp;P 500 / All Ords share the right scale so equity moves stay readable
+        beside BTC&apos;s larger % swings. Data via Yahoo Finance chart API: BTC-USD, ^NDX,
+        ^GSPC, ^AORD. Partial series may appear if one feed fails. For the full BTC+MSTR cycle
+        desk, open{" "}
         <a href="/dashboard" className="text-accent hover:underline">
           Cycle desk
         </a>

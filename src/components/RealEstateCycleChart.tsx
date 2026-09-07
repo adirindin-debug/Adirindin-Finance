@@ -20,25 +20,25 @@ type YearStack = {
  * high major peak → clear proportional drawdown → lift into next recovery.
  */
 const POINTS = [
-  { id: "recovery", x: 68, y: 295 },
-  { id: "midPeak", x: 190, y: 172 },
-  { id: "midSlow", x: 265, y: 218 },
+  { id: "recovery", x: 88, y: 305 },
+  { id: "midPeak", x: 210, y: 182 },
+  { id: "midSlow", x: 285, y: 228 },
   /** Land boom — still mid-ascent; leave room for a steeper final leg into the peak */
-  { id: "landBoom", x: 412, y: 138 },
+  { id: "landBoom", x: 430, y: 148 },
   /** Major peak — high so the post-2024 land-boom upswing dominates */
-  { id: "peak", x: 588, y: 38 },
+  { id: "peak", x: 610, y: 42 },
   /** Clear decline, trough near mid-slowdown depth (not below recovery) */
-  { id: "downturn", x: 658, y: 220 },
+  { id: "downturn", x: 680, y: 230 },
   /** Gentle lift toward next recovery — similar height to mid-cycle peak */
-  { id: "next", x: 742, y: 172 },
+  { id: "next", x: 760, y: 182 },
 ] as const;
 
 /**
- * Geometry-only inflection after the 2024 Land Boom marker: modest rise, then a
- * clearly steeper (near-parabolic) final upswing into the 2026 major peak — matching
- * the classic diagram silhouette without adding a labeled vertex.
+ * Geometry-only inflection after the 2024 Land Boom marker: hold a modest rise,
+ * then a clearly steeper final upswing into the 2026 major peak — matching the
+ * classic diagram silhouette without adding a labeled vertex.
  */
-const LAND_ACCEL = { x: 502, y: 112 };
+const LAND_ACCEL = { x: 525, y: 128 };
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   recovery: {
@@ -64,8 +64,8 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     emphasize: ["2026"],
     placement: "above",
     /** Sit to the right of the peak so Land Boom label stays clear */
-    dx: 28,
-    dyClear: 8,
+    dx: 30,
+    dyClear: 10,
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
@@ -77,7 +77,7 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     years: ["2030", "2011", "1993", "1974"],
     emphasize: ["2030"],
     placement: "above",
-    dx: 8,
+    dx: 6,
   },
 };
 
@@ -93,6 +93,53 @@ const PATH_VERTS = [
 ] as const;
 
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+/** Framework timeline for NOW placement along landBoom → LAND_ACCEL → peak. */
+const LAND_BOOM_MS = Date.UTC(2024, 0, 1);
+const PEAK_MS = Date.UTC(2026, 11, 31);
+
+function clamp01(n: number) {
+  return Math.max(0, Math.min(1, n));
+}
+
+/** Interpolate along polyline by fraction of cumulative length. */
+function pointAlong(
+  verts: readonly { x: number; y: number }[],
+  fraction: number,
+): { x: number; y: number } {
+  if (verts.length === 0) return { x: 0, y: 0 };
+  if (verts.length === 1) return { x: verts[0].x, y: verts[0].y };
+  const segs: { len: number; ax: number; ay: number; bx: number; by: number }[] = [];
+  let total = 0;
+  for (let i = 0; i < verts.length - 1; i++) {
+    const ax = verts[i].x;
+    const ay = verts[i].y;
+    const bx = verts[i + 1].x;
+    const by = verts[i + 1].y;
+    const len = Math.hypot(bx - ax, by - ay);
+    segs.push({ len, ax, ay, bx, by });
+    total += len;
+  }
+  let remain = clamp01(fraction) * total;
+  for (const s of segs) {
+    if (remain <= s.len || s === segs[segs.length - 1]) {
+      const t = s.len === 0 ? 0 : remain / s.len;
+      return {
+        x: s.ax + (s.bx - s.ax) * t,
+        y: s.ay + (s.by - s.ay) * t,
+      };
+    }
+    remain -= s.len;
+  }
+  const last = verts[verts.length - 1];
+  return { x: last.x, y: last.y };
+}
+
+function nowMarkerPosition(nowMs: number) {
+  const frac = clamp01((nowMs - LAND_BOOM_MS) / (PEAK_MS - LAND_BOOM_MS));
+  const boomPath = [POINTS[3], LAND_ACCEL, POINTS[4]];
+  return { ...pointAlong(boomPath, frac), frac };
+}
 
 function YearColumn({
   x,
@@ -210,12 +257,21 @@ export default function RealEstateCycleChart() {
   const downturn = POINTS[5];
   const next = POINTS[6];
 
+  // Client/server both use "today" — schematic placement on the classic timeline.
+  const nowMs = Date.now();
+  const nowPos = nowMarkerPosition(nowMs);
+  const nowLabel = new Date(nowMs).toLocaleDateString("en-AU", {
+    month: "short",
+    year: "numeric",
+  });
+
   return (
     <svg
-      viewBox="0 0 800 470"
-      className="mt-6 h-auto w-full"
+      viewBox="0 0 840 500"
+      className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years, mid-cycle dip, land boom marker, peak and downturn — educational only, not a forecast"
+      aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years, mid-cycle dip, land boom marker, NOW time marker, peak and downturn — educational only, not a forecast"
+      style={{ overflow: "visible" }}
     >
       <defs>
         <filter id="re-glow" x="-20%" y="-20%" width="140%" height="140%">
@@ -227,11 +283,11 @@ export default function RealEstateCycleChart() {
         </filter>
       </defs>
 
-      <rect width="800" height="470" fill="#0a0a0a" rx="8" />
+      <rect width="840" height="500" fill="#0a0a0a" rx="8" />
 
       <text
-        x="400"
-        y="26"
+        x="420"
+        y="28"
         textAnchor="middle"
         fill="#e8eef4"
         fontSize="16"
@@ -241,8 +297,8 @@ export default function RealEstateCycleChart() {
         18 Year Real Estate Cycle
       </text>
       <text
-        x="400"
-        y="44"
+        x="420"
+        y="46"
         textAnchor="middle"
         fill="#8b9bb4"
         fontSize="10"
@@ -254,32 +310,32 @@ export default function RealEstateCycleChart() {
       {/* Soft 7–7–4 guide bands */}
       <rect
         x={recovery.x}
-        y="52"
+        y="58"
         width={midSlow.x - recovery.x}
-        height="285"
+        height="290"
         fill="#3dcc9a"
         opacity="0.05"
       />
       <rect
         x={midSlow.x}
-        y="52"
+        y="58"
         width={peak.x - midSlow.x}
-        height="285"
+        height="290"
         fill="#d4a017"
         opacity="0.06"
       />
       <rect
         x={peak.x}
-        y="52"
+        y="58"
         width={next.x - peak.x}
-        height="285"
+        height="290"
         fill="#ef6b6b"
         opacity="0.05"
       />
 
       {/* Subtle horizontal grid */}
-      {[80, 120, 160, 200, 240, 280, 320].map((y) => (
-        <line key={y} x1="48" y1={y} x2="752" y2={y} stroke="#1a1a1a" strokeWidth="1" />
+      {[90, 130, 170, 210, 250, 290, 330].map((y) => (
+        <line key={y} x1="56" y1={y} x2="784" y2={y} stroke="#1a1a1a" strokeWidth="1" />
       ))}
 
       {/* Jagged cycle line — straight segments like the classic infographic */}
@@ -341,6 +397,59 @@ export default function RealEstateCycleChart() {
         </text>
       </g>
 
+      {/* NOW marker — schematic date placement on classic 2024→2026 land-boom leg */}
+      <g aria-label={`NOW marker around ${nowLabel} on the classic timeline`}>
+        <line
+          x1={nowPos.x}
+          y1={nowPos.y - 52}
+          x2={nowPos.x}
+          y2={nowPos.y - 10}
+          stroke="#5ec8ff"
+          strokeWidth="1.5"
+          strokeDasharray="3 3"
+        />
+        <circle
+          cx={nowPos.x}
+          cy={nowPos.y}
+          r="6"
+          fill="#0a0a0a"
+          stroke="#5ec8ff"
+          strokeWidth="2.25"
+        />
+        <circle cx={nowPos.x} cy={nowPos.y} r="2.25" fill="#5ec8ff" />
+        <rect
+          x={nowPos.x - 28}
+          y={nowPos.y - 72}
+          width="56"
+          height="18"
+          rx="4"
+          fill="#122033"
+          stroke="#5ec8ff"
+          strokeWidth="1"
+        />
+        <text
+          x={nowPos.x}
+          y={nowPos.y - 59}
+          textAnchor="middle"
+          fill="#5ec8ff"
+          fontSize="11"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="800"
+        >
+          NOW
+        </text>
+        <text
+          x={nowPos.x}
+          y={nowPos.y + 22}
+          textAnchor="middle"
+          fill="#8b9bb4"
+          fontSize="9"
+          fontFamily="system-ui, sans-serif"
+        >
+          {nowLabel} · schematic
+        </text>
+      </g>
+
       {/* Year stacks (land boom year rendered with marker) */}
       {(
         [
@@ -373,7 +482,7 @@ export default function RealEstateCycleChart() {
       {/* Phase labels under the plot */}
       <text
         x={recovery.x}
-        y={378}
+        y={398}
         textAnchor="middle"
         fill="#a8b4c8"
         fontSize="10"
@@ -384,7 +493,7 @@ export default function RealEstateCycleChart() {
       </text>
       <text
         x={midSlow.x}
-        y={378}
+        y={398}
         textAnchor="middle"
         fill="#a8b4c8"
         fontSize="10"
@@ -395,7 +504,7 @@ export default function RealEstateCycleChart() {
       </text>
       <text
         x={downturn.x}
-        y={378}
+        y={398}
         textAnchor="middle"
         fill="#a8b4c8"
         fontSize="10"
@@ -406,19 +515,20 @@ export default function RealEstateCycleChart() {
       </text>
 
       {/* 7 · 7 · 4 span arrows */}
-      <SpanArrow x1={recovery.x} x2={midSlow.x} y={402} label="~7 years" />
-      <SpanArrow x1={midSlow.x} x2={peak.x} y={402} label="~7 years" />
-      <SpanArrow x1={peak.x} x2={next.x} y={402} label="~4 years" />
+      <SpanArrow x1={recovery.x} x2={midSlow.x} y={422} label="~7 years" />
+      <SpanArrow x1={midSlow.x} x2={peak.x} y={422} label="~7 years" />
+      <SpanArrow x1={peak.x} x2={next.x} y={422} label="~4 years" />
 
       <text
-        x="400"
-        y="452"
+        x="420"
+        y="472"
         textAnchor="middle"
         fill="#6b7a90"
         fontSize="9"
         fontFamily="system-ui, sans-serif"
       >
-        Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions
+        Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions.
+        NOW is schematic placement on that timeline, not a forecast.
       </text>
     </svg>
   );
