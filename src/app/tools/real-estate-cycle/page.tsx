@@ -93,32 +93,193 @@ export default function RealEstateCyclePage() {
           <span>Late boom → reset</span>
         </div>
 
-        {/* Lightweight SVG wave — schematic, not price data */}
-        <svg viewBox="0 0 600 120" className="mt-6 h-auto w-full" role="img" aria-label="Schematic cycle wave, not historical prices">
-          <rect width="600" height="120" fill="#0a0a0a" rx="8" />
-          <text x="12" y="18" fill="#8b9bb4" fontSize="10" fontFamily="system-ui">
-            Schematic wave (not returns / not a forecast)
+        {/* Richer schematic cycle chart — educational framing, not price data / not a forecast */}
+        <svg
+          viewBox="0 0 700 260"
+          className="mt-6 h-auto w-full"
+          role="img"
+          aria-label="Schematic 18.6-year real estate cycle chart with phase bands, not historical prices or a forecast"
+        >
+          <defs>
+            <linearGradient id="re-area" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#4c9fff" stopOpacity="0.28" />
+              <stop offset="100%" stopColor="#4c9fff" stopOpacity="0.02" />
+            </linearGradient>
+            <linearGradient id="re-stroke" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#3dcc9a" />
+              <stop offset="22%" stopColor="#3dcc9a" />
+              <stop offset="22%" stopColor="#4c9fff" />
+              <stop offset="54%" stopColor="#4c9fff" />
+              <stop offset="54%" stopColor="#d4a017" />
+              <stop offset="75%" stopColor="#d4a017" />
+              <stop offset="75%" stopColor="#ef6b6b" />
+              <stop offset="100%" stopColor="#ef6b6b" />
+            </linearGradient>
+            <clipPath id="re-plot">
+              <rect x="48" y="36" width="624" height="168" rx="4" />
+            </clipPath>
+          </defs>
+
+          <rect width="700" height="260" fill="#0a0a0a" rx="8" />
+
+          <text x="48" y="22" fill="#8b9bb4" fontSize="11" fontFamily="system-ui">
+            Schematic cycle shape · not returns · not a forecast
           </text>
-          <path
-            d="M20 85 C 80 85, 100 70, 140 55 S 220 25, 280 30 S 360 50, 400 40 S 480 20, 520 55 S 560 90, 580 95"
-            fill="none"
-            stroke="#4c9fff"
-            strokeWidth="2.5"
-          />
-          <line x1="20" y1="100" x2="580" y2="100" stroke="#222" strokeWidth="1" />
+
+          {/* Soft phase background bands (years 0–4 / 4–10 / 10–14 / 14–18.6) */}
+          <g clipPath="url(#re-plot)" opacity="0.9">
+            <rect x="48" y="36" width="133.3" height="168" fill="#3dcc9a" opacity="0.1" />
+            <rect x="181.3" y="36" width="200" height="168" fill="#4c9fff" opacity="0.1" />
+            <rect x="381.3" y="36" width="133.3" height="168" fill="#d4a017" opacity="0.1" />
+            <rect x="514.6" y="36" width="157.4" height="168" fill="#ef6b6b" opacity="0.1" />
+          </g>
+
+          {/* Subtle horizontal grid */}
+          {[60, 95, 130, 165, 200].map((y) => (
+            <line
+              key={y}
+              x1="48"
+              y1={y}
+              x2="672"
+              y2={y}
+              stroke="#1a1a1a"
+              strokeWidth="1"
+            />
+          ))}
+
+          {/* Vertical dashed phase boundaries */}
           {[
-            { x: 90, label: "Recovery" },
-            { x: 230, label: "Upswing" },
-            { x: 400, label: "Late boom" },
-            { x: 530, label: "Reset" },
-          ].map((m) => (
-            <g key={m.label}>
-              <line x1={m.x} y1="28" x2={m.x} y2="100" stroke="#333" strokeDasharray="3 3" />
-              <text x={m.x} y="112" textAnchor="middle" fill="#8b9bb4" fontSize="9" fontFamily="system-ui">
-                {m.label}
+            { x: 181.3, label: "Yr 4" },
+            { x: 381.3, label: "Yr 10" },
+            { x: 514.6, label: "Yr 14" },
+          ].map((b) => (
+            <g key={b.label}>
+              <line
+                x1={b.x}
+                y1="36"
+                x2={b.x}
+                y2="204"
+                stroke="#333"
+                strokeWidth="1"
+                strokeDasharray="4 4"
+              />
+            </g>
+          ))}
+
+          {/* Phase labels along top of plot */}
+          {[
+            { x: 114.65, label: "Recovery", color: "#3dcc9a" },
+            { x: 281.3, label: "Mid upswing", color: "#4c9fff" },
+            { x: 447.95, label: "Late boom", color: "#d4a017" },
+            { x: 593.3, label: "Downturn", color: "#ef6b6b" },
+          ].map((p) => (
+            <text
+              key={p.label}
+              x={p.x}
+              y="50"
+              textAnchor="middle"
+              fill={p.color}
+              fontSize="10"
+              fontFamily="system-ui"
+              fontWeight="600"
+              opacity="0.85"
+            >
+              {p.label}
+            </text>
+          ))}
+
+          {/* Filled area under smooth cycle curve + stronger phase-tinted stroke.
+              Path is a schematic educational shape only — not historical prices. */}
+          <g clipPath="url(#re-plot)">
+            <path
+              d="M48 188
+                 C 90 188, 120 175, 148 155
+                 C 175 135, 200 110, 240 95
+                 C 280 80, 310 72, 340 68
+                 C 370 64, 400 58, 430 52
+                 C 455 47, 475 48, 495 58
+                 C 520 72, 545 105, 575 135
+                 C 605 165, 640 185, 672 190
+                 L 672 204 L 48 204 Z"
+              fill="url(#re-area)"
+            />
+            <path
+              d="M48 188
+                 C 90 188, 120 175, 148 155
+                 C 175 135, 200 110, 240 95
+                 C 280 80, 310 72, 340 68
+                 C 370 64, 400 58, 430 52
+                 C 455 47, 475 48, 495 58
+                 C 520 72, 545 105, 575 135
+                 C 605 165, 640 185, 672 190"
+              fill="none"
+              stroke="url(#re-stroke)"
+              strokeWidth="3.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </g>
+
+          {/* Peak & trough markers */}
+          <g>
+            {/* Start trough */}
+            <circle cx="48" cy="188" r="5" fill="#0a0a0a" stroke="#3dcc9a" strokeWidth="2" />
+            <text x="58" y="198" fill="#a8b4c8" fontSize="9" fontFamily="system-ui">
+              Trough
+            </text>
+            {/* Mid-cycle structure (approaching late boom) */}
+            <circle cx="340" cy="68" r="4" fill="#0a0a0a" stroke="#4c9fff" strokeWidth="1.75" />
+            <text x="340" y="60" textAnchor="middle" fill="#a8b4c8" fontSize="9" fontFamily="system-ui">
+              Mid peak
+            </text>
+            {/* Cycle peak in late boom */}
+            <circle cx="430" cy="52" r="5.5" fill="#0a0a0a" stroke="#d4a017" strokeWidth="2.25" />
+            <text x="430" y="42" textAnchor="middle" fill="#d4a017" fontSize="10" fontFamily="system-ui" fontWeight="600">
+              Peak
+            </text>
+            {/* End trough */}
+            <circle cx="672" cy="190" r="5" fill="#0a0a0a" stroke="#ef6b6b" strokeWidth="2" />
+            <text x="662" y="208" textAnchor="end" fill="#a8b4c8" fontSize="9" fontFamily="system-ui">
+              Trough
+            </text>
+          </g>
+
+          {/* Baseline */}
+          <line x1="48" y1="204" x2="672" y2="204" stroke="#2a2a2a" strokeWidth="1.25" />
+
+          {/* Year axis 0 → 18.6 */}
+          {[
+            { yr: "0", x: 48 },
+            { yr: "4", x: 181.3 },
+            { yr: "8", x: 314.6 },
+            { yr: "10", x: 381.3 },
+            { yr: "14", x: 514.6 },
+            { yr: "18.6", x: 672 },
+          ].map((t) => (
+            <g key={t.yr}>
+              <line x1={t.x} y1="204" x2={t.x} y2="210" stroke="#555" strokeWidth="1" />
+              <text
+                x={t.x}
+                y="224"
+                textAnchor="middle"
+                fill="#8b9bb4"
+                fontSize="10"
+                fontFamily="ui-monospace, monospace"
+              >
+                {t.yr}
               </text>
             </g>
           ))}
+          <text
+            x="360"
+            y="246"
+            textAnchor="middle"
+            fill="#6b7a90"
+            fontSize="10"
+            fontFamily="system-ui"
+          >
+            Cycle years (schematic · ≈ 18.6)
+          </text>
         </svg>
       </div>
 
