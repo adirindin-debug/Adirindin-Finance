@@ -16,22 +16,29 @@ type YearStack = {
 
 /**
  * Vertex coordinates for the jagged educational cycle line (not price data).
- * Classic silhouette: modest first half → long steep land-boom to a high major
- * peak → clear proportional drawdown to ~mid-slowdown depth → lift into next recovery.
+ * Classic silhouette: modest first half → land boom → steepening final leg into a
+ * high major peak → clear proportional drawdown → lift into next recovery.
  */
 const POINTS = [
   { id: "recovery", x: 68, y: 295 },
   { id: "midPeak", x: 190, y: 172 },
   { id: "midSlow", x: 265, y: 218 },
-  /** ~halfway up the long post-slowdown ascent */
-  { id: "landBoom", x: 420, y: 128 },
-  /** Major peak — high & far right so the land-boom leg dominates the chart */
-  { id: "peak", x: 582, y: 48 },
+  /** Land boom — still mid-ascent; leave room for a steeper final leg into the peak */
+  { id: "landBoom", x: 412, y: 138 },
+  /** Major peak — high so the post-2024 land-boom upswing dominates */
+  { id: "peak", x: 588, y: 38 },
   /** Clear decline, trough near mid-slowdown depth (not below recovery) */
   { id: "downturn", x: 658, y: 220 },
   /** Gentle lift toward next recovery — similar height to mid-cycle peak */
   { id: "next", x: 742, y: 172 },
 ] as const;
+
+/**
+ * Geometry-only inflection after the 2024 Land Boom marker: modest rise, then a
+ * clearly steeper (near-parabolic) final upswing into the 2026 major peak — matching
+ * the classic diagram silhouette without adding a labeled vertex.
+ */
+const LAND_ACCEL = { x: 502, y: 112 };
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   recovery: {
@@ -74,7 +81,18 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   },
 };
 
-const LINE_PATH = POINTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+const PATH_VERTS = [
+  POINTS[0],
+  POINTS[1],
+  POINTS[2],
+  POINTS[3], // landBoom (2024)
+  LAND_ACCEL, // steepening inflection — unlabeled
+  POINTS[4], // peak (2026)
+  POINTS[5],
+  POINTS[6],
+] as const;
+
+const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
 function YearColumn({
   x,
