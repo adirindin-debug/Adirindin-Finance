@@ -27,3 +27,5 @@ node_modules/
 package-lock.json
 rebuild_enrich.js
 vercel-deploy-payload.json
+
+*.tsbuildinfo
