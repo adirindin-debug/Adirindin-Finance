@@ -31,6 +31,8 @@ export type Property = {
   url: string;
   notes: string;
   marks: Mark[];
+  /** When false the title stays on the watchlist but is off the line chart. */
+  charted: boolean;
 };
 
 export type ReaState = {

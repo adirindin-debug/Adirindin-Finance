@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { slug } from "@/lib/utils";
 import { SEED, STORE_KEY } from "./seed";
+import { latestAustraliaMean } from "./market";
 import type {
   Mark,
   MarkMethod,
@@ -25,6 +26,7 @@ type Actions = {
   }) => string;
   removeProperty: (id: string) => void;
   flipStatus: (id: string) => void;
+  setCharted: (id: string, charted: boolean) => void;
   logMark: (id: string, mark: Mark) => void;
   removeMark: (id: string, date: string, mid: number) => void;
   importState: (data: ReaState) => void;
@@ -50,7 +52,10 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
           set({
             version: data.version ?? 1,
             updated: data.updated ?? SEED.updated,
-            properties: data.properties,
+            properties: data.properties.map((p) => ({
+              ...p,
+              charted: p.charted !== false,
+            })),
             hydrated: true,
           });
           return;
@@ -67,6 +72,15 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
   },
   addProperty: (input) => {
     const id = `${slug(`${input.address} ${input.suburb}`) || "property"}-${Date.now().toString(36)}`;
+    const abs = latestAustraliaMean();
+    const firstMark = input.firstMark ?? {
+      date: abs.date,
+      mid: abs.value,
+      low: abs.value,
+      high: abs.value,
+      method: "estimate" as const,
+      note: "seeded at Australia mean (ABS) until a print is logged",
+    };
     const next: Property = {
       id,
       address: input.address.trim(),
@@ -76,7 +90,8 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
       status: input.status,
       url: input.url.trim(),
       notes: "",
-      marks: input.firstMark ? [input.firstMark] : [],
+      marks: [firstMark],
+      charted: true,
     };
     set((s) => ({
       properties: [...s.properties, next],
@@ -98,6 +113,15 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
         p.id === id
           ? { ...p, status: p.status === "owned" ? "watch" : "owned" }
           : p,
+      ),
+      updated: new Date().toISOString().slice(0, 10),
+    }));
+    get().persist();
+  },
+  setCharted: (id, charted) => {
+    set((s) => ({
+      properties: s.properties.map((p) =>
+        p.id === id ? { ...p, charted } : p,
       ),
       updated: new Date().toISOString().slice(0, 10),
     }));

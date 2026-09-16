@@ -171,8 +171,10 @@ function Stats() {
 }
 
 function ChartPanel() {
-  const properties = useReaStore((s) => s.properties);
-  const [scale, setScale] = useState<"aud" | "rel">("rel");
+  const properties = useReaStore((s) =>
+    s.properties.filter((p) => p.charted !== false),
+  );
+  const [scale, setScale] = useState<"aud" | "rel">("aud");
   const [mode, setMode] = useState<"each" | "sleeves" | "both">("each");
   const [range, setRange] = useState<RangeKey>("20");
   const [overlay, setOverlay] = useState<OverlayKey>("australia");
@@ -626,7 +628,10 @@ function Watchlist() {
 }
 
 function AddProperty() {
+  const properties = useReaStore((s) => s.properties);
   const addProperty = useReaStore((s) => s.addProperty);
+  const removeProperty = useReaStore((s) => s.removeProperty);
+  const setCharted = useReaStore((s) => s.setCharted);
   const [address, setAddress] = useState("");
   const [suburb, setSuburb] = useState("");
   const [postcode, setPostcode] = useState("");
@@ -691,8 +696,8 @@ function AddProperty() {
     setMid("");
     setMsg(
       midN
-        ? `Added ${street}, ${sub} with a ${aud(midN)} print.`
-        : `Added ${street}, ${sub}. Log a sale or estimate so it draws on the chart.`,
+        ? `Added ${street}, ${sub} — line is on at ${aud(midN)}.`
+        : `Added ${street}, ${sub} — line is on (seeded at Australia mean until you log a print).`,
     );
   }
 
@@ -793,11 +798,45 @@ function AddProperty() {
         </div>
         {msg ? <p className="text-xs text-ok">{msg}</p> : null}
         <p className="text-xs text-muted">
-          Paste a street (suburb and postcode fill if they are on the line). A
-          first mid puts it on the chart; otherwise it sits on the watchlist
-          until you log a sale or estimate. This desk does not scrape REA.
+          Chart starts with Australia mean only. Add a title to draw its line;
+          toggle it off to take it off the graph without deleting it.
         </p>
       </form>
+      <div className="mt-4 border-t border-border pt-3">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+          On the chart
+        </p>
+        {properties.length === 0 ? (
+          <p className="text-xs text-muted">No titles yet — only the ABS average is plotted.</p>
+        ) : (
+          <ul className="space-y-2">
+            {properties.map((p) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-2 rounded-md border border-border bg-navy px-2 py-2"
+              >
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    className="size-4 accent-accent"
+                    checked={p.charted !== false}
+                    onChange={(e) => setCharted(p.id, e.target.checked)}
+                  />
+                  <span className="truncate text-foreground">{p.address}</span>
+                </label>
+                <Button
+                  type="button"
+                  variant="danger"
+                  className="min-h-9 shrink-0 px-2 text-xs"
+                  onClick={() => removeProperty(p.id)}
+                >
+                  remove
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </Panel>
   );
 }

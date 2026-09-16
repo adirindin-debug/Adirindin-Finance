@@ -323,6 +323,11 @@ const SUBURB_MEDIANS: Record<string, { houses: Annual[]; units: Annual[] }> = {
   },
 };
 
+export function latestAustraliaMean(): { date: string; value: number } {
+  const last = AUSTRALIA_MEAN_ABS[AUSTRALIA_MEAN_ABS.length - 1];
+  return { date: last.date, value: last.value ?? 0 };
+}
+
 export function australiaOverlay(): Point[] {
   return AUSTRALIA_MEAN_ABS.map((p) => ({ ...p }));
 }
@@ -427,13 +432,14 @@ export function indexedPath(p: Property): Point[] {
   const { anchors, estimateOnly } = anchorsOf(p);
   if (!anchors.length) return [];
   const suburb = suburbTable(p);
-  if (estimateOnly && !suburb) return [];
   const idx = propertyIndex(p);
   if (!idx || idx.size < 2) return [];
   const index = idx;
-
   const maxY = Math.max(...index.keys());
-  const minY = estimateOnly && suburb ? suburb[0].year : Math.min(...index.keys());
+  const minY =
+    estimateOnly && suburb
+      ? suburb[0].year
+      : Math.min(...index.keys());
   const asOfYear = Number(CHART_AS_OF.slice(0, 4));
   const lastMarkYear = Math.max(
     minY,
