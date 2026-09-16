@@ -17,7 +17,7 @@ import {
   useReaStore,
 } from "@/lib/rea/store";
 import type { MarkMethod, PropertyStatus, PropertyType, ReaState } from "@/lib/rea/types";
-import { aud, cn, signedAud, signedPct } from "@/lib/utils";
+import { aud, cn, parseAuAddress, signedAud, signedPct } from "@/lib/utils";
 
 export function PropertyPricesDesk() {
   const hydrate = useReaStore((s) => s.hydrate);
@@ -50,14 +50,14 @@ export function PropertyPricesDesk() {
         </div>
         <div className="mt-6 grid min-w-0 gap-4 lg:grid-cols-[1.6fr_0.9fr]">
           <ChartPanel />
-          <MarkForm />
+          <AddProperty />
         </div>
         <div className="mt-4">
           <Compare />
         </div>
         <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[1.6fr_0.9fr]">
           <Watchlist />
-          <AddProperty />
+          <MarkForm />
         </div>
         <div className="mt-4 min-w-0">
           <SnapshotLog />
@@ -301,7 +301,7 @@ function MarkForm() {
   }
 
   return (
-    <Panel title="Add a snapshot">
+    <Panel title="Log a sale / estimate">
       <form onSubmit={submit} className="space-y-2">
         <FieldLabel htmlFor="snap-prop">Property</FieldLabel>
         <SelectInput id="snap-prop" value={id} onChange={(e) => setId(e.target.value)}>
@@ -633,30 +633,80 @@ function AddProperty() {
   const [type, setType] = useState<PropertyType>("house");
   const [status, setStatus] = useState<PropertyStatus>("watch");
   const [url, setUrl] = useState("");
+  const [mid, setMid] = useState("");
+  const [date, setDate] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!date) setDate(new Date().toISOString().slice(0, 10));
+  }, [date]);
+
+  function onAddressBlur() {
+    if (suburb.trim() && postcode.trim()) return;
+    const parsed = parseAuAddress(address);
+    if (!suburb.trim() && parsed.suburb) setSuburb(parsed.suburb);
+    if (!postcode.trim() && parsed.postcode) setPostcode(parsed.postcode);
+    if (parsed.address && parsed.address !== address) setAddress(parsed.address);
+  }
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (!address.trim() || !suburb.trim()) {
-      window.alert("Need address and suburb");
+    setMsg(null);
+    const parsed = parseAuAddress(address);
+    const street = (parsed.suburb ? parsed.address : address).trim();
+    const sub = (suburb.trim() || parsed.suburb).trim();
+    const pc = (postcode.trim() || parsed.postcode).trim();
+    if (!street || !sub) {
+      setMsg("Need a street address and a suburb.");
       return;
     }
-    addProperty({ address, suburb, postcode, type, status, url });
+    const midN = mid === "" ? null : Number(mid.replace(/[,$\s]/g, ""));
+    if (mid !== "" && (!midN || midN <= 0)) {
+      setMsg("Mid has to be a number if you fill it.");
+      return;
+    }
+    addProperty({
+      address: street,
+      suburb: sub,
+      postcode: pc,
+      type,
+      status,
+      url: url.trim(),
+      firstMark:
+        midN && date
+          ? {
+              date,
+              mid: midN,
+              low: midN,
+              high: midN,
+              method: "estimate",
+              note: url.trim() ? "from listing page" : "manual add",
+            }
+          : undefined,
+    });
     setAddress("");
     setSuburb("");
     setPostcode("");
     setUrl("");
-    window.alert("Property added");
+    setMid("");
+    setMsg(
+      midN
+        ? `Added ${street}, ${sub} with a ${aud(midN)} print.`
+        : `Added ${street}, ${sub}. Log a sale or estimate so it draws on the chart.`,
+    );
   }
 
   return (
     <Panel title="Add a property">
-      <form onSubmit={submit} className="space-y-2">
+      <form onSubmit={submit} className="space-y-2" noValidate>
         <FieldLabel htmlFor="p-address">Address</FieldLabel>
         <TextInput
           id="p-address"
-          placeholder="8/363 High Street"
+          placeholder="8/363 High Street, Templestowe Lower VIC 3107"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
+          onBlur={onAddressBlur}
+          autoComplete="street-address"
         />
         <div className="grid grid-cols-2 gap-2">
           <div>
@@ -672,6 +722,7 @@ function AddProperty() {
             <FieldLabel htmlFor="p-pc">Postcode</FieldLabel>
             <TextInput
               id="p-pc"
+              inputMode="numeric"
               placeholder="3107"
               value={postcode}
               onChange={(e) => setPostcode(e.target.value)}
@@ -708,22 +759,43 @@ function AddProperty() {
         <FieldLabel htmlFor="p-url">REA / Domain profile URL</FieldLabel>
         <TextInput
           id="p-url"
-          type="url"
+          type="text"
+          inputMode="url"
           placeholder="https://www.realestate.com.au/property/..."
           value={url}
           onChange={(e) => setUrl(e.target.value)}
         />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <FieldLabel htmlFor="p-mid">First mid AUD (optional)</FieldLabel>
+            <TextInput
+              id="p-mid"
+              inputMode="numeric"
+              placeholder="890000"
+              value={mid}
+              onChange={(e) => setMid(e.target.value)}
+            />
+          </div>
+          <div>
+            <FieldLabel htmlFor="p-date">Print date</FieldLabel>
+            <TextInput
+              id="p-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+          </div>
+        </div>
         <div className="pt-2">
           <Button type="submit" className="w-full">
             Add property
           </Button>
         </div>
+        {msg ? <p className="text-xs text-ok">{msg}</p> : null}
         <p className="text-xs text-muted">
-          Any REA or Domain listing can sit on the desk — paste the profile
-          URL, then log sale history and the current estimate from the page.
-          This tool does not scrape. Suburb growth is used for Templestowe
-          Lower, Preston, Bulleen and Chirnside Park; other suburbs use the
-          Melbourne house series once a sale is logged.
+          Paste a street (suburb and postcode fill if they are on the line). A
+          first mid puts it on the chart; otherwise it sits on the watchlist
+          until you log a sale or estimate. This desk does not scrape REA.
         </p>
       </form>
     </Panel>

@@ -21,7 +21,8 @@ type Actions = {
     type: PropertyType;
     status: PropertyStatus;
     url: string;
-  }) => void;
+    firstMark?: Mark;
+  }) => string;
   removeProperty: (id: string) => void;
   flipStatus: (id: string) => void;
   logMark: (id: string, mark: Mark) => void;
@@ -39,6 +40,7 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
   ...SEED,
   hydrated: false,
   hydrate: () => {
+    if (get().hydrated) return;
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem(STORE_KEY);
@@ -64,7 +66,7 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
     write({ version, updated, properties });
   },
   addProperty: (input) => {
-    const id = `${slug(`${input.address} ${input.suburb}`)}-${Date.now().toString().slice(-4)}`;
+    const id = `${slug(`${input.address} ${input.suburb}`) || "property"}-${Date.now().toString(36)}`;
     const next: Property = {
       id,
       address: input.address.trim(),
@@ -74,13 +76,14 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
       status: input.status,
       url: input.url.trim(),
       notes: "",
-      marks: [],
+      marks: input.firstMark ? [input.firstMark] : [],
     };
     set((s) => ({
       properties: [...s.properties, next],
       updated: new Date().toISOString().slice(0, 10),
     }));
     get().persist();
+    return id;
   },
   removeProperty: (id) => {
     set((s) => ({

@@ -31,3 +31,24 @@ export function slug(s: string): string {
     .replace(/^-|-$/g, "")
     .slice(0, 40);
 }
+
+/** Split a pasted AU line like "12 Foo St, Preston VIC 3072". */
+export function parseAuAddress(raw: string): {
+  address: string;
+  suburb: string;
+  postcode: string;
+} {
+  let s = raw.trim().replace(/\s+/g, " ");
+  let postcode = "";
+  const pc = s.match(/\b(\d{4})\s*$/);
+  if (pc) {
+    postcode = pc[1];
+    s = s.slice(0, pc.index).trim().replace(/[,\s]+$/, "");
+  }
+  s = s.replace(/,?\s*(VIC|NSW|QLD|SA|WA|TAS|NT|ACT)\.?$/i, "").trim();
+  const parts = s.split(",").map((x) => x.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return { address: parts[0], suburb: parts.slice(1).join(" "), postcode };
+  }
+  return { address: s, suburb: "", postcode };
+}
