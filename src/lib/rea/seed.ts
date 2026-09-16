@@ -18,3 +18,6 @@ export const SERIES_COLORS = [
   "#9aa8b5",
   "#7dd3fc",
 ];
+
+/** ABS 6432.0 latest print — used only as a first-line seed when no mid is typed. */
+export const ABS_MEAN_SEED = { date: "2026-06-30", value: 1_100_400 } as const;

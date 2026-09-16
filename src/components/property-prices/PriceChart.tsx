@@ -134,7 +134,11 @@ function useBox() {
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const update = () => setBox({ w: el.clientWidth, h: el.clientHeight });
+    const update = () => {
+      const w = Math.floor(el.clientWidth);
+      const h = Math.floor(el.clientHeight);
+      setBox((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
@@ -322,8 +326,9 @@ function PriceChartInner({
 
   const axisStart = start ?? "2005-01-01";
   const knownDates = unionDates(series.flatMap((s) => [s.audPoints, s.printPoints]));
+  const dense = series.some((s) => !s.overlay);
   const dates = [
-    ...new Set([...monthGrid(axisStart, end), ...knownDates]),
+    ...new Set([...(dense ? monthGrid(axisStart, end) : []), ...knownDates]),
   ].sort();
   const maps = series.map((s) => ({
     ...s,
@@ -358,14 +363,15 @@ function PriceChartInner({
 
   return (
     <div className="min-w-0">
-      <div ref={ref} className="h-72 w-full min-w-0 cursor-crosshair overflow-hidden md:h-96">
+      <div ref={ref} className="relative h-72 w-full min-w-0 cursor-crosshair overflow-hidden md:h-96">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border text-sm text-muted">
             No public prints in this window. Widen the range or log a dated mid.
           </div>
         ) : w < 40 || h < 40 ? (
-          <div className="h-full w-full rounded-md border border-dashed border-border bg-black" />
+          <div className="h-full w-full rounded-md bg-black" />
         ) : (
+          <div className="absolute inset-0">
           <ComposedChart
             width={w}
             height={h}
@@ -446,6 +452,7 @@ function PriceChartInner({
                 />
               ))}
           </ComposedChart>
+          </div>
         )}
       </div>
       {maps.length > 0 ? (

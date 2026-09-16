@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { slug } from "@/lib/utils";
-import { SEED, STORE_KEY } from "./seed";
-import { latestAustraliaMean } from "./market";
+import { ABS_MEAN_SEED, SEED, STORE_KEY } from "./seed";
 import type {
   Mark,
   MarkMethod,
@@ -72,7 +71,7 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
   },
   addProperty: (input) => {
     const id = `${slug(`${input.address} ${input.suburb}`) || "property"}-${Date.now().toString(36)}`;
-    const abs = latestAustraliaMean();
+    const abs = ABS_MEAN_SEED;
     const firstMark = input.firstMark ?? {
       date: abs.date,
       mid: abs.value,
