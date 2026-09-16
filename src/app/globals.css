@@ -22,6 +22,20 @@
   --color-accent-soft: var(--accent-soft);
   --color-navy: var(--navy);
   --color-charcoal: var(--charcoal);
+  --color-fg: var(--foreground);
+  --color-bg: var(--background);
+  --color-surface: var(--card);
+  --color-danger: #ef6b6b;
+  --color-ok: #3dcc9a;
+  --color-warn: #e8873a;
+  --color-chart-1: #4c9fff;
+  --color-chart-2: #3dcc9a;
+  --color-chart-3: #e8873a;
+  --color-chart-4: #ef6b6b;
+  --color-chart-5: #f7931a;
+  --color-chart-6: #3b82c4;
+  --color-chart-7: #9aa8b5;
+  --color-chart-8: #7dd3fc;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }

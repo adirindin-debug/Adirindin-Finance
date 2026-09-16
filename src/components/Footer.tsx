@@ -18,6 +18,9 @@ export function Footer() {
           <Link href="/portfolio" className="hover:text-accent">
             Portfolio
           </Link>
+          <Link href="/property-prices" className="hover:text-accent">
+            Property prices
+          </Link>
           <Link href="/charts" className="hover:text-accent">
             Charts
           </Link>
