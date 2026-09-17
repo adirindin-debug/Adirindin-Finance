@@ -71,6 +71,15 @@ function fmtPct(n: number, digits = 1) {
   return `${sign}${n.toFixed(digits)}%`;
 }
 
+function fmtAxisPct(n: number) {
+  if (Math.abs(n) >= 1000) {
+    const k = n / 1000;
+    const sign = n > 0 ? "+" : "";
+    return `${sign}${k >= 10 ? k.toFixed(0) : k.toFixed(1)}k%`;
+  }
+  return fmtPct(n, 0);
+}
+
 function fmtDate(ts: number) {
   return new Date(ts * 1000).toLocaleDateString("en-US", {
     year: "numeric",
@@ -115,6 +124,22 @@ type LineHover = {
     y: number | null;
   }>;
 };
+
+function wealth(pct: number) {
+  return Math.max(0.08, 1 + pct / 100);
+}
+
+function logTicks(minPct: number, maxPct: number): number[] {
+  const minW = wealth(minPct);
+  const maxW = wealth(maxPct);
+  const candidates = [
+    -80, -50, -20, 0, 50, 100, 200, 400, 900, 1900, 3900, 7900, 15900, 31900,
+  ];
+  return candidates.filter((p) => {
+    const w = wealth(p);
+    return w >= minW * 0.95 && w <= maxW * 1.08;
+  });
+}
 
 function rangeFor(points: PctPoint[]) {
   if (!points.length) return null;
@@ -181,15 +206,43 @@ function buildSharedAxis(
   const allPts = clipped.flatMap((s) => s.points);
   if (!allPts.length) return null;
 
-  const yRange = rangeFor(allPts) ?? { min: 0, max: 100 };
-
   const iw = W - PAD.left - PAD.right;
   const ih = H - PAD.top - PAD.bottom;
+  const useLog = windowKey === "all";
+
+  let yRange: { min: number; max: number };
+  let yScale: (pct: number) => number;
+  let yTicks: number[];
+
+  if (useLog) {
+    const minW = Math.min(...allPts.map((p) => wealth(p.pct)));
+    const maxW = Math.max(...allPts.map((p) => wealth(p.pct)));
+    const minL = Math.log(minW);
+    const maxL = Math.log(maxW);
+    const pad = (maxL - minL) * 0.06 || 0.08;
+    const yMinL = minL - pad;
+    const yMaxL = maxL + pad;
+    yRange = {
+      min: (Math.exp(yMinL) - 1) * 100,
+      max: (Math.exp(yMaxL) - 1) * 100,
+    };
+    yScale = (pct: number) =>
+      PAD.top +
+      (1 - (Math.log(wealth(pct)) - yMinL) / (yMaxL - yMinL || 1)) * ih;
+    yTicks = logTicks((minW - 1) * 100, (maxW - 1) * 100);
+    if (!yTicks.includes(0) && yRange.min < 0 && yRange.max > 0) {
+      yTicks = [...yTicks, 0].sort((a, b) => a - b);
+    }
+  } else {
+    yRange = rangeFor(allPts) ?? { min: 0, max: 100 };
+    yScale = (pct: number) =>
+      PAD.top +
+      (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
+    yTicks = ticks(yRange.min, yRange.max);
+  }
+
   const xScale = (t: number) =>
     PAD.left + ((t - minT) / (maxT - minT || 1)) * iw;
-  const yScale = (pct: number) =>
-    PAD.top +
-    (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
 
   const paths = clipped
     .filter((s) => s.points.length > 1)
@@ -206,7 +259,18 @@ function buildSharedAxis(
       return { id: s.id, d, color: SERIES_STYLE[s.id].color };
     });
 
-  return { paths, clipped, yRange, minT, maxT, yScale, xScale, omitted: [] as SeriesId[] };
+  return {
+    paths,
+    clipped,
+    yRange,
+    minT,
+    maxT,
+    yScale,
+    xScale,
+    yTicks,
+    yLog: useLog,
+    omitted: [] as SeriesId[],
+  };
 }
 
 function buildBarLayout(series: SeriesPayload[]) {
@@ -286,7 +350,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
         "All four series rebased to 0% on the first shared date (BTC daily from Sep 2014) · educational · NFA",
       kpiSuffix: "% since shared start",
       chartTitle: payload?.title ?? "Relative % from first shared date",
-      chartHint: "Shared % scale · start = 0% · not price levels",
+      chartHint: "Log % scale · start = 0% · not price levels",
       aria: "Relative percentage returns from the first shared date for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries",
       loading: "Loading relative % gains…",
       footerLead:
@@ -382,10 +446,11 @@ export function BtcFourYearChart() {
   const activeYRange = chart?.yRange ?? barLayout?.yRange ?? null;
   const activeYScale = chart?.yScale ?? barLayout?.yScale ?? null;
 
-  const yTicks = useMemo(
-    () => (activeYRange ? ticks(activeYRange.min, activeYRange.max) : []),
-    [activeYRange],
-  );
+  const yTicks = useMemo(() => {
+    if (chartMode === "line" && chart?.yTicks?.length) return chart.yTicks;
+    if (activeYRange) return ticks(activeYRange.min, activeYRange.max);
+    return [];
+  }, [chart, chartMode, activeYRange]);
 
   const xTicks = useMemo(() => {
     if (!chart) return [];
@@ -651,7 +716,7 @@ export function BtcFourYearChart() {
               fontFamily="system-ui, sans-serif"
               fontWeight="600"
             >
-              % gain (shared)
+              {chart.yLog ? "% gain (log)" : "% gain (shared)"}
             </text>
 
             {yTicks.map((v) => {
@@ -675,7 +740,7 @@ export function BtcFourYearChart() {
                     textAnchor="end"
                     opacity="0.9"
                   >
-                    {fmtPct(v, 0)}
+                    {chart.yLog ? fmtAxisPct(v) : fmtPct(v, 0)}
                   </text>
                 </g>
               );
@@ -983,7 +1048,8 @@ export function BtcFourYearChart() {
           <>
             <strong className="font-medium text-muted">ALL:</strong> every line
             starts at 0% on the first date all four series exist (Yahoo BTC-USD
-            daily from Sep 2014).{" "}
+            daily from Sep 2014). Line chart uses a log % scale so NDX / SPX /
+            AORD stay readable next to Bitcoin. Bars stay linear.{" "}
           </>
         ) : (
           <>
