@@ -1,6 +1,6 @@
 "use client";
-import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { PriceChart } from "@/components/property-prices/PriceChart";
 import { Button, FieldLabel, Panel, SelectInput, TextInput } from "@/components/property-prices/ui";
 import { performanceOf } from "@/lib/rea/chart";
 import {
@@ -18,15 +18,6 @@ import {
 } from "@/lib/rea/store";
 import type { MarkMethod, PropertyStatus, PropertyType, ReaState } from "@/lib/rea/types";
 import { aud, cn, parseAuAddress, signedAud, signedPct } from "@/lib/utils";
-
-const PriceChart = dynamic(
-  () =>
-    import("@/components/property-prices/PriceChart").then((m) => m.PriceChart),
-  {
-    ssr: false,
-    loading: () => <div className="h-72 rounded-md bg-black md:h-96" />,
-  },
-);
 
 export function PropertyPricesDesk() {
   const hydrate = useReaStore((s) => s.hydrate);
@@ -180,9 +171,8 @@ function Stats() {
 }
 
 function ChartPanel() {
-  const properties = useReaStore((s) =>
-    s.properties.filter((p) => p.charted !== false),
-  );
+  const all = useReaStore((s) => s.properties);
+  const properties = all.filter((p) => p.charted !== false);
   const [scale, setScale] = useState<"aud" | "rel">("aud");
   const [mode, setMode] = useState<"each" | "sleeves" | "both">("each");
   const [range, setRange] = useState<RangeKey>("20");

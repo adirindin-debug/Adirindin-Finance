@@ -1,22 +1,13 @@
 "use client";
-import { Component, useLayoutEffect, useRef, useState, type ReactNode } from "react";
-import {
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  Scatter,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+
+import { useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { SERIES_COLORS } from "@/lib/rea/seed";
 import {
   propertyPoints,
   sleevePoints,
   toRelative,
   toRelativeWithBase,
-  unionDates,
-  monthGrid,
+  toMs,
   valueAt,
   type Point,
 } from "@/lib/rea/chart";
@@ -28,34 +19,31 @@ import {
   melbourneOverlay,
   australiaOverlay,
   suburbOverlays,
-  toMs,
   windowStart,
-  yearTicks,
   type OverlayKey,
   type RangeKey,
 } from "@/lib/rea/market";
 import type { Property } from "@/lib/rea/types";
-import { aud, cn, signedPct } from "@/lib/utils";
+import { aud, signedPct } from "@/lib/utils";
 
 type Scale = "aud" | "rel";
 type SeriesMode = "each" | "sleeves" | "both";
 
-const SWATCH = [
-  "bg-chart-1",
-  "bg-chart-2",
-  "bg-chart-3",
-  "bg-chart-4",
-  "bg-chart-5",
-  "bg-chart-6",
-  "bg-chart-7",
-  "bg-chart-8",
-];
+const W = 960;
+const H = 360;
+const PAD = { top: 18, right: 18, bottom: 30, left: 58 };
 
-function mapByDate(pts: Point[]): Record<string, number | null> {
-  const o: Record<string, number | null> = {};
-  for (const p of pts) o[p.date] = p.value;
-  return o;
-}
+type Series = {
+  key: string;
+  label: string;
+  color: string;
+  dash?: string;
+  overlay?: boolean;
+  proxy?: boolean;
+  audPoints: Point[];
+  linePoints: Point[];
+  printPoints: Point[];
+};
 
 function firstValue(pts: Point[]): number | null {
   const hit = pts.find((p) => p.value != null && p.value !== 0);
@@ -73,153 +61,32 @@ function prettyDate(iso: string): string {
   });
 }
 
-function HoverTip({
-  active,
-  payload,
-  maps,
-}: {
-  active?: boolean;
-  payload?: Array<{ payload?: Record<string, unknown> }>;
-  maps: { key: string; label: string; color: string }[];
-}) {
-  if (!active || !payload?.length) return null;
-  const row = payload[0]?.payload;
-  if (!row) return null;
-  const date = typeof row.date === "string" ? row.date : "";
-  const items = maps.flatMap((s) => {
-    const audV = row[`${s.key}__aud`];
-    const relV = row[`${s.key}__rel`];
-    if (typeof audV !== "number") return [];
-    return [
-      {
-        key: s.key,
-        label: s.label,
-        color: s.color,
-        aud: audV,
-        rel: typeof relV === "number" ? relV : null,
-      },
-    ];
-  });
-  if (!items.length) return null;
-  return (
-    <div className="min-w-[240px] max-w-[320px] rounded-lg border border-border bg-navy px-3 py-2.5 shadow-xl">
-      <div className="mb-2 font-mono text-[11px] text-muted">{prettyDate(date)}</div>
-      <ul className="space-y-1.5">
-        {items.map((it) => (
-          <li key={it.key} className="flex items-baseline justify-between gap-3">
-            <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground">
-              <span
-                className="h-1.5 w-1.5 shrink-0 rounded-full"
-                style={{ background: it.color }}
-              />
-              <span className="truncate">{it.label}</span>
-            </span>
-            <span className="shrink-0 font-mono text-[11px] tabular-nums text-foreground">
-              {aud(it.aud)}
-              {it.rel != null ? (
-                <span className="ml-2 text-muted">{signedPct(it.rel)}</span>
-              ) : null}
-            </span>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-[10px] text-muted">% vs first mark in this window</p>
-    </div>
-  );
+function pathD(
+  pts: Point[],
+  xOf: (t: number) => number,
+  yOf: (v: number) => number,
+): string {
+  const known = pts.filter((p): p is { date: string; value: number } => p.value != null);
+  if (known.length < 2) return "";
+  return known
+    .map((p, i) => {
+      const cmd = i === 0 ? "M" : "L";
+      return `${cmd}${xOf(toMs(p.date)).toFixed(1)} ${yOf(p.value).toFixed(1)}`;
+    })
+    .join(" ");
 }
 
-function useBox() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [box, setBox] = useState({ w: 0, h: 0 });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const update = () => {
-      const w = Math.floor(el.clientWidth);
-      const h = Math.floor(el.clientHeight);
-      setBox((prev) => (prev.w === w && prev.h === h ? prev : { w, h }));
-    };
-    update();
-    const ro = new ResizeObserver(update);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return { ref, ...box };
-}
-
-function formatTick(ms: number, range: RangeKey): string {
-  const iso = new Date(ms).toISOString().slice(0, 10);
-  if (range === "1" || range === "3") return iso.slice(0, 7);
-  return iso.slice(0, 4);
-}
-
-class ChartGuard extends Component<
-  { children: ReactNode },
-  { message: string | null }
-> {
-  state: { message: string | null } = { message: null };
-  static getDerivedStateFromError(err: unknown) {
-    const message = err instanceof Error ? err.message : "Chart failed to render.";
-    return { message };
-  }
-  render() {
-    if (this.state.message) {
-      return (
-        <div className="flex h-72 items-center justify-center rounded-md border border-dashed border-border bg-black px-4 text-center text-sm text-muted md:h-96">
-          {this.state.message}
-        </div>
-      );
-    }
-    return this.props.children;
-  }
-}
-
-export function PriceChart(props: {
-  properties: Property[];
-  scale: Scale;
-  mode: SeriesMode;
-  range: RangeKey;
-  overlay: OverlayKey;
-}) {
-  return (
-    <ChartGuard>
-      <PriceChartInner {...props} />
-    </ChartGuard>
-  );
-}
-
-function PriceChartInner({
-  properties,
-  scale,
-  mode,
-  range,
-  overlay,
-}: {
-  properties: Property[];
-  scale: Scale;
-  mode: SeriesMode;
-  range: RangeKey;
-  overlay: OverlayKey;
-}) {
-  const { ref, w, h } = useBox();
+function buildSeries(
+  properties: Property[],
+  scale: Scale,
+  mode: SeriesMode,
+  range: RangeKey,
+  overlay: OverlayKey,
+): Series[] {
   const start = windowStart(range);
   const end = CHART_AS_OF;
   const carryFrom = start ? windowStart(range, start) : null;
   const yearCarry = start ? windowStart("1", start) : null;
-
-  type Series = {
-    key: string;
-    printKey?: string;
-    label: string;
-    color: string;
-    swatch: string;
-    dash?: string;
-    overlay?: boolean;
-    proxy?: boolean;
-    audPoints: Point[];
-    linePoints: Point[];
-    printPoints: Point[];
-  };
   const series: Series[] = [];
 
   if (mode !== "sleeves") {
@@ -233,10 +100,8 @@ function PriceChartInner({
       const base = scale === "rel" ? (firstValue(linePts) ?? firstValue(printPts)) : null;
       series.push({
         key: p.id,
-        printKey: `${p.id}__print`,
         label: p.address,
         color: SERIES_COLORS[i % SERIES_COLORS.length],
-        swatch: SWATCH[i % SWATCH.length],
         proxy: proxy.length >= 2,
         audPoints: linePts,
         linePoints: scale === "rel" ? toRelativeWithBase(linePts, base) : linePts,
@@ -252,7 +117,6 @@ function PriceChartInner({
         key: "watch-sleeve",
         label: "Watchlist total",
         color: SERIES_COLORS[1],
-        swatch: SWATCH[1],
         dash: "6 4",
         audPoints: watch,
         linePoints: scale === "rel" ? toRelative(watch) : watch,
@@ -264,7 +128,6 @@ function PriceChartInner({
         key: "owned-sleeve",
         label: "Owned total",
         color: SERIES_COLORS[2],
-        swatch: SWATCH[2],
         dash: "2 3",
         audPoints: owned,
         linePoints: scale === "rel" ? toRelative(owned) : owned,
@@ -272,7 +135,6 @@ function PriceChartInner({
       });
     }
   }
-
   if (overlay === "australia") {
     const pts = clipPoints(australiaOverlay(), start, end, true, carryFrom);
     if (pts.length) {
@@ -280,7 +142,6 @@ function PriceChartInner({
         key: "australia-mean-abs",
         label: "Australia mean (ABS)",
         color: SERIES_COLORS[6],
-        swatch: SWATCH[6],
         dash: "5 4",
         overlay: true,
         audPoints: pts,
@@ -296,7 +157,6 @@ function PriceChartInner({
         key: "melbourne-houses",
         label: "Melbourne houses (VGV / Abelson)",
         color: SERIES_COLORS[6],
-        swatch: SWATCH[6],
         dash: "3 5",
         overlay: true,
         audPoints: pts,
@@ -309,12 +169,10 @@ function PriceChartInner({
     suburbOverlays(properties).forEach((s, i) => {
       const pts = clipPoints(s.points, start, end, true, carryFrom);
       if (!pts.length) return;
-      const idx = (4 + i) % SWATCH.length;
       series.push({
         key: s.key,
         label: s.label,
-        color: SERIES_COLORS[idx],
-        swatch: SWATCH[idx],
+        color: SERIES_COLORS[(4 + i) % SERIES_COLORS.length],
         dash: "2 4",
         overlay: true,
         audPoints: pts,
@@ -323,39 +181,92 @@ function PriceChartInner({
       });
     });
   }
+  return series;
+}
 
-  const axisStart = start ?? "2005-01-01";
-  const knownDates = unionDates(series.flatMap((s) => [s.audPoints, s.printPoints]));
-  const dense = series.some((s) => !s.overlay);
-  const dates = [
-    ...new Set([...(dense ? monthGrid(axisStart, end) : []), ...knownDates]),
-  ].sort();
-  const maps = series.map((s) => ({
-    ...s,
-    base: firstValue(s.audPoints),
-    printByDate: mapByDate(s.printPoints),
-  }));
-  const data = dates.map((date) => {
-    const row: Record<string, string | number | null> = {
-      date,
-      t: toMs(date),
-    };
-    for (const s of maps) {
-      const audV = valueAt(s.audPoints, date);
-      const relV =
-        audV != null && s.base
-          ? ((audV / s.base - 1) * 100)
-          : null;
-      row[s.key] = scale === "rel" ? relV : audV;
-      row[`${s.key}__aud`] = audV;
-      row[`${s.key}__rel`] = relV;
-      if (s.printKey) row[s.printKey] = s.printByDate[date] ?? null;
+function yTicksOf(min: number, max: number): number[] {
+  const span = max - min || 1;
+  const raw = span / 4;
+  const mag = 10 ** Math.floor(Math.log10(raw));
+  const step = Math.max(mag, Math.round(raw / mag) * mag) || 1;
+  const lo = Math.floor(min / step) * step;
+  const hi = Math.ceil(max / step) * step;
+  const ticks: number[] = [];
+  for (let v = lo; v <= hi + step / 2; v += step) ticks.push(v);
+  return ticks.slice(0, 8);
+}
+
+export function PriceChart(props: {
+  properties: Property[];
+  scale: Scale;
+  mode: SeriesMode;
+  range: RangeKey;
+  overlay: OverlayKey;
+}) {
+  const { properties, scale, mode, range, overlay } = props;
+  const series = useMemo(
+    () => buildSeries(properties, scale, mode, range, overlay),
+    [properties, scale, mode, range, overlay],
+  );
+  const [hover, setHover] = useState<{
+    svgX: number;
+    date: string;
+    items: { key: string; label: string; color: string; aud: number; rel: number | null }[];
+  } | null>(null);
+
+  const layout = useMemo(() => {
+    const pts = series.flatMap((s) => s.linePoints).filter((p) => p.value != null);
+    const start = windowStart(range) ?? "2005-01-01";
+    const tMin = toMs(start);
+    const tMax = toMs(CHART_AS_OF);
+    let vMin = 0;
+    let vMax = 1;
+    if (pts.length) {
+      vMin = Math.min(...pts.map((p) => p.value as number));
+      vMax = Math.max(...pts.map((p) => p.value as number));
     }
-    return row;
-  });
-  const ticks = yearTicks(axisStart, end)
-    .map((ms) => new Date(ms).toISOString().slice(0, 10))
-    .filter((d) => dates.includes(d));
+    const pad = Math.max((vMax - vMin) * 0.08, scale === "rel" ? 2 : 20_000);
+    vMin -= pad;
+    vMax += pad;
+    if (vMax === vMin) {
+      vMax += 1;
+      vMin -= 1;
+    }
+    const innerW = W - PAD.left - PAD.right;
+    const innerH = H - PAD.top - PAD.bottom;
+    const xOf = (t: number) => PAD.left + ((t - tMin) / Math.max(1, tMax - tMin)) * innerW;
+    const yOf = (v: number) => PAD.top + ((vMax - v) / (vMax - vMin)) * innerH;
+    const yTicks = yTicksOf(vMin, vMax);
+    const y0 = Number(start.slice(0, 4));
+    const y1 = Number(CHART_AS_OF.slice(0, 4));
+    const step = y1 - y0 > 12 ? 2 : 1;
+    const xTicks: string[] = [];
+    for (let y = y0; y <= y1; y += step) xTicks.push(`${y}-01-01`);
+    return { xOf, yOf, yTicks, xTicks, tMin, tMax, innerW };
+  }, [series, range, scale]);
+
+  function onMove(e: ReactMouseEvent<SVGSVGElement>) {
+    if (!series.length) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const svgX = ((e.clientX - rect.left) / rect.width) * W;
+    const ratio = Math.min(1, Math.max(0, (svgX - PAD.left) / layout.innerW));
+    const t = layout.tMin + ratio * (layout.tMax - layout.tMin);
+    if (!Number.isFinite(t)) return;
+    const date = new Date(t).toISOString().slice(0, 10);
+    const items = series.flatMap((s) => {
+      const audV = valueAt(s.audPoints, date);
+      if (audV == null) return [];
+      const base = firstValue(s.audPoints);
+      const relV = base ? (audV / base - 1) * 100 : null;
+      return [{ key: s.key, label: s.label, color: s.color, aud: audV, rel: relV }];
+    });
+    setHover({
+      svgX: Math.min(W - PAD.right, Math.max(PAD.left, svgX)),
+      date,
+      items,
+    });
+  }
+
   const noProxy = properties
     .filter((p) => p.marks.length > 0 && !hasIndexedPath(p))
     .map((p) => p.address);
@@ -363,135 +274,156 @@ function PriceChartInner({
 
   return (
     <div className="min-w-0">
-      <div ref={ref} className="relative h-72 w-full min-w-0 cursor-crosshair overflow-hidden md:h-96">
-        {data.length === 0 ? (
-          <div className="flex h-full items-center justify-center rounded-md border border-dashed border-border text-sm text-muted">
+      <div className="relative overflow-hidden rounded-md bg-black">
+        {series.length === 0 ? (
+          <div className="flex h-72 items-center justify-center text-sm text-muted md:h-96">
             No public prints in this window. Widen the range or log a dated mid.
           </div>
-        ) : w < 40 || h < 40 ? (
-          <div className="h-full w-full rounded-md bg-black" />
         ) : (
-          <div className="absolute inset-0">
-          <ComposedChart
-            width={w}
-            height={h}
-            data={data}
-            margin={{ top: 10, right: 12, left: 4, bottom: 4 }}
-          >
-            <CartesianGrid
-              stroke="var(--border)"
-              strokeDasharray="3 3"
-              vertical={false}
-            />
-            <XAxis
-              dataKey="date"
-              ticks={ticks}
-              tick={{ fill: "var(--muted)", fontSize: 11 }}
-              tickFormatter={(d: string) =>
-                range === "1" || range === "3" ? String(d).slice(0, 7) : String(d).slice(0, 4)
-              }
-              tickMargin={8}
-              minTickGap={24}
-              interval="preserveStartEnd"
-              axisLine={{ stroke: "var(--border)" }}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fill: "var(--muted)", fontSize: 11 }}
-              tickFormatter={(v: number) =>
-                scale === "rel"
-                  ? `${v}%`
-                  : new Intl.NumberFormat("en-AU", { notation: "compact" }).format(v)
-              }
-              width={56}
-              axisLine={false}
-              tickLine={false}
-            />
-            <Tooltip
-              cursor={{
-                stroke: "var(--accent)",
-                strokeOpacity: 0.55,
-                strokeWidth: 1,
-              }}
-              content={(props) => <HoverTip {...props} maps={maps} />}
-              isAnimationActive={false}
-              wrapperStyle={{ zIndex: 20, pointerEvents: "none" }}
-            />
-            {maps.map((s) =>
-              s.linePoints.length ? (
-                <Line
-                  key={`${s.key}-line`}
-                  type="linear"
-                  dataKey={s.key}
-                  name={s.label}
-                  stroke={s.color}
-                  strokeWidth={s.overlay ? 1.25 : 2}
-                  strokeDasharray={s.dash}
-                  dot={false}
-                  connectNulls
-                  activeDot={{ r: 4, strokeWidth: 0 }}
-                  isAnimationActive={false}
-                  legendType="none"
-                />
-              ) : null,
-            )}
-            {maps
-              .filter((s) => s.printKey && s.printPoints.length)
-              .map((s) => (
-                <Scatter
-                  key={`${s.key}-dot`}
-                  dataKey={s.printKey}
-                  name={`${s.label} · print`}
-                  fill={s.color}
-                  stroke="var(--navy)"
-                  strokeWidth={1.5}
-                  r={5}
-                  tooltipType="none"
-                  isAnimationActive={false}
-                  legendType="none"
-                />
+          <>
+            <svg
+              viewBox={`0 0 ${W} ${H}`}
+              className="h-72 w-full cursor-crosshair md:h-96"
+              role="img"
+              aria-label="Property prices"
+              onMouseMove={onMove}
+              onMouseLeave={() => setHover(null)}
+            >
+              {layout.yTicks.map((yt) => (
+                <g key={yt}>
+                  <line
+                    x1={PAD.left}
+                    y1={layout.yOf(yt)}
+                    x2={W - PAD.right}
+                    y2={layout.yOf(yt)}
+                    stroke="#243041"
+                    strokeDasharray="3 3"
+                  />
+                  <text
+                    x={8}
+                    y={layout.yOf(yt) + 4}
+                    fill="#9aa8b5"
+                    fontSize="11"
+                    fontFamily="ui-monospace, monospace"
+                  >
+                    {scale === "rel"
+                      ? `${Math.round(yt)}%`
+                      : new Intl.NumberFormat("en-AU", { notation: "compact" }).format(yt)}
+                  </text>
+                </g>
               ))}
-          </ComposedChart>
-          </div>
+              {layout.xTicks.map((d) => (
+                <text
+                  key={d}
+                  x={layout.xOf(toMs(d))}
+                  y={H - 8}
+                  fill="#9aa8b5"
+                  fontSize="11"
+                  fontFamily="ui-monospace, monospace"
+                  textAnchor="middle"
+                >
+                  {d.slice(0, 4)}
+                </text>
+              ))}
+              {series.map((s) => {
+                const d = pathD(s.linePoints, layout.xOf, layout.yOf);
+                if (!d) return null;
+                return (
+                  <path
+                    key={s.key}
+                    d={d}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={s.overlay ? 1.5 : 2.25}
+                    strokeDasharray={s.dash}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                );
+              })}
+              {series.flatMap((s) =>
+                s.printPoints
+                  .filter((p) => p.value != null)
+                  .map((p) => (
+                    <circle
+                      key={`${s.key}-${p.date}`}
+                      cx={layout.xOf(toMs(p.date))}
+                      cy={layout.yOf(p.value as number)}
+                      r={4}
+                      fill={s.color}
+                      stroke="#0c1a2e"
+                      strokeWidth={1.5}
+                    />
+                  )),
+              )}
+              {hover ? (
+                <line
+                  x1={hover.svgX}
+                  y1={PAD.top}
+                  x2={hover.svgX}
+                  y2={H - PAD.bottom}
+                  stroke="#3b82c4"
+                  strokeOpacity={0.55}
+                />
+              ) : null}
+            </svg>
+            {hover && hover.items.length > 0 ? (
+              <div
+                className="pointer-events-none absolute top-3 z-10 min-w-[220px] max-w-[300px] rounded-lg border border-border bg-navy px-3 py-2.5 shadow-xl"
+                style={{
+                  left: `min(max(8px, calc(${(hover.svgX / W) * 100}% + 12px)), calc(100% - 260px))`,
+                }}
+              >
+                <div className="mb-2 font-mono text-[11px] text-muted">
+                  {prettyDate(hover.date)}
+                </div>
+                <ul className="space-y-1.5">
+                  {hover.items.map((it) => (
+                    <li key={it.key} className="flex items-baseline justify-between gap-3">
+                      <span className="flex min-w-0 items-center gap-1.5 text-xs text-foreground">
+                        <span
+                          className="h-1.5 w-1.5 shrink-0 rounded-full"
+                          style={{ background: it.color }}
+                        />
+                        <span className="truncate">{it.label}</span>
+                      </span>
+                      <span className="shrink-0 font-mono text-[11px] tabular-nums">
+                        {aud(it.aud)}
+                        {it.rel != null ? (
+                          <span className="ml-2 text-muted">{signedPct(it.rel)}</span>
+                        ) : null}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-2 text-[10px] text-muted">% vs first mark in this window</p>
+              </div>
+            ) : null}
+          </>
         )}
       </div>
-      {maps.length > 0 ? (
+      {series.length > 0 ? (
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
-          {maps.map((s) => (
-            <span
-              key={s.key}
-              className="inline-flex items-center gap-1.5 text-xs text-muted"
-            >
-              {s.dash ? (
-                <span
-                  className={cn(
-                    "w-3.5 border-t-2 border-dashed",
-                    s.swatch.replace(/^bg-/, "border-"),
-                  )}
-                />
-              ) : (
-                <span
-                  className={cn(
-                    "w-3.5 border-t-2",
-                    s.swatch.replace(/^bg-/, "border-"),
-                  )}
-                />
-              )}
+          {series.map((s) => (
+            <span key={s.key} className="inline-flex items-center gap-1.5 text-xs text-muted">
+              <span
+                className="w-3.5 border-t-2"
+                style={{
+                  borderColor: s.color,
+                  borderStyle: s.dash ? "dashed" : "solid",
+                }}
+              />
               {s.label}
             </span>
           ))}
         </div>
       ) : null}
       <p className="mt-2 text-xs leading-relaxed text-muted">
-        Solid line is a suburb-proxy (VGV suburb YoY from 2013; Abelson/ABS
-        Melbourne YoY before that), reset at each public sale and drawn
-        through every print — including the latest mark. Dots are public
-        prints (sale, list-mid, estimate). Overlay can be Off, Australia
-        mean (ABS 6432.0 stock mean — same series as TradingView AUAHP),
-        Melbourne houses, or suburb medians. Not a valuation, not Cotality
-        HVI, and not a monthly AVM.
+        Solid line is a suburb-proxy, reset at each public sale. Dots are public
+        prints. Overlay can be Off, Australia mean (ABS 6432.0 — same series as
+        TradingView AUAHP), Melbourne houses, or suburb medians. Not a valuation.
         {noProxy.length
-          ? ` No suburb-proxy for ${noProxy.join(", ")} (need a sale, or an estimate in a suburb we have tables for).`
+          ? ` No suburb-proxy for ${noProxy.join(", ")}.`
           : ""}
         {empty.length ? ` Unresolved: ${empty.join(", ")}.` : ""}
       </p>
