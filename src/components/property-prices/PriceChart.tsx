@@ -92,7 +92,12 @@ function buildSeries(
   if (mode !== "sleeves") {
     properties.forEach((p, i) => {
       const proxy = indexedPath(p);
-      const prints = propertyPoints(p);
+      const prints = propertyPoints(p).filter((pt) => {
+        if (pt.value == null || proxy.length < 2) return true;
+        const v = valueAt(proxy, pt.date);
+        if (v == null || v === 0) return true;
+        return Math.abs(pt.value - v) / v < 0.18;
+      });
       const lineSrc = proxy.length >= 2 ? proxy : prints.length >= 2 ? prints : [];
       const linePts = clipPoints(lineSrc, start, end, true, yearCarry);
       const printPts = clipPoints(prints, start, end, false);

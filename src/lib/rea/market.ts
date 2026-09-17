@@ -463,15 +463,25 @@ export function indexedPath(p: Property): Point[] {
   const suburb = suburbTable(p);
   if (estimateOnly && !suburb) return [];
 
+  const seed = anchors[0]!;
+  const extras = estimateOnly
+    ? []
+    : p.marks.filter((m) => m.method === "estimate");
+  const usable = [...anchors, ...extras]
+    .filter((a, i, all) => all.findIndex((b) => b.date === a.date && b.mid === a.mid) === i)
+    .filter((a) => a === seed || plausibleVs(seed, a, curve))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const pathAnchors = usable.length ? usable : anchors;
+
   const start =
     estimateOnly && suburb
       ? `${suburb[0].year}-12-31`
       : curve[0]!.date;
-  const first = anchors[0]!;
+  const first = pathAnchors[0]!;
   const dates = [
     ...new Set([
       ...monthGrid(start, CHART_AS_OF),
-      ...anchors.map((a) => a.date),
+      ...pathAnchors.map((a) => a.date),
       CHART_AS_OF,
     ]),
   ]
@@ -492,8 +502,8 @@ export function indexedPath(p: Property): Point[] {
 
   const annual: Point[] = [];
   for (const date of dates) {
-    const prev = anchors.filter((a) => a.date <= date).at(-1) ?? first;
-    const next = anchors.find((a) => a.date > date);
+    const prev = pathAnchors.filter((a) => a.date <= date).at(-1) ?? first;
+    const next = pathAnchors.find((a) => a.date > date);
     const v0 = scaled(prev, date);
     if (v0 == null) continue;
     let value = v0;
@@ -503,7 +513,24 @@ export function indexedPath(p: Property): Point[] {
     }
     annual.push({ date, value: Math.round(value) });
   }
-  return stitchPath(annual, anchors);
+  return stitchPath(annual, pathAnchors);
+}
+
+function plausibleVs(first: Mark, other: Mark, curve: Point[]): boolean {
+  const i0 =
+    smoothValueAt(curve, first.date) ??
+    valueAt(curve, first.date) ??
+    smoothValueAt(curve, `${first.date.slice(0, 4)}-12-31`);
+  const i1 =
+    smoothValueAt(curve, other.date) ??
+    valueAt(curve, other.date) ??
+    smoothValueAt(curve, `${other.date.slice(0, 4)}-12-31`);
+  if (i0 == null || i1 == null || i0 === 0) return other.method === "sale";
+  const implied = first.mid * (i1 / i0);
+  if (implied <= 0) return false;
+  const r = other.mid / implied;
+  if (other.method === "sale") return r >= 0.4 && r <= 1.85;
+  return r >= 0.55 && r <= 1.45;
 }
 
 const HARD: Mark["method"][] = ["sale", "list-mid", "manual"];

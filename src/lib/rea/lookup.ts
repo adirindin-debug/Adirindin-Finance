@@ -200,10 +200,27 @@ function streetNumber(address: string): string {
   return m?.[1] ?? "";
 }
 
+/** True when `text` cites this house number, not 16/76 when we want 6. */
+export function mentionsStreetNumber(text: string, address: string): boolean {
+  const num = streetNumber(address);
+  if (!num) return true;
+  const body = num.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace("/", "[\\/\\-]");
+  return new RegExp(`(^|[^\\d])${body}(?!\\d)`, "i").test(text);
+}
+
+function mentionsTitle(text: string, address: string): boolean {
+  if (!mentionsStreetNumber(text, address)) return false;
+  const street = address
+    .replace(/^\d+[A-Za-z]?(?:\/\d+)?\s+/, "")
+    .split(/\s+/)[0]
+    ?.toLowerCase();
+  if (street && street.length > 2) return text.toLowerCase().includes(street);
+  return true;
+}
+
 /** Pull dated sold prints out of search snippets or agency sold pages. */
 export function extractSalesFromText(raw: string, address: string): Mark[] {
   const text = raw.replace(/\u00a0/g, " ").replace(/\s+/g, " ");
-  const num = streetNumber(address);
   const marks: Mark[] = [];
   const push = (price: number | null, dateRaw: string | null, note: string) => {
     const date = dateRaw ? isoDate(dateRaw) : null;
@@ -247,16 +264,14 @@ export function extractSalesFromText(raw: string, address: string): Mark[] {
     let m: RegExpExecArray | null;
     const re = new RegExp(p.re.source, p.re.flags);
     while ((m = re.exec(text))) {
-      const around = text.slice(Math.max(0, m.index - 180), m.index + m[0].length + 80);
-      if (num && !around.toLowerCase().includes(num.toLowerCase()) && !text.toLowerCase().includes(address.toLowerCase())) {
+      const from = text.lastIndexOf(".", m.index);
+      const to = text.indexOf(".", m.index + m[0].length);
+      const sentence = text.slice(from + 1, to === -1 ? undefined : to);
+      if (!mentionsTitle(sentence, address) && !mentionsTitle(m[0] + " " + sentence.slice(0, 80), address)) {
         continue;
       }
       push(money(m[p.price]), m[p.date], p.note);
     }
-  }
-  const extra = parseHistoryText(text);
-  for (const mk of extra) {
-    if (mk.method === "sale") marks.push(mk);
   }
   const uniq = new Map<string, Mark>();
   for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}`, mk);
@@ -631,8 +646,10 @@ function parseOldListingsCard(html: string, address: string): Mark[] {
       continue;
     }
     if (want) {
-      const num = want.split(" ")[0];
-      if (num && !head.toLowerCase().includes(num.toLowerCase())) continue;
+      const num = want.split(" ")[0] ?? "";
+      if (num && !mentionsStreetNumber(head, address) && !mentionsStreetNumber(text.slice(0, 160), address)) {
+        continue;
+      }
     }
     const re =
       /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\s+(\$[\d,.]+(?:\s*[mk])?(?:\s*[–—-]\s*\$[\d,.]+(?:\s*[mk])?)?)/gi;
