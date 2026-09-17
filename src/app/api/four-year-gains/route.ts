@@ -261,6 +261,7 @@ export async function GET(request: Request) {
     points: PctPoint[];
     latestPct: number | null;
     startDate?: string;
+    coverage: "full" | "partial";
   }> = [];
 
   const seriesStarts: Partial<Record<SeriesId, string>> = {};
@@ -285,14 +286,21 @@ export async function GET(request: Request) {
         pct = rolling.filter((p) => p.t >= cutoff && p.t <= nowSec);
       }
       const points = downsample(pct, 900);
-      // latestPct = last point inside the displayed window
       const latestPct = points.length ? points[points.length - 1].pct : null;
+      const grace = 60 * 86400;
+      const coverage: "full" | "partial" =
+        windowKey === "all" || displayCutoff == null
+          ? "full"
+          : points.length && points[0].t <= displayCutoff + grace
+            ? "full"
+            : "partial";
       series.push({
         id: sMeta.id,
         label: sMeta.label,
         ticker: sMeta.ticker,
         points,
         latestPct,
+        coverage,
         ...(startDate ? { startDate } : {}),
       });
     } catch (e) {

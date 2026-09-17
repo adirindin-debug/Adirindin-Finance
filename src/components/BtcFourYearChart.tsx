@@ -22,6 +22,7 @@ type SeriesPayload = {
   points: PctPoint[];
   latestPct: number | null;
   startDate?: string;
+  coverage?: "full" | "partial";
 };
 
 type ApiPayload = {
@@ -183,10 +184,17 @@ function buildSharedAxis(
     points: s.points.filter((p) => p.t >= minT && p.t <= maxT),
   }));
 
-  const allPts = clipped.flatMap((s) => s.points);
+  const full = clipped.filter(
+    (s) => s.coverage !== "partial" && s.points.length > 1,
+  );
+  const scaleSeries = full.length ? full : clipped;
+  const allPts = scaleSeries.flatMap((s) => s.points);
   if (!allPts.length) return null;
 
   const yRange = rangeFor(allPts) ?? { min: 0, max: 100 };
+  const span = yRange.max - yRange.min || 1;
+  const lo = yRange.min - span * 0.15;
+  const hi = yRange.max + span * 0.15;
 
   const iw = W - PAD.left - PAD.right;
   const ih = H - PAD.top - PAD.bottom;
@@ -196,8 +204,18 @@ function buildSharedAxis(
     PAD.top +
     (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
 
+  const omitted = clipped
+    .filter((s) => {
+      if (!s.points.length) return true;
+      if (s.coverage !== "partial") return false;
+      const minP = Math.min(...s.points.map((p) => p.pct));
+      const maxP = Math.max(...s.points.map((p) => p.pct));
+      return maxP > hi || minP < lo;
+    })
+    .map((s) => s.id);
+
   const paths = clipped
-    .filter((s) => s.points.length > 1)
+    .filter((s) => s.points.length > 1 && !omitted.includes(s.id))
     .map((s) => {
       let d = "";
       s.points.forEach((p, i) => {
@@ -211,7 +229,7 @@ function buildSharedAxis(
       return { id: s.id, d, color: SERIES_STYLE[s.id].color };
     });
 
-  return { paths, clipped, yRange, minT, maxT, yScale, xScale };
+  return { paths, clipped, yRange, minT, maxT, yScale, xScale, omitted };
 }
 
 function buildBarLayout(series: SeriesPayload[]) {
@@ -441,7 +459,9 @@ export function BtcFourYearChart() {
       const t = minT + ((svgX - PAD.left) / (iw || 1)) * (maxT - minT || 1);
       const maxGapSec = Math.max((maxT - minT) * 0.03, 3 * 86400);
 
-      const values = chart.clipped.map((s) => {
+      const values = chart.clipped
+        .filter((s) => !chart.omitted.includes(s.id))
+        .map((s) => {
         const style = SERIES_STYLE[s.id];
         const pt = nearestPoint(s.points, t);
         if (!pt || Math.abs(pt.t - t) > maxGapSec) {
@@ -581,6 +601,7 @@ export function BtcFourYearChart() {
                 <p className="text-[10px] text-muted">
                   {s.ticker} · {copy.kpiSuffix}
                   {start ? ` · from ${start}` : ""}
+                  {s.coverage === "partial" ? " · short history" : ""}
                 </p>
               </div>
             );
@@ -714,7 +735,9 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {payload?.series?.map((s, i) => {
+            {payload?.series
+              ?.filter((s) => !chart.omitted.includes(s.id))
+              .map((s, i) => {
               const style = SERIES_STYLE[s.id];
               const x = PAD.left + i * 155;
               return (
@@ -980,6 +1003,19 @@ export function BtcFourYearChart() {
         {copy.footerLead}
         {copy.startsLine ? ` — starts: ${copy.startsLine}` : ""}. Not absolute
         price levels.{" "}
+        {chart?.omitted?.length ? (
+          <>
+            <strong className="font-medium text-muted">
+              {chart.omitted.map((id) => SERIES_STYLE[id].short).join(", ")} line
+              omitted:
+            </strong>{" "}
+            Yahoo daily history is shorter than this lookback (BTC-USD from Sep
+            2014), so a {windowKey.toUpperCase()} rolling line only exists for
+            the last few years and would squash the other series. The figure in
+            the chip is still the current {windowKey.toUpperCase()} trailing
+            return.{" "}
+          </>
+        ) : null}
         <strong className="font-medium text-muted">Shared % scale:</strong> all
         four series use one Y-axis so Bitcoin&apos;s relative outperformance is
         visible (equities may look flatter — that is intentional).{" "}
