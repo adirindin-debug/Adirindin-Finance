@@ -638,6 +638,7 @@ function AddProperty() {
   const [type, setType] = useState<PropertyType>("house");
   const [status, setStatus] = useState<PropertyStatus>("watch");
   const [url, setUrl] = useState("");
+  const [history, setHistory] = useState("");
   const [mid, setMid] = useState("");
   const [date, setDate] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -681,7 +682,7 @@ function AddProperty() {
         const res = await fetch("/api/rea-lookup", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url: link }),
+          body: JSON.stringify({ url: link, history }),
         });
         const found = res.ok ? await res.json() : null;
         if (found) {
@@ -744,6 +745,7 @@ function AddProperty() {
       setSuburb("");
       setPostcode("");
       setUrl("");
+      setHistory("");
       setMid("");
       setMsg(
         sales
@@ -770,6 +772,17 @@ function AddProperty() {
           placeholder="https://www.realestate.com.au/property/176-miller-st-preston-vic-3072/"
           value={url}
           onChange={(e) => applyUrl(e.target.value)}
+        />
+        <FieldLabel htmlFor="p-history">
+          Property history from the REA page (sold prices)
+        </FieldLabel>
+        <textarea
+          id="p-history"
+          rows={4}
+          placeholder={"Sold $1,450,000\n23 Jul 2025\nSold $240,000\n19 Jul 1999"}
+          value={history}
+          onChange={(e) => setHistory(e.target.value)}
+          className="w-full rounded-md border border-border bg-navy px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-2"
         />
         <FieldLabel htmlFor="p-address">Address (filled from the link)</FieldLabel>
         <TextInput
@@ -855,9 +868,10 @@ function AddProperty() {
         </div>
         {msg ? <p className="text-xs text-ok">{msg}</p> : null}
         <p className="text-xs text-muted">
-          Paste the profile link. Sale history on the page is plotted; the
-          national average is only the overlay, not the house. REA sometimes
-          blocks a live pull — known profiles still load their public prints.
+          Paste the profile link. If sold prices don’t load (REA blocks the
+          live page), copy the Property history block — each “Sold $…” line —
+          into the box. Advertised prices are used only when no sale is
+          available.
         </p>
       </form>
       <div className="mt-4 border-t border-border pt-3">

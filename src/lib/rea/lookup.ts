@@ -6,9 +6,10 @@ export type ListingLookup = {
   address: string;
   suburb: string;
   postcode: string;
+  state?: string;
   type: PropertyType;
   marks: Mark[];
-  source: "page" | "url" | "catalog" | "mixed";
+  source: "page" | "url" | "catalog" | "mixed" | "archive";
   note: string;
 };
 
@@ -121,7 +122,61 @@ function isoDate(raw: string): string | null {
     if (!mo) return null;
     return `${dmy[3]}-${mo}-${dmy[1].padStart(2, "0")}`;
   }
+  const my = s.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})\b/i);
+  if (my) {
+    const months: Record<string, string> = {
+      jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+      jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+    };
+    const mo = months[my[1].slice(0, 3).toLowerCase()];
+    if (!mo) return null;
+    return `${my[2]}-${mo}-01`;
+  }
   return null;
+}
+
+/** Parse a pasted REA Property history block into sale/list prints. */
+export function parseHistoryText(raw: string): Mark[] {
+  const text = raw.replace(/\u00a0/g, " ");
+  const marks: Mark[] = [];
+  const sold =
+    /Sold(?:\s+for)?\s*(\$[\d,.]+(?:\s*[mk])?|\d[\d,]{4,})\s*(?:on\s+)?(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{4}-\d{2}-\d{2}|[A-Za-z]{3,9}\s+\d{4})?/gi;
+  let m: RegExpExecArray | null;
+  while ((m = sold.exec(text))) {
+    const price = money(m[1]);
+    const date = m[2] ? isoDate(m[2]) : null;
+    if (price && date) {
+      marks.push({
+        date,
+        low: price,
+        mid: price,
+        high: price,
+        method: "sale",
+        note: `REA property history sold ${m[1]}.`,
+      });
+    }
+  }
+  const listed =
+    /(?:Listed|Advertised|For sale)[^\n$]{0,40}(\$[\d,.]+(?:\s*[mk])?(?:\s*[–—-]\s*\$[\d,.]+(?:\s*[mk])?)?)\s*(?:in\s+|on\s+)?(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|[A-Za-z]{3,9}\s+\d{4}|\d{4}-\d{2}-\d{2})?/gi;
+  while ((m = listed.exec(text))) {
+    const range = m[1].split(/[–—-]/).map((p) => money(p.trim())).filter((n): n is number => n != null);
+    const date = m[2] ? isoDate(m[2]) : null;
+    if (range.length && date) {
+      const low = Math.min(...range);
+      const high = Math.max(...range);
+      marks.push({
+        date,
+        low,
+        mid: Math.round((low + high) / 2),
+        high,
+        method: "list-mid",
+        note: `REA advertised ${m[1]}.`,
+      });
+    }
+  }
+  const uniq = new Map<string, Mark>();
+  for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}-${mk.method}`, mk);
+  return [...uniq.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export function parseListingUrl(raw: string): Partial<ListingLookup> | null {
@@ -149,6 +204,7 @@ export function parseListingUrl(raw: string): Partial<ListingLookup> | null {
         suburb,
         address: "",
         postcode: "",
+        state: listing[2].toUpperCase(),
       };
     }
     const profile = path.match(
@@ -187,6 +243,7 @@ export function parseListingUrl(raw: string): Partial<ListingLookup> | null {
         address: street,
         suburb: titleCase(suburbBits.join(" ")),
         postcode: profile[4],
+        state: profile[3].toUpperCase(),
       };
     }
   }
@@ -209,6 +266,7 @@ export function parseListingUrl(raw: string): Partial<ListingLookup> | null {
         suburb: titleCase(suburbBits.join(" ")),
         postcode: m[3],
         type: "unknown",
+        state: m[2].toUpperCase(),
       };
     }
   }
@@ -349,43 +407,156 @@ async function fetchPage(url: string): Promise<string | null> {
   }
 }
 
+function streetKey(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/[^a-z0-9/ ]+/g, " ")
+    .replace(/\b(street|st|road|rd|avenue|ave|drive|dr|court|ct|place|pl)\b/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseOldListingsCard(html: string, address: string): Mark[] {
+  const cards = html.split(/<div class="property /i).slice(1);
+  const want = streetKey(address);
+  const marks: Mark[] = [];
+  for (const card of cards) {
+    const text = card
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ");
+    const head = text.slice(0, 80);
+    if (want && !streetKey(head).includes(want) && !streetKey(text.slice(0, 120)).includes(want.split(" ")[0] ?? "")) {
+      continue;
+    }
+    if (want) {
+      const num = want.split(" ")[0];
+      if (num && !head.toLowerCase().includes(num.toLowerCase())) continue;
+    }
+    const re =
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})\s+(\$[\d,.]+(?:\s*[mk])?(?:\s*[–—-]\s*\$[\d,.]+(?:\s*[mk])?)?)/gi;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text))) {
+      const date = isoDate(`${m[1]} ${m[2]}`);
+      const parts = m[3]
+        .split(/[–—-]/)
+        .map((p) => money(p.trim()))
+        .filter((n): n is number => n != null);
+      if (!date || !parts.length) continue;
+      const low = Math.min(...parts);
+      const high = Math.max(...parts);
+      marks.push({
+        date,
+        low,
+        mid: Math.round((low + high) / 2),
+        high,
+        method: "list-mid",
+        note: `Advertised ${m[3]} (${m[1]} ${m[2]}) — archive of listing sites, not the settled sale.`,
+      });
+    }
+  }
+  const uniq = new Map<string, Mark>();
+  for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}`, mk);
+  return [...uniq.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function fetchOldListings(parsed: Partial<ListingLookup>): Promise<Mark[]> {
+  const suburb = parsed.suburb?.trim();
+  const postcode = parsed.postcode?.trim();
+  const address = parsed.address?.trim();
+  const state = (parsed.state || "VIC").toUpperCase();
+  if (!suburb || !postcode || !address) return [];
+  const suburbSlug = suburb.replace(/\s+/g, "+");
+  const streetSlug = address.replace(/\//g, "-").replace(/\s+/g, "+");
+  const first = streetSlug.split("+").slice(0, 2).join("+");
+  const urls = [
+    `https://www.oldlistings.com.au/real-estate/${state}/${suburbSlug}/${postcode}/buy/1/${streetSlug}`,
+    `https://www.oldlistings.com.au/real-estate/${state}/${suburbSlug}/${postcode}/buy/1/${first}`,
+  ];
+  for (const u of urls) {
+    const html = await fetchPage(u);
+    if (!html) continue;
+    const marks = parseOldListingsCard(html, address);
+    if (marks.length) return marks;
+  }
+  return [];
+}
+
+function mergeMarks(...lists: Mark[][]): Mark[] {
+  const uniq = new Map<string, Mark>();
+  for (const list of lists) {
+    for (const mk of list) {
+      const key = `${mk.date}-${mk.method}`;
+      const prev = uniq.get(key);
+      if (!prev || (mk.method === "sale" && prev.method !== "sale")) uniq.set(key, mk);
+    }
+  }
+  return [...uniq.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function merge(
   url: string,
   parsed: Partial<ListingLookup> | null,
   catalog: ListingLookup | null,
   page: Partial<ListingLookup> | null,
+  archive: Mark[],
+  pasted: Mark[],
 ): ListingLookup | null {
-  const address = (page?.address || parsed?.address || catalog?.address || "").trim();
+  const address = (parsed?.address || catalog?.address || page?.address || "").trim();
   const suburb = (parsed?.suburb || catalog?.suburb || "").trim();
   const postcode = (parsed?.postcode || catalog?.postcode || "").trim();
-  const type = parsed?.type || catalog?.type || "unknown";
-  const marks = (page?.marks?.length ? page.marks : catalog?.marks) ?? [];
+  const type = parsed?.type && parsed.type !== "unknown" ? parsed.type : catalog?.type || parsed?.type || "unknown";
+  const salesFirst = mergeMarks(
+    pasted,
+    page?.marks ?? [],
+    catalog?.marks ?? [],
+    archive,
+  );
   if (!address && !suburb && !catalog) return null;
-  const source: ListingLookup["source"] =
-    page?.marks?.length && catalog ? "mixed" : page?.marks?.length ? "page" : catalog ? "catalog" : "url";
+  const sales = salesFirst.filter((m) => m.method === "sale").length;
+  const lists = salesFirst.filter((m) => m.method === "list-mid").length;
+  const source: ListingLookup["source"] = pasted.length
+    ? "page"
+    : page?.marks?.length
+      ? "page"
+      : catalog
+        ? "catalog"
+        : archive.length
+          ? "archive"
+          : "url";
   return {
     url: catalog?.url || url,
     address: address || [parsed?.address, suburb].filter(Boolean).join(", "),
     suburb,
     postcode,
+    state: parsed?.state || catalog?.state,
     type,
-    marks,
+    marks: salesFirst,
     source,
-    note:
-      marks.some((m) => m.method === "sale")
-        ? `${marks.filter((m) => m.method === "sale").length} public sale print(s) from the listing.`
-        : marks.length
-          ? "Estimate range from the listing — no disclosed sale."
-          : "Address from the URL. REA blocked live sale history on this request.",
+    note: sales
+      ? `${sales} sold print(s) from the REA history.`
+      : lists
+        ? `${lists} advertised print(s). REA blocks live sold history — paste the Property history block for official sales.`
+        : "Address from the URL. Paste the REA Property history (Sold $…) to plot official sales.",
   };
 }
 
-export async function lookupListing(rawUrl: string): Promise<ListingLookup | null> {
+export async function lookupListing(
+  rawUrl: string,
+  historyText = "",
+): Promise<ListingLookup | null> {
   const url = rawUrl.trim();
-  if (!url) return null;
-  const parsed = parseListingUrl(url);
-  const catalog = fromCatalog(url);
-  const html = await fetchPage(url);
+  if (!url && !historyText.trim()) return null;
+  const parsed = url ? parseListingUrl(url) : null;
+  const catalog = url ? fromCatalog(url) : null;
+  const html = url ? await fetchPage(url) : null;
   const page = html ? parseHtml(html) : null;
-  return merge(url, parsed, catalog, page);
+  const pasted = parseHistoryText(historyText);
+  const knownSales =
+    pasted.filter((m) => m.method === "sale").length +
+    (page?.marks ?? []).filter((m) => m.method === "sale").length +
+    (catalog?.marks ?? []).filter((m) => m.method === "sale").length;
+  const archive = parsed && knownSales < 2 ? await fetchOldListings(parsed) : [];
+  return merge(url, parsed, catalog, page, archive, pasted);
 }
+
