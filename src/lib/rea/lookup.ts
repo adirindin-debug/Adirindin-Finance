@@ -395,6 +395,34 @@ async function searchWebSales(parsed: Partial<ListingLookup>): Promise<Mark[]> {
   return [...uniq.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
+async function fillAddress(
+  parsed: Partial<ListingLookup>,
+  url: string,
+): Promise<Partial<ListingLookup>> {
+  if (parsed.address) return parsed;
+  const queries = [url].filter(Boolean);
+  for (const q of queries) {
+    const html = await fetchSearch(
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
+    );
+    if (!html) continue;
+    const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+    const m = text.match(
+      /(\d+[A-Za-z]?(?:\/\d+)?\s+[A-Za-z][A-Za-z'’\-]+(?:\s+[A-Za-z][A-Za-z'’\-]+){0,5})\s*,\s*([A-Za-z][A-Za-z\s'-]{2,40}?)\s*,\s*(NSW|VIC|QLD|SA|WA|TAS|NT|ACT)\s+(\d{4})/i,
+    );
+    if (m) {
+      return {
+        ...parsed,
+        address: titleCase(m[1].replace(/\s+/g, " ").trim()),
+        suburb: titleCase(m[2].replace(/\s+/g, " ").trim()) || parsed.suburb,
+        postcode: m[4],
+        state: m[3].toUpperCase(),
+      };
+    }
+  }
+  return parsed;
+}
+
 export function parseListingUrl(raw: string): Partial<ListingLookup> | null {
   let u: URL;
   try {
@@ -407,7 +435,7 @@ export function parseListingUrl(raw: string): Partial<ListingLookup> | null {
   if (host.includes("realestate.com.au")) {
     const listing = path.match(
       new RegExp(
-        `^/property-([a-z-]+)-(${STATES})-([a-z0-9+-]+)-(\\d+)$`,
+        `^/(?:sold/)?property-([a-z-]+)-(${STATES})-([a-z0-9+-]+)-(\\d+)$`,
         "i",
       ),
     );
@@ -765,7 +793,8 @@ export async function lookupListing(
 ): Promise<ListingLookup | null> {
   const url = rawUrl.trim();
   if (!url && !historyText.trim()) return null;
-  const parsed = url ? parseListingUrl(url) : null;
+  let parsed = url ? parseListingUrl(url) : null;
+  if (parsed && !parsed.address && url) parsed = await fillAddress(parsed, url);
   const catalog = url ? fromCatalog(url) : null;
   const html = url ? await fetchPage(url) : null;
   const page = html ? parseHtml(html) : null;

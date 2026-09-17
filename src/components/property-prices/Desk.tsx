@@ -711,6 +711,7 @@ function AddProperty() {
         sub = sub || parsed.suburb;
         pc = pc || parsed.postcode;
       }
+      if (!street && sub) street = `Property in ${sub}`;
       if (!street || !sub) {
         setMsg("Paste a realestate.com.au / Domain profile link, or a street and suburb.");
         return;
@@ -752,7 +753,7 @@ function AddProperty() {
           ? `Added ${street}, ${sub} — ${sales} sale print(s) on the chart from the listing.`
           : marks?.length
             ? `Added ${street}, ${sub} — listing estimate on the chart.`
-            : `Added ${street}, ${sub}. No public sale on the profile; log a mid to draw it.`,
+            : `Added ${street}, ${sub}. No disclosed sale on that page, so the line is the area median until a sale is logged.`,
       );
     } catch {
       setMsg("Could not read that listing. Check the link and try again.");

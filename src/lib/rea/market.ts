@@ -328,6 +328,51 @@ export function latestAustraliaMean(): { date: string; value: number } {
   return { date: last.date, value: last.value ?? 0 };
 }
 
+/** Placeholder print when a listing has no disclosed sale — area median, not a valuation. */
+export function areaAnchor(p: {
+  suburb: string;
+  type: Property["type"];
+  postcode: string;
+}): Mark {
+  const fake = {
+    suburb: p.suburb,
+    type: p.type,
+    postcode: p.postcode,
+  } as Property;
+  const table = suburbTable(fake);
+  if (table?.length) {
+    const last = table[table.length - 1]!;
+    return {
+      date: `${last.year}-12-31`,
+      low: last.value,
+      mid: last.value,
+      high: last.value,
+      method: "estimate",
+      note: `${p.suburb} sale median ${last.year} — listing had no disclosed sale.`,
+    };
+  }
+  if (isVic(fake)) {
+    const last = MELBOURNE_HOUSES[MELBOURNE_HOUSES.length - 1]!;
+    return {
+      date: `${last.year}-12-31`,
+      low: last.value,
+      mid: last.value,
+      high: last.value,
+      method: "estimate",
+      note: `Melbourne house median ${last.year} — listing had no disclosed sale.`,
+    };
+  }
+  const au = latestAustraliaMean();
+  return {
+    date: au.date,
+    low: au.value,
+    mid: au.value,
+    high: au.value,
+    method: "estimate",
+    note: "Australia mean — listing had no disclosed sale.",
+  };
+}
+
 export function australiaOverlay(): Point[] {
   return AUSTRALIA_MEAN_ABS.map((p) => ({ ...p }));
 }
@@ -460,8 +505,6 @@ export function indexedPath(p: Property): Point[] {
   if (!anchors.length) return [];
   const curve = indexCurve(p);
   if (curve.length < 2) return [];
-  const suburb = suburbTable(p);
-  if (estimateOnly && !suburb) return [];
 
   const seed = anchors[0]!;
   const extras = estimateOnly
@@ -474,8 +517,8 @@ export function indexedPath(p: Property): Point[] {
   const pathAnchors = usable.length ? usable : anchors;
 
   const start =
-    estimateOnly && suburb
-      ? `${suburb[0].year}-12-31`
+    estimateOnly && suburbTable(p)
+      ? `${suburbTable(p)![0].year}-12-31`
       : curve[0]!.date;
   const first = pathAnchors[0]!;
   const dates = [

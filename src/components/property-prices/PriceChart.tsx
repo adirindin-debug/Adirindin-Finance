@@ -282,7 +282,8 @@ export function PriceChart(props: {
       <div className="relative overflow-hidden rounded-md bg-black">
         {series.length === 0 ? (
           <div className="flex h-72 items-center justify-center text-sm text-muted md:h-96">
-            No public prints in this window. Widen the range or log a dated mid.
+            No public prints in this window. Widen the range, or the listing
+            had no disclosed sale — add a dated mid if you have one.
           </div>
         ) : (
           <>
