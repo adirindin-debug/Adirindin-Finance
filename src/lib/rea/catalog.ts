@@ -143,4 +143,38 @@ export const KNOWN_LISTINGS: Pick<
       },
     ],
   },
+  {
+    address: "166 Thompsons Road",
+    suburb: "Bulleen",
+    postcode: "3105",
+    type: "house",
+    url: "https://www.realestate.com.au/property/166-thompsons-rd-bulleen-vic-3105/",
+    notes: "REA property history: three disclosed sales. Skip the 2020 lease.",
+    marks: [
+      {
+        date: "2001-10-21",
+        low: 300_000,
+        mid: 300_000,
+        high: 300_000,
+        method: "sale",
+        note: "REA property history sold $300,000.",
+      },
+      {
+        date: "2015-08-06",
+        low: 820_000,
+        mid: 820_000,
+        high: 820_000,
+        method: "sale",
+        note: "REA property history sold $820,000.",
+      },
+      {
+        date: "2026-07-15",
+        low: 990_000,
+        mid: 990_000,
+        high: 990_000,
+        method: "sale",
+        note: "REA property history sold $990,000.",
+      },
+    ],
+  },
 ];

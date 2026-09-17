@@ -151,47 +151,66 @@ function isoDate(raw: string): string | null {
   return null;
 }
 
-/** Parse a pasted REA Property history block into sale/list prints. */
+/** Parse a pasted REA Property history block into sale prints. */
 export function parseHistoryText(raw: string): Mark[] {
-  const text = raw.replace(/\u00a0/g, " ");
+  const lines = raw
+    .replace(/\u00a0/g, " ")
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
   const marks: Mark[] = [];
-  const sold =
-    /Sold(?:\s+for)?\s*(\$[\d,.]+(?:\s*[mk])?|\d[\d,]{4,})\s*(?:on\s+)?(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{4}-\d{2}-\d{2}|[A-Za-z]{3,9}\s+\d{4})?/gi;
-  let m: RegExpExecArray | null;
-  while ((m = sold.exec(text))) {
-    const price = money(m[1]);
-    const date = m[2] ? isoDate(m[2]) : null;
-    if (price && date) {
-      marks.push({
-        date,
-        low: price,
-        mid: price,
-        high: price,
-        method: "sale",
-        note: `REA property history sold ${m[1]}.`,
-      });
-    }
+  const skip = /\bleased\b|\bper week\b|\brent\b/i;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (skip.test(line)) continue;
+    const priceM = line.match(
+      /Sold(?:\s+for)?\s*(\$[\d,.]+(?:\s*[mk])?|\d[\d,]{4,})/i,
+    );
+    if (!priceM) continue;
+    const price = money(priceM[1]);
+    if (!price) continue;
+    const nearby = [line, lines[i + 1], lines[i + 2]]
+      .filter(Boolean)
+      .join(" ");
+    if (skip.test(nearby) && /leased|per week/i.test(line)) continue;
+    const dateLine = [line, lines[i + 1], lines[i + 2]].find(
+      (l) => l && !skip.test(l) && /(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{4})/.test(l),
+    );
+    const dated =
+      (dateLine ?? nearby).match(/(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{4})/) ||
+      nearby.match(/([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})/) ||
+      nearby.match(/(\d{4}-\d{2}-\d{2})/);
+    const date = dated ? isoDate(dated[1]) : isoDate(line.match(/\b((?:19|20)\d{2})\b/)?.[1] ?? "");
+    if (!date) continue;
+    marks.push({
+      date,
+      low: price,
+      mid: price,
+      high: price,
+      method: "sale",
+      note: `REA property history sold ${priceM[1]}.`,
+    });
   }
-  const listed =
-    /(?:Listed|Advertised|For sale)[^\n$]{0,40}(\$[\d,.]+(?:\s*[mk])?(?:\s*[–—-]\s*\$[\d,.]+(?:\s*[mk])?)?)\s*(?:in\s+|on\s+)?(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|[A-Za-z]{3,9}\s+\d{4}|\d{4}-\d{2}-\d{2})?/gi;
-  while ((m = listed.exec(text))) {
-    const range = m[1].split(/[–—-]/).map((p) => money(p.trim())).filter((n): n is number => n != null);
-    const date = m[2] ? isoDate(m[2]) : null;
-    if (range.length && date) {
-      const low = Math.min(...range);
-      const high = Math.max(...range);
-      marks.push({
-        date,
-        low,
-        mid: Math.round((low + high) / 2),
-        high,
-        method: "list-mid",
-        note: `REA advertised ${m[1]}.`,
-      });
-    }
+  const blob = raw.replace(/\u00a0/g, " ");
+  const paired =
+    /Sold(?:\s+for)?\s*(\$[\d,.]+(?:\s*[mk])?|\d[\d,]{4,})[\s\S]{0,90}?(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{4})/gi;
+  let m: RegExpExecArray | null;
+  while ((m = paired.exec(blob))) {
+    if (skip.test(m[0])) continue;
+    const price = money(m[1]);
+    const date = isoDate(m[2]);
+    if (!price || !date) continue;
+    marks.push({
+      date,
+      low: price,
+      mid: price,
+      high: price,
+      method: "sale",
+      note: `REA property history sold ${m[1]}.`,
+    });
   }
   const uniq = new Map<string, Mark>();
-  for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}-${mk.method}`, mk);
+  for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}`, mk);
   return [...uniq.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -272,6 +291,14 @@ export function extractSalesFromText(raw: string, address: string): Mark[] {
       }
       push(money(m[p.price]), m[p.date], p.note);
     }
+  }
+  const paired =
+    /Sold(?:\s+for)?\s*(\$[\d,.]+(?:\s*[mk])?|\d[\d,]{4,})[\s\S]{0,90}?(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{4})/gi;
+  let pm: RegExpExecArray | null;
+  while ((pm = paired.exec(text))) {
+    if (!mentionsTitle(pm[0], address)) continue;
+    if (/\bleased\b|\bper week\b/i.test(pm[0])) continue;
+    push(money(pm[1]), pm[2], "sold print from the listing record");
   }
   const uniq = new Map<string, Mark>();
   for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}`, mk);
@@ -517,9 +544,20 @@ export function parseListingUrl(raw: string): Partial<ListingLookup> | null {
   return null;
 }
 
-function fromCatalog(url: string): ListingLookup | null {
+function fromCatalog(
+  url: string,
+  parsed?: Partial<ListingLookup> | null,
+): ListingLookup | null {
   const key = slugKey(url);
-  const hit = KNOWN_LISTINGS.find((p) => slugKey(p.url) === key);
+  const hit =
+    KNOWN_LISTINGS.find((p) => slugKey(p.url) === key) ||
+    KNOWN_LISTINGS.find(
+      (p) =>
+        parsed?.address &&
+        parsed.suburb &&
+        p.address.toLowerCase() === parsed.address.toLowerCase() &&
+        p.suburb.toLowerCase() === parsed.suburb.toLowerCase(),
+    );
   if (!hit) return null;
   return {
     url: hit.url,
@@ -795,7 +833,7 @@ export async function lookupListing(
   if (!url && !historyText.trim()) return null;
   let parsed = url ? parseListingUrl(url) : null;
   if (parsed && !parsed.address && url) parsed = await fillAddress(parsed, url);
-  const catalog = url ? fromCatalog(url) : null;
+  const catalog = url ? fromCatalog(url, parsed) : null;
   const html = url ? await fetchPage(url) : null;
   const page = html ? parseHtml(html) : null;
   const pasted = parseHistoryText(historyText);

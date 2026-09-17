@@ -780,7 +780,7 @@ function AddProperty() {
         <textarea
           id="p-history"
           rows={4}
-          placeholder={"Sold $1,450,000\n23 Jul 2025\nSold $240,000\n19 Jul 1999"}
+          placeholder={"2026 Sold $990,000\nSold 15 July 2026\n2015 Sold $820,000\nSold 6 August 2015"}
           value={history}
           onChange={(e) => setHistory(e.target.value)}
           className="w-full rounded-md border border-border bg-navy px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-2"

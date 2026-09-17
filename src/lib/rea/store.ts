@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { slug } from "@/lib/utils";
-import { areaAnchor } from "./market";
 import { SEED, STORE_KEY } from "./seed";
 import type {
   Mark,
@@ -77,7 +76,7 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
       ? input.marks
       : input.firstMark
         ? [input.firstMark]
-        : [areaAnchor(input)]
+        : []
     )
       .slice()
       .sort((a, b) => a.date.localeCompare(b.date));
