@@ -868,10 +868,8 @@ function AddProperty() {
         </div>
         {msg ? <p className="text-xs text-ok">{msg}</p> : null}
         <p className="text-xs text-muted">
-          Paste the profile link. If sold prices don’t load (REA blocks the
-          live page), copy the Property history block — each “Sold $…” line —
-          into the box. Advertised prices are used only when no sale is
-          available.
+          Paste the profile link. Sold prints are read from the listing
+          record automatically. The history box is only if a sale was hidden.
         </p>
       </form>
       <div className="mt-4 border-t border-border pt-3">

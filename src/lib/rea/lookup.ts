@@ -109,7 +109,10 @@ function money(raw: string): number | null {
 }
 
 function isoDate(raw: string): string | null {
-  const s = raw.trim();
+  const s = raw
+    .trim()
+    .replace(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\s+/i, "")
+    .replace(/(\d{1,2})(st|nd|rd|th)\b/i, "$1");
   const iso = s.match(/(\d{4}-\d{2}-\d{2})/);
   if (iso) return iso[1];
   const dmy = s.match(/(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})/);
@@ -122,7 +125,19 @@ function isoDate(raw: string): string | null {
     if (!mo) return null;
     return `${dmy[3]}-${mo}-${dmy[1].padStart(2, "0")}`;
   }
-  const my = s.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})\b/i);
+  const mdy = s.match(/([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4})/);
+  if (mdy) {
+    const months: Record<string, string> = {
+      jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+      jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+    };
+    const mo = months[mdy[1].slice(0, 3).toLowerCase()];
+    if (!mo) return null;
+    return `${mdy[3]}-${mo}-${mdy[2].padStart(2, "0")}`;
+  }
+  const my = s.match(
+    /\b(January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{4})\b/i,
+  );
   if (my) {
     const months: Record<string, string> = {
       jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
@@ -132,6 +147,7 @@ function isoDate(raw: string): string | null {
     if (!mo) return null;
     return `${my[2]}-${mo}-01`;
   }
+  if (/^\d{4}$/.test(s)) return `${s}-06-30`;
   return null;
 }
 
@@ -176,6 +192,191 @@ export function parseHistoryText(raw: string): Mark[] {
   }
   const uniq = new Map<string, Mark>();
   for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}-${mk.method}`, mk);
+  return [...uniq.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function streetNumber(address: string): string {
+  const m = address.trim().match(/^(\d+[A-Za-z]?(?:\/\d+)?)/);
+  return m?.[1] ?? "";
+}
+
+/** Pull dated sold prints out of search snippets or agency sold pages. */
+export function extractSalesFromText(raw: string, address: string): Mark[] {
+  const text = raw.replace(/\u00a0/g, " ").replace(/\s+/g, " ");
+  const num = streetNumber(address);
+  const marks: Mark[] = [];
+  const push = (price: number | null, dateRaw: string | null, note: string) => {
+    const date = dateRaw ? isoDate(dateRaw) : null;
+    if (!price || !date) return;
+    marks.push({
+      date,
+      low: price,
+      mid: price,
+      high: price,
+      method: "sale",
+      note,
+    });
+  };
+  const patterns: { re: RegExp; price: number; date: number; note: string }[] = [
+    {
+      re: /sold(?:\s+for)?\s*[:\s]*A?\$?\s*([\d,.]+(?:\s*[mk])?)\s+(?:on\s+|in\s+)?(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{4}|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|[A-Za-z]{3,9}\s+\d{4}|\d{4}-\d{2}-\d{2})/gi,
+      price: 1,
+      date: 2,
+      note: "sold print from the listing record",
+    },
+    {
+      re: /sold on\s+(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\s+\d{4}|[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})\s+for\s+(\$[\d,.]+(?:\s*[mk])?)/gi,
+      price: 2,
+      date: 1,
+      note: "sold print from the listing record",
+    },
+    {
+      re: /sold in\s+(\d{4})\s+for\s+(\$[\d,.]+(?:\s*[mk])?)/gi,
+      price: 2,
+      date: 1,
+      note: "sold print from the listing record",
+    },
+    {
+      re: /(?:originally\s+)?purchased for\s+(\$[\d,.]+(?:\s*[mk])?)\s+in\s+([A-Za-z]{3,9}\s+\d{4}|\d{4})/gi,
+      price: 1,
+      date: 2,
+      note: "prior sale from the listing record",
+    },
+  ];
+  for (const p of patterns) {
+    let m: RegExpExecArray | null;
+    const re = new RegExp(p.re.source, p.re.flags);
+    while ((m = re.exec(text))) {
+      const around = text.slice(Math.max(0, m.index - 180), m.index + m[0].length + 80);
+      if (num && !around.toLowerCase().includes(num.toLowerCase()) && !text.toLowerCase().includes(address.toLowerCase())) {
+        continue;
+      }
+      push(money(m[p.price]), m[p.date], p.note);
+    }
+  }
+  const extra = parseHistoryText(text);
+  for (const mk of extra) {
+    if (mk.method === "sale") marks.push(mk);
+  }
+  const uniq = new Map<string, Mark>();
+  for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}`, mk);
+  return collapseSales([...uniq.values()]);
+}
+
+function collapseSales(marks: Mark[]): Mark[] {
+  const sales = marks
+    .filter((m) => m.method === "sale")
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const rest = marks.filter((m) => m.method !== "sale");
+  const out: Mark[] = [];
+  for (const m of sales) {
+    const prev = out.at(-1);
+    if (
+      prev &&
+      Math.abs(Date.parse(m.date) - Date.parse(prev.date)) < 70 * 86400000 &&
+      Math.abs(m.mid - prev.mid) / Math.max(prev.mid, 1) < 0.1
+    ) {
+      const mDay = m.date.slice(8);
+      const pDay = prev.date.slice(8);
+      const vague = (d: string) => d === "01" || d === "30";
+      const coarse = (n: number) => n % 100_000 === 0;
+      const mid = coarse(m.mid) && !coarse(prev.mid) ? prev.mid : !coarse(m.mid) ? m.mid : prev.mid;
+      const date = vague(mDay) && !vague(pDay) ? prev.date : !vague(mDay) ? m.date : prev.date;
+      out[out.length - 1] = { ...m, date, mid, low: mid, high: mid };
+      continue;
+    }
+    out.push(m);
+  }
+  return [...out, ...rest].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function decodeHref(raw: string): string | null {
+  try {
+    const u = raw.includes("uddg=")
+      ? decodeURIComponent(raw.split("uddg=")[1].split("&")[0])
+      : raw;
+    const url = new URL(u);
+    if (!/^https?:$/.test(url.protocol)) return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function followable(url: string): boolean {
+  const h = url.toLowerCase();
+  if (h.includes("realestate.com.au")) return false;
+  if (h.includes("duckduckgo.") || h.includes("brave.com") || h.includes("bing.com")) return false;
+  if (h.includes("facebook.") || h.includes("wikipedia.") || h.includes("google.")) return false;
+  return (
+    h.includes("sold") ||
+    h.includes("property") ||
+    h.includes("real-estate") ||
+    h.includes("homes/") ||
+    h.includes("barryplant") ||
+    h.includes("raywhite") ||
+    h.includes("ljhooker") ||
+    h.includes("harcourts") ||
+    h.includes("jelliscraig") ||
+    h.includes("soho") ||
+    h.includes("homely") ||
+    h.includes("allhomes")
+  );
+}
+
+async function fetchSearch(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-AU,en;q=0.9",
+      },
+      redirect: "follow",
+    });
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (text.length < 800) return null;
+    if (/confirm this search was made by a human|Select all squares containing a duck|KPSDK|Just a moment/i.test(text)) {
+      return null;
+    }
+    return text;
+  } catch {
+    return null;
+  }
+}
+
+async function searchWebSales(parsed: Partial<ListingLookup>): Promise<Mark[]> {
+  const address = parsed.address?.trim();
+  const suburb = parsed.suburb?.trim();
+  const postcode = parsed.postcode?.trim() ?? "";
+  if (!address || !suburb) return [];
+  const q = `"${address}" ${suburb} ${postcode} sold`.trim();
+  const searches = [
+    `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`,
+    `https://search.brave.com/search?q=${encodeURIComponent(q)}`,
+  ];
+  const marks: Mark[] = [];
+  const links: string[] = [];
+  for (const u of searches) {
+    const html = await fetchSearch(u);
+    if (!html) continue;
+    marks.push(...extractSalesFromText(html.replace(/<[^>]+>/g, " "), address));
+    for (const href of html.matchAll(/href="([^"]+)"/g)) {
+      const abs = decodeHref(href[1].replace(/&/g, "&"));
+      if (abs && followable(abs) && !links.includes(abs)) links.push(abs);
+    }
+    if (marks.length) break;
+  }
+  for (const link of links.slice(0, 3)) {
+    const html = await fetchSearch(link);
+    if (!html) continue;
+    const text = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ");
+    marks.push(...extractSalesFromText(text, address));
+  }
+  const uniq = new Map<string, Mark>();
+  for (const mk of marks) uniq.set(`${mk.date}-${mk.mid}`, mk);
   return [...uniq.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
@@ -534,10 +735,10 @@ function merge(
     marks: salesFirst,
     source,
     note: sales
-      ? `${sales} sold print(s) from the REA history.`
+      ? `${sales} sold print(s) taken from the listing record.`
       : lists
-        ? `${lists} advertised print(s). REA blocks live sold history — paste the Property history block for official sales.`
-        : "Address from the URL. Paste the REA Property history (Sold $…) to plot official sales.",
+        ? `${lists} advertised print(s). Paste the REA Property history block if you have official solds.`
+        : "Address from the URL. Paste the REA Property history (Sold $…) if solds did not load.",
   };
 }
 
@@ -556,7 +757,10 @@ export async function lookupListing(
     pasted.filter((m) => m.method === "sale").length +
     (page?.marks ?? []).filter((m) => m.method === "sale").length +
     (catalog?.marks ?? []).filter((m) => m.method === "sale").length;
-  const archive = parsed && knownSales < 2 ? await fetchOldListings(parsed) : [];
-  return merge(url, parsed, catalog, page, archive, pasted);
+  const web = parsed && knownSales < 2 ? await searchWebSales(parsed) : [];
+  const archive = parsed && knownSales + web.filter((m) => m.method === "sale").length < 2
+    ? await fetchOldListings(parsed)
+    : [];
+  return merge(url, parsed, catalog, page, mergeMarks(web, archive), pasted);
 }
 
