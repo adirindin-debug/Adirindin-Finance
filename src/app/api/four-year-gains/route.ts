@@ -1,5 +1,5 @@
 /**
- * Rolling / cumulative percentage gains for BTC vs major equity indices.
+ * Relative % from the start of each window for BTC vs major equity indices.
  * Query: ?window=1y|3y|4y|5y|10y|all  (default: 4y — keeps existing route callers working)
  * Yahoo Finance chart API (server-side; UA required). Educational — NFA.
  */
@@ -46,9 +46,6 @@ const WINDOW_YEARS: Record<Exclude<WindowKey, "all">, number> = {
 };
 
 const VALID_WINDOWS = new Set<string>(["1y", "3y", "4y", "5y", "10y", "all"]);
-
-/** Max gap from exact lookback target to nearest prior close (~10 trading / ~32 calendar days). */
-const MAX_BASE_GAP_SEC = 32 * 86400;
 
 function windowSec(years: number) {
   return Math.round(years * 365.25 * 86400);
@@ -118,53 +115,38 @@ async function fetchYahooDaily(symbol: string): Promise<ClosePoint[]> {
 }
 
 /**
- * For each close at time t, % change vs the nearest prior close at or before
- * t − windowSec. Same calendar lookback for all series.
+ * Relative % from the window start: every series at 0% on the left,
+ * then the path of that window's performance. End value = window return
+ * (matches the bar / KPI).
  */
-function rollingWindowPct(closes: ClosePoint[], winSec: number): PctPoint[] {
+function windowRelative(
+  closes: ClosePoint[],
+  fromSec: number,
+  toSec: number,
+): PctPoint[] {
   if (closes.length < 2) return [];
+  let base: ClosePoint | null = null;
+  for (const p of closes) {
+    if (p.t > toSec) break;
+    if (p.c <= 0) continue;
+    if (p.t <= fromSec) base = p;
+  }
+  const inWin = closes.filter(
+    (p) => p.t >= fromSec && p.t <= toSec && p.c > 0,
+  );
+  if (!inWin.length) return [];
+  if (!base || base.c <= 0) base = inWin[0]!;
   const out: PctPoint[] = [];
-  let j = 0;
-  for (let i = 0; i < closes.length; i++) {
-    const target = closes[i].t - winSec;
-    // Advance base pointer over the full series (not capped at i); timestamps
-    // keep j < i because target < closes[i].t when winSec > 0.
-    while (j + 1 < closes.length && closes[j + 1].t <= target) j++;
-    if (j >= i) continue; // never use current/future bar as base
-    if (closes[j].t > target) continue; // not enough history yet
-    const base = closes[j];
-    if (base.c <= 0) continue;
-    // Prefer nearest prior close; skip only if lookback gap is extreme
-    // (Yahoo max-range often weekly/monthly — strict 45d killed most points).
-    if (target - base.t > MAX_BASE_GAP_SEC) continue;
-    const pct = (closes[i].c / base.c - 1) * 100;
+  for (const p of inWin) {
+    const pct = (p.c / base.c - 1) * 100;
     if (!Number.isFinite(pct)) continue;
-    out.push({ t: closes[i].t, pct });
+    out.push({ t: p.t, pct: Math.max(pct, -100) });
   }
   return out;
 }
 
-/**
- * Cumulative % from this series' own first available close (longest run).
- * Line starts at 0% on that series' inception date. Clamped to >= -100%.
- */
-function cumulativeFromOwnFirst(closes: ClosePoint[]): PctPoint[] {
-  if (closes.length < 2) return [];
-  // Prefer a sane positive first close (skip junk leading ticks)
-  let baseIdx = 0;
-  while (baseIdx < closes.length && closes[baseIdx].c <= 0) baseIdx++;
-  if (baseIdx >= closes.length) return [];
-  const base = closes[baseIdx];
-  const out: PctPoint[] = [{ t: base.t, pct: 0 }];
-  for (let i = baseIdx + 1; i < closes.length; i++) {
-    if (closes[i].c <= 0) continue;
-    let pct = (closes[i].c / base.c - 1) * 100;
-    if (!Number.isFinite(pct)) continue;
-    // Cumulative from a positive base cannot mathematically go below -100%
-    if (pct < -100) pct = -100;
-    out.push({ t: closes[i].t, pct });
-  }
-  return out;
+function firstPositive(closes: ClosePoint[]): ClosePoint | null {
+  return closes.find((p) => p.c > 0) ?? null;
 }
 
 /** Evenly downsample inside the (already clipped) window; always keep first & last. */
@@ -193,12 +175,12 @@ function windowMeta(key: WindowKey) {
       window: key as WindowKey,
       windowLabel: "All time",
       windowShort: "ALL",
-      mode: "cumulative" as const,
+      mode: "relative" as const,
       windowDays: null as number | null,
       windowSec: null as number | null,
-      title: "Cumulative % from each series' earliest history",
+      title: "Relative % from first shared date",
       definition:
-        "ALL = cumulative percentage return from each series' own first available Yahoo close (longest-running history). BTC-USD from its first date; ^NDX, ^GSPC, and ^AORD from their much earlier inceptions. Each line starts at 0% on its own start date (different x starts OK). Shared % scale. Not a rolling lookback and not aligned to a common start. Educational only — not financial advice (NFA).",
+        "ALL = percentage return from the first date every series has a Yahoo close (BTC-USD daily starts Sep 2014). All lines start at 0% on that shared date so Bitcoin is compared with NDX, SPX and AORD over the same years. Educational only — not financial advice (NFA).",
     };
   }
   const years = WINDOW_YEARS[key];
@@ -208,11 +190,11 @@ function windowMeta(key: WindowKey) {
     window: key as WindowKey,
     windowLabel: `${years}-year`,
     windowShort: key.toUpperCase(),
-    mode: "rolling" as const,
+    mode: "relative" as const,
     windowDays: days,
     windowSec: sec,
-    title: `${years}-year rolling % gains`,
-    definition: `For each trading day, percentage return from the close ~${years} calendar year${years === 1 ? "" : "s"} earlier (${days} days / ${years}×365.25) to that day. Same calendar lookback for BTC-USD, ^NDX, ^GSPC, and ^AORD so series compare fairly. Educational only — not financial advice (NFA).`,
+    title: `Relative % over ${years} year${years === 1 ? "" : "s"}`,
+    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date for BTC-USD, ^NDX, ^GSPC and ^AORD. End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
   };
 }
 
@@ -248,11 +230,15 @@ export async function GET(request: Request) {
   }
 
   const nowSec = Math.floor(Date.now() / 1000);
-  // Shared x clip for all rolling series — never poison axis with full history
-  const displayCutoff =
-    windowKey === "all"
-      ? null
-      : nowSec - windowSec(WINDOW_YEARS[windowKey]);
+  let displayCutoff: number | null;
+  if (windowKey === "all") {
+    const firsts = loaded
+      .map((s) => firstPositive(closesById[s.id] ?? [])?.t)
+      .filter((t): t is number => t != null);
+    displayCutoff = firsts.length ? Math.max(...firsts) : null;
+  } else {
+    displayCutoff = nowSec - windowSec(WINDOW_YEARS[windowKey]);
+  }
 
   const series: Array<{
     id: SeriesId;
@@ -270,38 +256,21 @@ export async function GET(request: Request) {
     const closes = closesById[sMeta.id];
     if (!closes?.length) continue;
     try {
-      let pct: PctPoint[];
-      let startDate: string | undefined;
-      if (windowKey === "all") {
-        pct = cumulativeFromOwnFirst(closes);
-        // Clip display to now (drop any future-dated bars if present)
-        pct = pct.filter((p) => p.t <= nowSec);
-        startDate = pct.length ? isoDate(pct[0].t) : isoDate(closes[0].t);
-        seriesStarts[sMeta.id] = startDate;
-      } else {
-        const winSec = windowSec(WINDOW_YEARS[windowKey]);
-        const cutoff = displayCutoff!;
-        const rolling = rollingWindowPct(closes, winSec);
-        // ALWAYS clip to [now − window, now]. Never fall back to full multi-decade history.
-        pct = rolling.filter((p) => p.t >= cutoff && p.t <= nowSec);
-      }
+      const cutoff = displayCutoff ?? firstPositive(closes)?.t;
+      if (cutoff == null) continue;
+      const pct = windowRelative(closes, cutoff, nowSec);
       const points = downsample(pct, 900);
-      const latestPct = points.length ? points[points.length - 1].pct : null;
-      const grace = 60 * 86400;
-      const coverage: "full" | "partial" =
-        windowKey === "all" || displayCutoff == null
-          ? "full"
-          : points.length && points[0].t <= displayCutoff + grace
-            ? "full"
-            : "partial";
+      const latestPct = points.length ? points[points.length - 1]!.pct : null;
+      const startDate = points.length ? isoDate(points[0]!.t) : isoDate(cutoff);
+      seriesStarts[sMeta.id] = startDate;
       series.push({
         id: sMeta.id,
         label: sMeta.label,
         ticker: sMeta.ticker,
         points,
         latestPct,
-        coverage,
-        ...(startDate ? { startDate } : {}),
+        coverage: "full",
+        startDate,
       });
     } catch (e) {
       errors[sMeta.id] = e instanceof Error ? e.message : "compute failed";
@@ -337,12 +306,8 @@ export async function GET(request: Request) {
       // Shared display domain for rolling LINE charts (client must use this, not min of points)
       displayFrom: displayCutoff,
       displayTo: nowSec,
-      // Kept for backward compat; ALL no longer uses a shared common start
-      commonStart: null,
-      seriesStarts:
-        windowKey === "all" && Object.keys(seriesStarts).length
-          ? seriesStarts
-          : undefined,
+      commonStart: displayCutoff != null ? isoDate(displayCutoff) : null,
+      seriesStarts: Object.keys(seriesStarts).length ? seriesStarts : undefined,
       availableWindows: ["1y", "3y", "4y", "5y", "10y", "all"],
       source: "Yahoo Finance chart API (query1)",
       tickers: SERIES.map((s) => ({

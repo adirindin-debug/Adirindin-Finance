@@ -32,7 +32,7 @@ type ApiPayload = {
   window?: WindowKey;
   windowLabel?: string;
   windowShort?: string;
-  mode?: "rolling" | "cumulative";
+  mode?: "rolling" | "cumulative" | "relative";
   windowDays?: number | null;
   windowSec?: number | null;
   displayFrom?: number | null;
@@ -131,30 +131,24 @@ function rangeFor(points: PctPoint[]) {
 }
 
 /**
- * Shared x-domain:
- * - Rolling: API displayFrom/displayTo ([cutoff, now]) — never poisoned by a stray long series
- * - ALL: earliest series inception → now; each line still starts at its own 0%
+ * Shared x-domain: API displayFrom → now so every series starts together.
  */
 function resolveXDomain(
   series: SeriesPayload[],
   payload: ApiPayload,
   windowKey: WindowKey,
 ): { minT: number; maxT: number } | null {
-  const nowSec =
-    payload.displayTo ??
-    Math.floor(Date.now() / 1000);
+  const nowSec = payload.displayTo ?? Math.floor(Date.now() / 1000);
 
-  if (windowKey !== "all") {
-    if (
-      payload.displayFrom != null &&
-      Number.isFinite(payload.displayFrom) &&
-      payload.displayFrom < nowSec
-    ) {
-      return { minT: payload.displayFrom, maxT: nowSec };
-    }
-    if (payload.windowSec != null && payload.windowSec > 0) {
-      return { minT: nowSec - payload.windowSec, maxT: nowSec };
-    }
+  if (
+    payload.displayFrom != null &&
+    Number.isFinite(payload.displayFrom) &&
+    payload.displayFrom < nowSec
+  ) {
+    return { minT: payload.displayFrom, maxT: nowSec };
+  }
+  if (windowKey !== "all" && payload.windowSec != null && payload.windowSec > 0) {
+    return { minT: nowSec - payload.windowSec, maxT: nowSec };
   }
 
   const allPts = series.flatMap((s) => s.points);
@@ -184,17 +178,10 @@ function buildSharedAxis(
     points: s.points.filter((p) => p.t >= minT && p.t <= maxT),
   }));
 
-  const full = clipped.filter(
-    (s) => s.coverage !== "partial" && s.points.length > 1,
-  );
-  const scaleSeries = full.length ? full : clipped;
-  const allPts = scaleSeries.flatMap((s) => s.points);
+  const allPts = clipped.flatMap((s) => s.points);
   if (!allPts.length) return null;
 
   const yRange = rangeFor(allPts) ?? { min: 0, max: 100 };
-  const span = yRange.max - yRange.min || 1;
-  const lo = yRange.min - span * 0.15;
-  const hi = yRange.max + span * 0.15;
 
   const iw = W - PAD.left - PAD.right;
   const ih = H - PAD.top - PAD.bottom;
@@ -204,18 +191,8 @@ function buildSharedAxis(
     PAD.top +
     (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
 
-  const omitted = clipped
-    .filter((s) => {
-      if (!s.points.length) return true;
-      if (s.coverage !== "partial") return false;
-      const minP = Math.min(...s.points.map((p) => p.pct));
-      const maxP = Math.max(...s.points.map((p) => p.pct));
-      return maxP > hi || minP < lo;
-    })
-    .map((s) => s.id);
-
   const paths = clipped
-    .filter((s) => s.points.length > 1 && !omitted.includes(s.id))
+    .filter((s) => s.points.length > 1)
     .map((s) => {
       let d = "";
       s.points.forEach((p, i) => {
@@ -229,7 +206,7 @@ function buildSharedAxis(
       return { id: s.id, d, color: SERIES_STYLE[s.id].color };
     });
 
-  return { paths, clipped, yRange, minT, maxT, yScale, xScale, omitted };
+  return { paths, clipped, yRange, minT, maxT, yScale, xScale, omitted: [] as SeriesId[] };
 }
 
 function buildBarLayout(series: SeriesPayload[]) {
@@ -304,18 +281,16 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
   if (windowKey === "all") {
     const starts = formatStartsLine(payload);
     return {
-      heading: "All-time cumulative chart",
+      heading: "All-time relative chart",
       subtitle:
-        "Cumulative % from each series' earliest available history (longest run) · shared scale · educational · NFA",
-      kpiSuffix: "cumulative % from own start",
-      chartTitle:
-        payload?.title ?? "Cumulative % from each series' earliest history",
-      chartHint:
-        "Shared % scale · each line from own inception · not price levels",
-      aria: "Cumulative percentage returns from each series' own earliest available history for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries",
-      loading: "Loading cumulative % gains…",
+        "All four series rebased to 0% on the first shared date (BTC daily from Sep 2014) · educational · NFA",
+      kpiSuffix: "% since shared start",
+      chartTitle: payload?.title ?? "Relative % from first shared date",
+      chartHint: "Shared % scale · start = 0% · not price levels",
+      aria: "Relative percentage returns from the first shared date for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries",
+      loading: "Loading relative % gains…",
       footerLead:
-        "Educational compare of cumulative percentage returns from each series' own first available Yahoo close (longest-running history; lines may start on different dates)",
+        "Educational compare of percentage returns from the first date all four series exist on Yahoo (BTC-USD daily, Sep 2014)",
       startsLine: starts,
       errorLabel: "all-time compare chart",
     };
@@ -332,14 +307,14 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
   const days = payload?.windowDays;
   const daysBit = days != null ? `~${days}d` : windowKey;
   return {
-    heading: `${label} running chart`,
-    subtitle: `Relative ${label} % gains · shared scale · educational · NFA`,
-    kpiSuffix: `current ${windowKey.toUpperCase()} %`,
-    chartTitle: payload?.title ?? `${label} rolling % gains`,
-    chartHint: `Shared % scale · trailing ${daysBit} · not price levels`,
-    aria: `Rolling ${label} percentage gains on a shared Y-axis for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries`,
-    loading: `Loading ${label} running % gains…`,
-    footerLead: `Educational compare of rolling ${label} percentage returns (same calendar-day lookback for each series)`,
+    heading: `${label} relative chart`,
+    subtitle: `Each line starts at 0% · ${label} window · shared scale · educational · NFA`,
+    kpiSuffix: `${windowKey.toUpperCase()} %`,
+    chartTitle: payload?.title ?? `Relative % over ${label}`,
+    chartHint: `Shared % scale · from ${daysBit} ago · not price levels`,
+    aria: `Relative ${label} percentage returns on a shared Y-axis for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries`,
+    loading: `Loading ${label} relative %…`,
+    footerLead: `Educational compare of percentage returns over the same ${label} window (all lines start at 0% on the left)`,
     startsLine: "",
     errorLabel: `${label} compare chart`,
   };
@@ -735,9 +710,7 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {payload?.series
-              ?.filter((s) => !chart.omitted.includes(s.id))
-              .map((s, i) => {
+            {payload?.series?.map((s, i) => {
               const style = SERIES_STYLE[s.id];
               const x = PAD.left + i * 155;
               return (
@@ -1003,19 +976,21 @@ export function BtcFourYearChart() {
         {copy.footerLead}
         {copy.startsLine ? ` — starts: ${copy.startsLine}` : ""}. Not absolute
         price levels.{" "}
-        {chart?.omitted?.length ? (
+        <strong className="font-medium text-muted">Shared % scale:</strong> all
+        four series use one Y-axis so Bitcoin's relative path is visible
+        (equities may look flatter on long windows — that is the compare).{" "}
+        {windowKey === "all" ? (
           <>
-            <strong className="font-medium text-muted">
-              {chart.omitted.map((id) => SERIES_STYLE[id].short).join(", ")} line
-              omitted:
-            </strong>{" "}
-            Yahoo daily history is shorter than this lookback (BTC-USD from Sep
-            2014), so a {windowKey.toUpperCase()} rolling line only exists for
-            the last few years and would squash the other series. The figure in
-            the chip is still the current {windowKey.toUpperCase()} trailing
-            return.{" "}
+            <strong className="font-medium text-muted">ALL:</strong> every line
+            starts at 0% on the first date all four series exist (Yahoo BTC-USD
+            daily from Sep 2014).{" "}
           </>
-        ) : null}
+        ) : (
+          <>
+            Each line is close_t / close_at_window_start − 1 (starts at ~0% on
+            the left; the right edge matches the bar).{" "}
+          </>
+        )}
         <strong className="font-medium text-muted">Shared % scale:</strong> all
         four series use one Y-axis so Bitcoin&apos;s relative outperformance is
         visible (equities may look flatter — that is intentional).{" "}
@@ -1032,9 +1007,9 @@ export function BtcFourYearChart() {
           </>
         )}
         <strong className="font-medium text-muted">Bar mode:</strong> latest %
-        for the selected window as grouped bars (clearest for outperformance);
-        Line mode shows the full rolling/cumulative history. Data via Yahoo
-        Finance chart API: BTC-USD, ^NDX, ^GSPC, ^AORD. Partial series may
+        for the selected window as grouped bars (same end value as the line);
+        Line mode shows the path from 0% at the start of the window. Data via
+        Yahoo Finance chart API: BTC-USD, ^NDX, ^GSPC, ^AORD. Partial series may
         appear if one feed fails. For the full BTC+MSTR cycle desk, open{" "}
         <a href="/dashboard" className="text-accent hover:underline">
           Cycle desk
