@@ -419,9 +419,12 @@ export function PriceChart(props: {
         </div>
       ) : null}
       <p className="mt-2 text-xs leading-relaxed text-muted">
-        Solid line is a suburb-proxy, reset at each public sale. Dots are public
-        prints. Overlay can be Off, Australia mean (ABS 6432.0 — same series as
-        TradingView AUAHP), Melbourne houses, or suburb medians. Not a valuation.
+        Solid line is the area median path (official sale medians, same
+        public sales REA neighbourhood pages use), scaled through each
+        sale. History before the first print is that median path, not a
+        guessed sale. Dots are the property’s own prints. Overlay: Off,
+        Australia mean (ABS), Melbourne houses, or suburb medians. Not a
+        valuation.
         {noProxy.length
           ? ` No suburb-proxy for ${noProxy.join(", ")}.`
           : ""}

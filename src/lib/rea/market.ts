@@ -1,4 +1,4 @@
-import type { Point } from "./chart";
+import { monthGrid, valueAt, type Point } from "./chart";
 import type { Mark, Property } from "./types";
 
 /** Desk as-of. Avoid Date.now() so SSR and client share a window. */
@@ -340,6 +340,20 @@ function dwellingKey(p: Property): "houses" | "units" {
   return p.type === "unit" ? "units" : "houses";
 }
 
+function isVic(p: Property): boolean {
+  return /^\s*3\d{3}\s*$/.test(p.postcode) || Boolean(SUBURB_MEDIANS[p.suburb]);
+}
+
+function australiaAnnual(): Annual[] {
+  const last = new Map<number, number>();
+  for (const p of AUSTRALIA_MEAN_ABS) {
+    last.set(Number(p.date.slice(0, 4)), p.value ?? 0);
+  }
+  return [...last.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([year, value]) => ({ year, value }));
+}
+
 export function suburbOverlays(
   properties: Property[],
 ): { key: string; label: string; points: Point[] }[] {
@@ -403,9 +417,21 @@ function propertyIndex(p: Property): Map<number, number> | null {
   const suburb = suburbTable(p);
   const melb = melbourneGrowthIndex();
   if (suburb) return chainOn(melb, suburb, suburb[0].year);
-  const vgv = MELBOURNE_HOUSES.filter((r) => r.year >= 2015);
-  if (vgv.length) return chainOn(melb, vgv, 2015);
+  if (isVic(p)) {
+    const vgv = MELBOURNE_HOUSES.filter((r) => r.year >= 2015);
+    if (vgv.length) return chainOn(melb, vgv, 2015);
+  }
+  const au = australiaAnnual();
+  if (au.length >= 2) return mapAnnual(au);
   return melb.size ? melb : null;
+}
+
+function indexCurve(p: Property): Point[] {
+  const idx = propertyIndex(p);
+  if (!idx || idx.size < 2) return [];
+  return [...idx.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([year, value]) => ({ date: `${year}-12-31`, value }));
 }
 
 function anchorsOf(p: Property): { anchors: Mark[]; estimateOnly: boolean } {
@@ -420,70 +446,36 @@ function anchorsOf(p: Property): { anchors: Mark[]; estimateOnly: boolean } {
 }
 
 /**
- * Annual suburb-indexed path for one title. Re-anchored at each public sale
- * (or list-mid / manual). Estimate-only names are backcast on the suburb
- * table only — not on the Melbourne house bridge. Wide acreage estimates
- * still get a line when a suburb table exists; treat those as illustrative.
- * Year-end points plus every public print, then a short carry to as-of so
- * the latest mark sits on the line instead of floating past it.
- * Not a valuation.
+ * Area-median path for one title. Official sale medians (VGV / LANDATA —
+ * the same public sales REA neighbourhood pages plot), chain-linked onto
+ * Melbourne house growth before the suburb table starts.
+ *
+ * Sparse titles are backcast *before* the first sale on that median path,
+ * then re-anchored at each public print. Not a valuation of the address.
  */
 export function indexedPath(p: Property): Point[] {
   const { anchors, estimateOnly } = anchorsOf(p);
   if (!anchors.length) return [];
+  const curve = indexCurve(p);
+  if (curve.length < 2) return [];
   const suburb = suburbTable(p);
   if (estimateOnly && !suburb) return [];
-  const idx = propertyIndex(p);
-  if (!idx || idx.size < 2) return [];
-  const index = idx;
-  const maxY = Math.max(...index.keys());
-  const minY =
+
+  const start =
     estimateOnly && suburb
-      ? suburb[0].year
-      : Math.min(...index.keys());
-  const asOfYear = Number(CHART_AS_OF.slice(0, 4));
-  const lastMarkYear = Math.max(
-    minY,
-    ...p.marks.map((m) => Number(m.date.slice(0, 4))),
-  );
-  const endY = Math.max(maxY, asOfYear, lastMarkYear);
-
-  function indexAt(year: number): number | undefined {
-    if (index.has(year)) return index.get(year);
-    if (year > maxY) return index.get(maxY);
-    return undefined;
-  }
-
+      ? `${suburb[0].year}-12-31`
+      : curve[0]!.date;
+  const months = monthGrid(start, CHART_AS_OF);
+  const first = anchors[0]!;
   const annual: Point[] = [];
 
-  if (estimateOnly) {
-    const anchor = anchors[anchors.length - 1];
-    if (!anchor) return [];
-    const iA = indexAt(Number(anchor.date.slice(0, 4)));
-    if (iA == null || iA === 0) return [];
-    for (let y = minY; y <= endY; y++) {
-      const date = `${y}-12-31`;
-      if (date > CHART_AS_OF) continue;
-      const iY = indexAt(y);
-      if (iY == null) continue;
-      annual.push({
-        date,
-        value: Math.round(anchor.mid * (iY / iA)),
-      });
-    }
-    return stitchPath(annual, p.marks);
-  }
-
-  for (let y = minY; y <= endY; y++) {
-    const date = `${y}-12-31`;
-    if (date > CHART_AS_OF) continue;
-    let anchor: Mark | undefined;
-    for (const a of anchors) {
-      if (a.date <= date) anchor = a;
-    }
-    if (!anchor) continue;
-    const iY = indexAt(y);
-    const iA = indexAt(Number(anchor.date.slice(0, 4)));
+  for (const date of months) {
+    const anchor =
+      anchors.filter((a) => a.date <= date).at(-1) ?? first;
+    const iY = valueAt(curve, date);
+    const iA =
+      valueAt(curve, anchor.date) ??
+      valueAt(curve, `${anchor.date.slice(0, 4)}-12-31`);
     if (iY == null || iA == null || iA === 0) continue;
     annual.push({ date, value: Math.round(anchor.mid * (iY / iA)) });
   }
