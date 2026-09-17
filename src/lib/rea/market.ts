@@ -503,22 +503,54 @@ export function indexedPath(p: Property): Point[] {
     }
     annual.push({ date, value: Math.round(value) });
   }
-  return stitchPath(annual, p.marks);
+  return stitchPath(annual, anchors);
 }
 
-/** Prints win on a shared date; last value carries to as-of so the path meets the axis. */
+const HARD: Mark["method"][] = ["sale", "list-mid", "manual"];
+
+function isHard(m: { method: string }): boolean {
+  return HARD.includes(m.method as Mark["method"]);
+}
+
+/** Pin public prints; drop estimate needles; cap one-month spikes that are not sales. */
 function stitchPath(annual: Point[], marks: Mark[]): Point[] {
+  const locked = new Set(marks.filter(isHard).map((m) => m.date));
   const byDate = new Map<string, Point>();
   for (const pt of annual) {
     if (pt.value != null) byDate.set(pt.date, pt);
   }
   for (const m of marks) {
+    if (!isHard(m) && marks.some(isHard)) continue;
     byDate.set(m.date, { date: m.date, value: m.mid });
   }
   const out = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
-  const last = out.at(-1);
+  const smoothed = despike(out, locked);
+  const last = smoothed.at(-1);
   if (last && last.date < CHART_AS_OF && last.value != null) {
-    out.push({ date: CHART_AS_OF, value: last.value });
+    smoothed.push({ date: CHART_AS_OF, value: last.value });
+  }
+  return smoothed;
+}
+
+/** Flatten a point that jumps vs both neighbours. Sales stay put. */
+function despike(path: Point[], locked: Set<string>): Point[] {
+  const out = path.map((p) => ({ ...p }));
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 1; i < out.length - 1; i++) {
+      const prev = out[i - 1].value;
+      const cur = out[i].value;
+      const next = out[i + 1].value;
+      if (prev == null || cur == null || next == null) continue;
+      if (locked.has(out[i].date)) continue;
+      const chord = (prev + next) / 2;
+      const isolated =
+        Math.abs(cur - prev) / Math.max(prev, 1) > 0.06 &&
+        Math.abs(cur - next) / Math.max(next, 1) > 0.06 &&
+        Math.abs(cur - chord) / Math.max(Math.abs(chord), 1) > 0.05;
+      if (isolated) {
+        out[i] = { date: out[i].date, value: Math.round(chord) };
+      }
+    }
   }
   return out;
 }

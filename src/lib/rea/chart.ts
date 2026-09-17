@@ -3,7 +3,11 @@ import type { Property, PropertyStatus } from "./types";
 export type Point = { date: string; value: number | null };
 
 export function propertyPoints(p: Property): Point[] {
-  return [...p.marks]
+  const hard = p.marks.filter(
+    (m) => m.method === "sale" || m.method === "list-mid" || m.method === "manual",
+  );
+  const marks = hard.length ? hard : p.marks.filter((m) => m.method === "estimate");
+  return [...marks]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((m) => ({ date: m.date, value: m.mid }));
 }
