@@ -1,0 +1,146 @@
+import type { Property } from "./types";
+
+/** Public prints already taken from REA/Domain profiles (not live-fetched). */
+export const KNOWN_LISTINGS: Pick<
+  Property,
+  "address" | "suburb" | "postcode" | "type" | "url" | "notes" | "marks"
+>[] = [
+  {
+    address: "8/363 High Street",
+    suburb: "Templestowe Lower",
+    postcode: "3107",
+    type: "unit",
+    url: "https://www.realestate.com.au/property/unit-8-363-high-st-templestowe-lower-vic-3107/",
+    notes: "REA profile: no disclosed sale history. Estimate is the public range midpoint.",
+    marks: [
+      {
+        date: "2026-08-31",
+        low: 800_000,
+        mid: 865_000,
+        high: 930_000,
+        method: "estimate",
+        note: "REA realEstimate range $800k–$930k.",
+      },
+    ],
+  },
+  {
+    address: "176 Miller Street",
+    suburb: "Preston",
+    postcode: "3072",
+    type: "dual occupancy",
+    url: "https://www.realestate.com.au/property/176-miller-st-preston-vic-3072/",
+    notes: "Sold prior to auction 2025. Two residences, one title.",
+    marks: [
+      {
+        date: "1999-07-19",
+        low: 240_000,
+        mid: 240_000,
+        high: 240_000,
+        method: "sale",
+        note: "REA property history sold $240,000.",
+      },
+      {
+        date: "2025-07-23",
+        low: 1_450_000,
+        mid: 1_450_000,
+        high: 1_450_000,
+        method: "sale",
+        note: "REA / Domain sold $1,450,000.",
+      },
+      {
+        date: "2026-08-31",
+        low: 1_270_000,
+        mid: 1_447_000,
+        high: 1_630_000,
+        method: "estimate",
+        note: "REA realEstimate range $1.27–1.63m.",
+      },
+    ],
+  },
+  {
+    address: "53 Olympus Drive",
+    suburb: "Templestowe Lower",
+    postcode: "3107",
+    type: "house",
+    url: "https://www.realestate.com.au/property/53-olympus-dr-templestowe-lower-vic-3107/",
+    notes: "REA discloses the Dec 2024 sale.",
+    marks: [
+      {
+        date: "1990-02-01",
+        low: 175_000,
+        mid: 175_000,
+        high: 175_000,
+        method: "sale",
+        note: "REA property history sold $175,000.",
+      },
+      {
+        date: "2006-06-06",
+        low: 430_500,
+        mid: 430_500,
+        high: 430_500,
+        method: "sale",
+        note: "REA property history sold $430,500.",
+      },
+      {
+        date: "2024-12-21",
+        low: 1_475_000,
+        mid: 1_475_000,
+        high: 1_475_000,
+        method: "sale",
+        note: "REA sold $1,475,000.",
+      },
+      {
+        date: "2026-08-31",
+        low: 1_230_000,
+        mid: 1_381_000,
+        high: 1_530_000,
+        method: "estimate",
+        note: "REA realEstimate range $1.23–1.53m.",
+      },
+    ],
+  },
+  {
+    address: "2 Uplands Road",
+    suburb: "Chirnside Park",
+    postcode: "3116",
+    type: "house",
+    url: "https://www.realestate.com.au/property/2-uplands-rd-chirnside-park-vic-3116/",
+    notes: "REA profile: no disclosed sale history. Wide acreage estimate band.",
+    marks: [
+      {
+        date: "2026-08-31",
+        low: 1_470_000,
+        mid: 1_990_000,
+        high: 2_510_000,
+        method: "estimate",
+        note: "REA realEstimate range $1.47–2.51m.",
+      },
+    ],
+  },
+  {
+    address: "6 Millicent Avenue",
+    suburb: "Bulleen",
+    postcode: "3105",
+    type: "house",
+    url: "https://www.realestate.com.au/property/6-millicent-ave-bulleen-vic-3105/",
+    notes: "REA property history plus current estimate range.",
+    marks: [
+      {
+        date: "2006-08-05",
+        low: 310_000,
+        mid: 310_000,
+        high: 310_000,
+        method: "sale",
+        note: "REA property history sold $310,000.",
+      },
+      {
+        date: "2026-08-31",
+        low: 820_000,
+        mid: 930_000,
+        high: 1_040_000,
+        method: "estimate",
+        note: "REA realEstimate range $0.82–1.04m.",
+      },
+    ],
+  },
+];

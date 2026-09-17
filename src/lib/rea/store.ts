@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { slug } from "@/lib/utils";
-import { ABS_MEAN_SEED, SEED, STORE_KEY } from "./seed";
+import { SEED, STORE_KEY } from "./seed";
 import type {
   Mark,
   MarkMethod,
@@ -22,6 +22,7 @@ type Actions = {
     status: PropertyStatus;
     url: string;
     firstMark?: Mark;
+    marks?: Mark[];
   }) => string;
   removeProperty: (id: string) => void;
   flipStatus: (id: string) => void;
@@ -71,15 +72,14 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
   },
   addProperty: (input) => {
     const id = `${slug(`${input.address} ${input.suburb}`) || "property"}-${Date.now().toString(36)}`;
-    const abs = ABS_MEAN_SEED;
-    const firstMark = input.firstMark ?? {
-      date: abs.date,
-      mid: abs.value,
-      low: abs.value,
-      high: abs.value,
-      method: "estimate" as const,
-      note: "seeded at Australia mean (ABS) until a print is logged",
-    };
+    const marks = (input.marks?.length
+      ? input.marks
+      : input.firstMark
+        ? [input.firstMark]
+        : []
+    )
+      .slice()
+      .sort((a, b) => a.date.localeCompare(b.date));
     const next: Property = {
       id,
       address: input.address.trim(),
@@ -89,7 +89,7 @@ export const useReaStore = create<ReaState & Actions>((set, get) => ({
       status: input.status,
       url: input.url.trim(),
       notes: "",
-      marks: [firstMark],
+      marks,
       charted: true,
     };
     set((s) => ({

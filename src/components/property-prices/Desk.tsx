@@ -17,6 +17,7 @@ import {
   useReaStore,
 } from "@/lib/rea/store";
 import type { MarkMethod, PropertyStatus, PropertyType, ReaState } from "@/lib/rea/types";
+import { parseListingUrl } from "@/lib/rea/lookup";
 import { aud, cn, parseAuAddress, signedAud, signedPct } from "@/lib/utils";
 
 export function PropertyPricesDesk() {
@@ -640,76 +641,142 @@ function AddProperty() {
   const [mid, setMid] = useState("");
   const [date, setDate] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!date) setDate(new Date().toISOString().slice(0, 10));
   }, [date]);
 
-  function onAddressBlur() {
-    if (suburb.trim() && postcode.trim()) return;
-    const parsed = parseAuAddress(address);
-    if (!suburb.trim() && parsed.suburb) setSuburb(parsed.suburb);
-    if (!postcode.trim() && parsed.postcode) setPostcode(parsed.postcode);
-    if (parsed.address && parsed.address !== address) setAddress(parsed.address);
+  function applyUrl(raw: string) {
+    setUrl(raw);
+    const parsed = parseListingUrl(raw);
+    if (!parsed) return;
+    if (parsed.address) setAddress(parsed.address);
+    if (parsed.suburb) setSuburb(parsed.suburb);
+    if (parsed.postcode) setPostcode(parsed.postcode);
+    if (parsed.type && parsed.type !== "unknown") setType(parsed.type);
   }
 
-  function submit(e: FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setMsg(null);
-    const parsed = parseAuAddress(address);
-    const street = (parsed.suburb ? parsed.address : address).trim();
-    const sub = (suburb.trim() || parsed.suburb).trim();
-    const pc = (postcode.trim() || parsed.postcode).trim();
-    if (!street || !sub) {
-      setMsg("Need a street address and a suburb.");
-      return;
+    const link = url.trim();
+    setBusy(true);
+    try {
+      let street = address.trim();
+      let sub = suburb.trim();
+      let pc = postcode.trim();
+      let kind = type;
+      let marks = undefined as
+        | {
+            date: string;
+            low: number;
+            mid: number;
+            high: number;
+            method: MarkMethod;
+            note: string;
+          }[]
+        | undefined;
+      if (link) {
+        const res = await fetch("/api/rea-lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: link }),
+        });
+        const found = res.ok ? await res.json() : null;
+        if (found) {
+          street = street || found.address;
+          sub = sub || found.suburb;
+          pc = pc || found.postcode;
+          if (kind === "house" && found.type !== "unknown") kind = found.type;
+          marks = found.marks;
+          setAddress(street);
+          setSuburb(sub);
+          setPostcode(pc);
+          setType(kind);
+        } else {
+          const parsed = parseListingUrl(link);
+          if (parsed) {
+            street = street || parsed.address || "";
+            sub = sub || parsed.suburb || "";
+            pc = pc || parsed.postcode || "";
+            if (parsed.type && parsed.type !== "unknown") kind = parsed.type;
+          }
+        }
+      }
+      if (!street) {
+        const parsed = parseAuAddress(address);
+        street = (parsed.suburb ? parsed.address : address).trim();
+        sub = sub || parsed.suburb;
+        pc = pc || parsed.postcode;
+      }
+      if (!street || !sub) {
+        setMsg("Paste a realestate.com.au / Domain profile link, or a street and suburb.");
+        return;
+      }
+      const midN = mid === "" ? null : Number(mid.replace(/[,$\s]/g, ""));
+      if (mid !== "" && (!midN || midN <= 0)) {
+        setMsg("Mid has to be a number if you fill it.");
+        return;
+      }
+      if (midN && date) {
+        const extra = {
+          date,
+          mid: midN,
+          low: midN,
+          high: midN,
+          method: "manual" as const,
+          note: "typed mid",
+        };
+        marks = [...(marks ?? []).filter((m) => m.date !== date), extra];
+      }
+      addProperty({
+        address: street,
+        suburb: sub,
+        postcode: pc,
+        type: kind,
+        status,
+        url: link,
+        marks,
+      });
+      const sales = (marks ?? []).filter((m) => m.method === "sale").length;
+      setAddress("");
+      setSuburb("");
+      setPostcode("");
+      setUrl("");
+      setMid("");
+      setMsg(
+        sales
+          ? `Added ${street}, ${sub} — ${sales} sale print(s) on the chart from the listing.`
+          : marks?.length
+            ? `Added ${street}, ${sub} — listing estimate on the chart.`
+            : `Added ${street}, ${sub}. No public sale on the profile; log a mid to draw it.`,
+      );
+    } catch {
+      setMsg("Could not read that listing. Check the link and try again.");
+    } finally {
+      setBusy(false);
     }
-    const midN = mid === "" ? null : Number(mid.replace(/[,$\s]/g, ""));
-    if (mid !== "" && (!midN || midN <= 0)) {
-      setMsg("Mid has to be a number if you fill it.");
-      return;
-    }
-    addProperty({
-      address: street,
-      suburb: sub,
-      postcode: pc,
-      type,
-      status,
-      url: url.trim(),
-      firstMark:
-        midN && date
-          ? {
-              date,
-              mid: midN,
-              low: midN,
-              high: midN,
-              method: "estimate",
-              note: url.trim() ? "from listing page" : "manual add",
-            }
-          : undefined,
-    });
-    setAddress("");
-    setSuburb("");
-    setPostcode("");
-    setUrl("");
-    setMid("");
-    setMsg(
-      midN
-        ? `Added ${street}, ${sub} — line is on at ${aud(midN)}.`
-        : `Added ${street}, ${sub} — line is on (seeded at Australia mean until you log a print).`,
-    );
   }
 
   return (
     <Panel title="Add a property">
       <form onSubmit={submit} className="space-y-2" noValidate>
-        <FieldLabel htmlFor="p-address">Address</FieldLabel>
+        <FieldLabel htmlFor="p-url">realestate.com.au / Domain link</FieldLabel>
+        <TextInput
+          id="p-url"
+          type="text"
+          inputMode="url"
+          placeholder="https://www.realestate.com.au/property/176-miller-st-preston-vic-3072/"
+          value={url}
+          onChange={(e) => applyUrl(e.target.value)}
+        />
+        <FieldLabel htmlFor="p-address">Address (filled from the link)</FieldLabel>
         <TextInput
           id="p-address"
-          placeholder="8/363 High Street, Templestowe Lower VIC 3107"
+          placeholder="8/363 High Street"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
-          onBlur={onAddressBlur}
           autoComplete="street-address"
         />
         <div className="grid grid-cols-2 gap-2">
@@ -760,22 +827,13 @@ function AddProperty() {
             </SelectInput>
           </div>
         </div>
-        <FieldLabel htmlFor="p-url">REA / Domain profile URL</FieldLabel>
-        <TextInput
-          id="p-url"
-          type="text"
-          inputMode="url"
-          placeholder="https://www.realestate.com.au/property/..."
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-        />
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <FieldLabel htmlFor="p-mid">First mid AUD (optional)</FieldLabel>
+            <FieldLabel htmlFor="p-mid">Extra mid AUD (optional)</FieldLabel>
             <TextInput
               id="p-mid"
               inputMode="numeric"
-              placeholder="890000"
+              placeholder="if the page hid the price"
               value={mid}
               onChange={(e) => setMid(e.target.value)}
             />
@@ -791,14 +849,15 @@ function AddProperty() {
           </div>
         </div>
         <div className="pt-2">
-          <Button type="submit" className="w-full">
-            Add property
+          <Button type="submit" className="w-full" disabled={busy}>
+            {busy ? "Reading listing…" : "Add property"}
           </Button>
         </div>
         {msg ? <p className="text-xs text-ok">{msg}</p> : null}
         <p className="text-xs text-muted">
-          Chart starts with Australia mean only. Add a title to draw its line;
-          toggle it off to take it off the graph without deleting it.
+          Paste the profile link. Sale history on the page is plotted; the
+          national average is only the overlay, not the house. REA sometimes
+          blocks a live pull — known profiles still load their public prints.
         </p>
       </form>
       <div className="mt-4 border-t border-border pt-3">

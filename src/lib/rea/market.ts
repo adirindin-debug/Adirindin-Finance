@@ -432,6 +432,7 @@ export function indexedPath(p: Property): Point[] {
   const { anchors, estimateOnly } = anchorsOf(p);
   if (!anchors.length) return [];
   const suburb = suburbTable(p);
+  if (estimateOnly && !suburb) return [];
   const idx = propertyIndex(p);
   if (!idx || idx.size < 2) return [];
   const index = idx;
