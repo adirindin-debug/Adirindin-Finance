@@ -93,6 +93,70 @@ export function valueAt(pts: Point[], date: string): number | null {
   return a.value + ((b.value - a.value) * (t - ta)) / (tb - ta);
 }
 
+/** Monotone cubic (PCHIP) interpolate — no overshoot on yearly medians. */
+export function smoothValueAt(pts: Point[], date: string): number | null {
+  const known = pts.filter(
+    (p): p is { date: string; value: number } => p.value != null,
+  );
+  if (!known.length) return null;
+  if (date < known[0].date) return null;
+  if (date >= known[known.length - 1].date) return known[known.length - 1].value;
+  const xs = known.map((p) => toMs(p.date));
+  const ys = known.map((p) => p.value);
+  const t = toMs(date);
+  let i = 0;
+  while (i + 1 < xs.length && xs[i + 1] < t) i += 1;
+  const h: number[] = [];
+  const d: number[] = [];
+  for (let j = 0; j < xs.length - 1; j++) {
+    const hj = xs[j + 1] - xs[j];
+    h.push(hj);
+    d.push(hj === 0 ? 0 : (ys[j + 1] - ys[j]) / hj);
+  }
+  const m = new Array<number>(ys.length).fill(0);
+  m[0] = d[0] ?? 0;
+  m[ys.length - 1] = d[d.length - 1] ?? 0;
+  for (let j = 1; j < ys.length - 1; j++) {
+    if (d[j - 1] * d[j] <= 0) m[j] = 0;
+    else {
+      const w1 = 2 * h[j] + h[j - 1];
+      const w2 = h[j] + 2 * h[j - 1];
+      m[j] = (w1 + w2) / (w1 / d[j - 1] + w2 / d[j]);
+    }
+  }
+  const hi = h[i];
+  if (!hi) return ys[i];
+  const u = (t - xs[i]) / hi;
+  const u2 = u * u;
+  const u3 = u2 * u;
+  return (
+    (2 * u3 - 3 * u2 + 1) * ys[i] +
+    (u3 - 2 * u2 + u) * hi * m[i] +
+    (-2 * u3 + 3 * u2) * ys[i + 1] +
+    (u3 - u2) * hi * m[i + 1]
+  );
+}
+
+function smoothstep(a: number): number {
+  const x = Math.min(1, Math.max(0, a));
+  return x * x * (3 - 2 * x);
+}
+
+/** Blend two positive levels with a C1 smoothstep on the time fraction. */
+export function blendLevels(
+  a: number,
+  b: number,
+  from: string,
+  to: string,
+  at: string,
+): number {
+  const span = toMs(to) - toMs(from);
+  if (span <= 0) return b;
+  const s = smoothstep((toMs(at) - toMs(from)) / span);
+  if (a > 0 && b > 0) return Math.exp(Math.log(a) * (1 - s) + Math.log(b) * s);
+  return a + (b - a) * s;
+}
+
 export function unionDates(series: Point[][]): string[] {
   const set = new Set<string>();
   for (const pts of series) pts.forEach((p) => set.add(p.date));

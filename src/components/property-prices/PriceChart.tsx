@@ -419,12 +419,11 @@ export function PriceChart(props: {
         </div>
       ) : null}
       <p className="mt-2 text-xs leading-relaxed text-muted">
-        Solid line is the area median path (official sale medians, same
-        public sales REA neighbourhood pages use), scaled through each
-        sale. History before the first print is that median path, not a
-        guessed sale. Dots are the property’s own prints. Overlay: Off,
-        Australia mean (ABS), Melbourne houses, or suburb medians. Not a
-        valuation.
+        Solid line is a smoothed area-median path (official sale medians),
+        scaled through each sale so it does not kink. History before the
+        first print follows that median. Dots are the property’s own prints.
+        Overlay: Off, Australia mean (ABS), Melbourne houses, or suburb
+        medians. Not a valuation.
         {noProxy.length
           ? ` No suburb-proxy for ${noProxy.join(", ")}.`
           : ""}

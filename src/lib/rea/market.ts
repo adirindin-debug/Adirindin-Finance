@@ -1,4 +1,4 @@
-import { monthGrid, valueAt, type Point } from "./chart";
+import { blendLevels, monthGrid, smoothValueAt, valueAt, type Point } from "./chart";
 import type { Mark, Property } from "./types";
 
 /** Desk as-of. Avoid Date.now() so SSR and client share a window. */
@@ -450,8 +450,10 @@ function anchorsOf(p: Property): { anchors: Mark[]; estimateOnly: boolean } {
  * the same public sales REA neighbourhood pages plot), chain-linked onto
  * Melbourne house growth before the suburb table starts.
  *
- * Sparse titles are backcast *before* the first sale on that median path,
- * then re-anchored at each public print. Not a valuation of the address.
+ * Sparse titles are backcast *before* the first sale on a PCHIP-smoothed
+ * median path, then the title's premium vs that median is blended smoothly
+ * between public prints so the line doesn't kink at each sale.
+ * Not a valuation of the address.
  */
 export function indexedPath(p: Property): Point[] {
   const { anchors, estimateOnly } = anchorsOf(p);
@@ -465,19 +467,41 @@ export function indexedPath(p: Property): Point[] {
     estimateOnly && suburb
       ? `${suburb[0].year}-12-31`
       : curve[0]!.date;
-  const months = monthGrid(start, CHART_AS_OF);
   const first = anchors[0]!;
-  const annual: Point[] = [];
+  const dates = [
+    ...new Set([
+      ...monthGrid(start, CHART_AS_OF),
+      ...anchors.map((a) => a.date),
+      CHART_AS_OF,
+    ]),
+  ]
+    .filter((d) => d >= start && d <= CHART_AS_OF)
+    .sort();
 
-  for (const date of months) {
-    const anchor =
-      anchors.filter((a) => a.date <= date).at(-1) ?? first;
-    const iY = valueAt(curve, date);
-    const iA =
-      valueAt(curve, anchor.date) ??
-      valueAt(curve, `${anchor.date.slice(0, 4)}-12-31`);
-    if (iY == null || iA == null || iA === 0) continue;
-    annual.push({ date, value: Math.round(anchor.mid * (iY / iA)) });
+  const indexOn = (date: string, fallbackYear: string) =>
+    smoothValueAt(curve, date) ??
+    valueAt(curve, date) ??
+    smoothValueAt(curve, `${fallbackYear.slice(0, 4)}-12-31`);
+
+  const scaled = (sale: Mark, date: string): number | null => {
+    const iY = indexOn(date, date);
+    const iA = indexOn(sale.date, sale.date);
+    if (iY == null || iA == null || iA === 0) return null;
+    return sale.mid * (iY / iA);
+  };
+
+  const annual: Point[] = [];
+  for (const date of dates) {
+    const prev = anchors.filter((a) => a.date <= date).at(-1) ?? first;
+    const next = anchors.find((a) => a.date > date);
+    const v0 = scaled(prev, date);
+    if (v0 == null) continue;
+    let value = v0;
+    if (next) {
+      const v1 = scaled(next, date);
+      if (v1 != null) value = blendLevels(v0, v1, prev.date, next.date, date);
+    }
+    annual.push({ date, value: Math.round(value) });
   }
   return stitchPath(annual, p.marks);
 }
