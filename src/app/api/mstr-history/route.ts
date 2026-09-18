@@ -1,6 +1,8 @@
 /**
- * Split-adjusted Strategy (MSTR) history for the cycle map overlay.
- * Yahoo first (server-side — browsers block query1), Stooq fallback.
+ * Strategy (MSTR) for the cycle map.
+ * Last print from TradingView scanner (NASDAQ:MSTR). Daily/weekly bars
+ * from Yahoo adjclose (TradingView has no public candle API) stamped to
+ * that TV last so the overlay matches the TV chart. Stooq if Yahoo fails.
  * Educational — NFA.
  */
 
@@ -27,6 +29,25 @@ function pickClose(
   const c = quoteClose?.[i];
   if (c != null && Number.isFinite(c) && c > 0) return c;
   return null;
+}
+
+async function tradingViewLast(): Promise<number | null> {
+  const url =
+    "https://scanner.tradingview.com/symbol?symbol=NASDAQ:MSTR&fields=close,open,high,low,volume,name,description,exchange";
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": UA,
+      Accept: "application/json",
+      Origin: "https://www.tradingview.com",
+      Referer: "https://www.tradingview.com/",
+    },
+    next: { revalidate: 60 },
+  });
+  if (!res.ok) throw new Error(`TradingView MSTR: HTTP ${res.status}`);
+  const j = (await res.json()) as { close?: number };
+  const c = j?.close;
+  if (c == null || !Number.isFinite(c) || c <= 0) return null;
+  return Math.round(c * 100) / 100;
 }
 
 async function yahoo(interval: "1d" | "1wk"): Promise<{
@@ -116,20 +137,33 @@ export async function GET() {
   const today = new Date().toISOString().slice(0, 10);
 
   try {
+    last = await tradingViewLast();
+    if (last != null) source = "TradingView NASDAQ:MSTR";
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "TradingView last failed");
+  }
+
+  try {
     const [w, d] = await Promise.all([yahoo("1wk"), yahoo("1d")]);
-    last = d.last ?? w.last;
+    if (last == null) last = d.last ?? w.last;
     weekly = stampLast(since(w.rows, "2016-01-01"), last, today);
     daily = stampLast(since(d.rows, "2024-01-01"), last, today);
+    if (!source.startsWith("TradingView")) source = "Yahoo Finance";
+    else source = "TradingView last · Yahoo history";
   } catch (e) {
     errors.push(e instanceof Error ? e.message : "Yahoo failed");
     try {
       const [w, d] = await Promise.all([stooq("w"), stooq("d")]);
       weekly = since(w, "2016-01-01");
       daily = since(d, "2024-01-01");
-      last = daily.length ? daily[daily.length - 1]![1] : weekly.at(-1)?.[1] ?? null;
+      if (last == null) {
+        last = daily.length ? daily[daily.length - 1]![1] : weekly.at(-1)?.[1] ?? null;
+        source = "Stooq";
+      } else {
+        source = "TradingView last · Stooq history";
+      }
       weekly = stampLast(weekly, last, today);
       daily = stampLast(daily, last, today);
-      source = "Stooq";
     } catch (e2) {
       errors.push(e2 instanceof Error ? e2.message : "Stooq failed");
     }
@@ -152,7 +186,7 @@ export async function GET() {
       weekly,
       daily,
       source,
-      note: "Split-adjusted closes (Yahoo adjclose / Stooq). Educational — NFA.",
+      note: "Last print from TradingView (NASDAQ:MSTR). History bars are split-adjusted closes stamped to that last. Educational — NFA.",
       errors: errors.length ? errors : undefined,
     },
     {
