@@ -838,9 +838,11 @@
       box.textContent = msg;
     }
     async function refreshHistory() {
-      const jobs = [fetchWeekly(), fetchDaily()];
-      if (state.showMstr) jobs.push(fetchMstr());
-      const [weekly, daily] = await Promise.all(jobs);
+      const [weekly, daily] = await Promise.all([
+        fetchWeekly(),
+        fetchDaily(),
+        fetchMstr(),
+      ]);
       state.weekly = weekly;
       state.daily = daily;
       const closes = weekly.map((w) => w.c);

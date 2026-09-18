@@ -98,18 +98,28 @@ function since(rows: Pair[], yyyyMmDd: string): Pair[] {
   return rows.filter((r) => r[0] >= yyyyMmDd);
 }
 
+function stampLast(rows: Pair[], last: number | null, today: string): Pair[] {
+  if (!rows.length || last == null || last <= 0) return rows;
+  const out = rows.slice();
+  const prev = out[out.length - 1]!;
+  if (prev[0] === today) out[out.length - 1] = [today, last];
+  else if (prev[0] < today) out.push([today, last]);
+  return out;
+}
+
 export async function GET() {
   let source = "Yahoo Finance";
   let weekly: Pair[] = [];
   let daily: Pair[] = [];
   let last: number | null = null;
   const errors: string[] = [];
+  const today = new Date().toISOString().slice(0, 10);
 
   try {
     const [w, d] = await Promise.all([yahoo("1wk"), yahoo("1d")]);
-    weekly = since(w.rows, "2016-01-01");
-    daily = since(d.rows, "2024-01-01");
     last = d.last ?? w.last;
+    weekly = stampLast(since(w.rows, "2016-01-01"), last, today);
+    daily = stampLast(since(d.rows, "2024-01-01"), last, today);
   } catch (e) {
     errors.push(e instanceof Error ? e.message : "Yahoo failed");
     try {
@@ -117,6 +127,8 @@ export async function GET() {
       weekly = since(w, "2016-01-01");
       daily = since(d, "2024-01-01");
       last = daily.length ? daily[daily.length - 1]![1] : weekly.at(-1)?.[1] ?? null;
+      weekly = stampLast(weekly, last, today);
+      daily = stampLast(daily, last, today);
       source = "Stooq";
     } catch (e2) {
       errors.push(e2 instanceof Error ? e2.message : "Stooq failed");
@@ -145,7 +157,7 @@ export async function GET() {
     },
     {
       headers: {
-        "Cache-Control": "public, s-maxage=900, stale-while-revalidate=3600",
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=1800",
       },
     },
   );
