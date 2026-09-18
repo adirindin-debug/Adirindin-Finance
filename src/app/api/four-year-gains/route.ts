@@ -178,9 +178,9 @@ function windowMeta(key: WindowKey) {
       mode: "relative" as const,
       windowDays: null as number | null,
       windowSec: null as number | null,
-      title: "Relative % from first shared date",
+      title: "All-time index relative %",
       definition:
-        "ALL = percentage return from the first date every series has a Yahoo close (BTC-USD daily starts Sep 2014). All lines start at 0% on that shared date so Bitcoin is compared with NDX, SPX and AORD over the same years. Educational only — not financial advice (NFA).",
+        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Bitcoin is omitted from the line (Yahoo daily BTC-USD only from Sep 2014) and kept on the bars / chips as its own all-time return. Educational only — not financial advice (NFA).",
     };
   }
   const years = WINDOW_YEARS[key];
@@ -231,11 +231,13 @@ export async function GET(request: Request) {
 
   const nowSec = Math.floor(Date.now() / 1000);
   let displayCutoff: number | null;
+  const btcFirst = firstPositive(closesById.btc ?? [])?.t ?? null;
   if (windowKey === "all") {
-    const firsts = loaded
+    const indexFirsts = loaded
+      .filter((s) => s.id !== "btc")
       .map((s) => firstPositive(closesById[s.id] ?? [])?.t)
       .filter((t): t is number => t != null);
-    displayCutoff = firsts.length ? Math.max(...firsts) : null;
+    displayCutoff = indexFirsts.length ? Math.max(...indexFirsts) : null;
   } else {
     displayCutoff = nowSec - windowSec(WINDOW_YEARS[windowKey]);
   }
@@ -256,7 +258,10 @@ export async function GET(request: Request) {
     const closes = closesById[sMeta.id];
     if (!closes?.length) continue;
     try {
-      const cutoff = displayCutoff ?? firstPositive(closes)?.t;
+      const cutoff =
+        windowKey === "all" && sMeta.id === "btc"
+          ? btcFirst
+          : displayCutoff ?? firstPositive(closes)?.t;
       if (cutoff == null) continue;
       const pct = windowRelative(closes, cutoff, nowSec);
       const points = downsample(pct, 900);

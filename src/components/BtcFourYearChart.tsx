@@ -208,7 +208,7 @@ function buildSharedAxis(
 
   const iw = W - PAD.left - PAD.right;
   const ih = H - PAD.top - PAD.bottom;
-  const useLog = windowKey === "all";
+  const useLog = false;
 
   let yRange: { min: number; max: number };
   let yScale: (pct: number) => number;
@@ -329,6 +329,7 @@ function ticks(min: number, max: number, n = 5) {
 function formatStartsLine(payload: ApiPayload | null): string {
   if (!payload?.series?.length) return "";
   const bits = payload.series
+    .filter((s) => s.id !== "btc")
     .map((s) => {
       const d =
         s.startDate ??
@@ -345,16 +346,16 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
   if (windowKey === "all") {
     const starts = formatStartsLine(payload);
     return {
-      heading: "All-time relative chart",
+      heading: "All-time index chart",
       subtitle:
-        "All four series rebased to 0% on the first shared date (BTC daily from Sep 2014) · educational · NFA",
-      kpiSuffix: "% since shared start",
-      chartTitle: payload?.title ?? "Relative % from first shared date",
-      chartHint: "Log % scale · start = 0% · not price levels",
-      aria: "Relative percentage returns from the first shared date for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries",
-      loading: "Loading relative % gains…",
+        "NDX, SPX and AORD from the first shared index date · BTC stays on the chips and bars · educational · NFA",
+      kpiSuffix: "% all-time",
+      chartTitle: payload?.title ?? "All-time index relative %",
+      chartHint: "Indices only · start = 0% · BTC on bars",
+      aria: "All-time relative percentage returns for Nasdaq 100, S&P 500, and All Ordinaries",
+      loading: "Loading all-time index returns…",
       footerLead:
-        "Educational compare of percentage returns from the first date all four series exist on Yahoo (BTC-USD daily, Sep 2014)",
+        "Educational compare of Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily, Oct 1985). Bitcoin is left off the line — Yahoo daily BTC-USD only starts Sep 2014 — and kept on the chips and bars as its own all-time return",
       startsLine: starts,
       errorLabel: "all-time compare chart",
     };
@@ -427,13 +428,16 @@ export function BtcFourYearChart() {
     [windowKey, payload],
   );
 
-  const chart = useMemo(
-    () =>
-      payload?.series?.length && chartMode === "line"
-        ? buildSharedAxis(payload.series, payload, windowKey)
-        : null,
-    [payload, chartMode, windowKey],
-  );
+  const chart = useMemo(() => {
+    if (!payload?.series?.length || chartMode !== "line") return null;
+    const lineSeries =
+      windowKey === "all"
+        ? payload.series.filter((s) => s.id !== "btc")
+        : payload.series;
+    return lineSeries.length
+      ? buildSharedAxis(lineSeries, payload, windowKey)
+      : null;
+  }, [payload, chartMode, windowKey]);
 
   const barLayout = useMemo(
     () =>
@@ -775,7 +779,9 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {payload?.series?.map((s, i) => {
+            {payload?.series
+              ?.filter((s) => windowKey !== "all" || s.id !== "btc")
+              .map((s, i) => {
               const style = SERIES_STYLE[s.id];
               const x = PAD.left + i * 155;
               return (
@@ -1046,10 +1052,10 @@ export function BtcFourYearChart() {
         (equities may look flatter on long windows — that is the compare).{" "}
         {windowKey === "all" ? (
           <>
-            <strong className="font-medium text-muted">ALL:</strong> every line
-            starts at 0% on the first date all four series exist (Yahoo BTC-USD
-            daily from Sep 2014). Line chart uses a log % scale so NDX / SPX /
-            AORD stay readable next to Bitcoin. Bars stay linear.{" "}
+            <strong className="font-medium text-muted">ALL:</strong> the line is
+            NDX, SPX and AORD from Oct 1985 (first shared index date). Bitcoin
+            is omitted from the line (Yahoo daily from Sep 2014) and kept on
+            the chips and bars.{" "}
           </>
         ) : (
           <>
