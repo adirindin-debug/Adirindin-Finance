@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
@@ -62,6 +63,29 @@ function clamp(n: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, n));
 }
 
+/** Nearest point by timestamp; points assumed sorted ascending by t. */
+function nearestPoint(points: Point[], t: number): Point | null {
+  if (!points.length) return null;
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].t < t) lo = mid + 1;
+    else hi = mid;
+  }
+  let best = points[lo];
+  if (lo > 0 && Math.abs(points[lo - 1].t - t) <= Math.abs(best.t - t)) {
+    best = points[lo - 1];
+  }
+  return best;
+}
+
+type HoverState = {
+  svgX: number;
+  svgY: number;
+  point: Point;
+};
+
 function pathFor(
   points: Point[],
   xOf: (t: number) => number,
@@ -101,6 +125,8 @@ export function FearGreedPanel() {
   const [draftMain, setDraftMain] = useState<{ x0: number; x1: number } | null>(
     null,
   );
+  const [hover, setHover] = useState<HoverState | null>(null);
+  const mainSvgRef = useRef<SVGSVGElement | null>(null);
   const brushSvgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const tfWindowRef = useRef<{ t0: number; t1: number } | null>(null);
@@ -147,6 +173,7 @@ export function FearGreedPanel() {
     setDraftMain(null);
     setDrag(null);
     dragRef.current = null;
+    setHover(null);
   }, [tf]);
 
   useEffect(() => {
@@ -306,7 +333,55 @@ export function FearGreedPanel() {
     dragRef.current = next;
     setDrag(next);
     setDraftMain({ x0: svgX, x1: svgX });
+    setHover(null);
   };
+
+  const onMainMouseMove = useCallback(
+    (e: ReactMouseEvent<SVGSVGElement>) => {
+      if (dragRef.current) {
+        setHover(null);
+        return;
+      }
+      if (!chart || chart.points.length < 1) {
+        setHover(null);
+        return;
+      }
+      const svg = mainSvgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const svgX = ((e.clientX - rect.left) / rect.width) * W;
+      const svgY = ((e.clientY - rect.top) / rect.height) * H;
+      const iw = W - PAD.left - PAD.right;
+      if (
+        svgX < PAD.left ||
+        svgX > W - PAD.right ||
+        svgY < PAD.top ||
+        svgY > H - PAD.bottom
+      ) {
+        setHover(null);
+        return;
+      }
+      const t =
+        chart.t0 + ((svgX - PAD.left) / Math.max(iw, 1)) * (chart.t1 - chart.t0);
+      const maxGapSec = Math.max((chart.t1 - chart.t0) * 0.04, 1.5 * 86400);
+      const pt = nearestPoint(chart.points, t);
+      if (!pt || Math.abs(pt.t - t) > maxGapSec) {
+        setHover(null);
+        return;
+      }
+      setHover({
+        svgX: chart.xOf(pt.t),
+        svgY: chart.yOf(pt.value),
+        point: pt,
+      });
+    },
+    [chart],
+  );
+
+  const onMainMouseLeave = useCallback(() => {
+    setHover(null);
+  }, []);
 
   const onMainPointerMove = (e: ReactPointerEvent<SVGSVGElement>) => {
     if (!dragRef.current || dragRef.current.kind !== "main") return;
@@ -469,18 +544,23 @@ export function FearGreedPanel() {
         )}
         {!loading && chart && (
           <>
+            <div className="relative w-full min-w-[320px]">
             <svg
+              ref={mainSvgRef}
               viewBox={`0 0 ${W} ${H}`}
-              className="w-full min-w-[320px] cursor-crosshair touch-none"
+              className="w-full cursor-crosshair touch-none"
               role="img"
-              aria-label="Crypto Fear and Greed Index history. Drag to zoom."
+              aria-label="Crypto Fear and Greed Index history. Hover for daily values. Drag to zoom."
               onPointerDown={onMainPointerDown}
               onPointerMove={onMainPointerMove}
               onPointerUp={onMainPointerUp}
+              onMouseMove={onMainMouseMove}
+              onMouseLeave={onMainMouseLeave}
               onPointerCancel={() => {
                 dragRef.current = null;
                 setDrag(null);
                 setDraftMain(null);
+                setHover(null);
               }}
             >
               <title>Crypto Fear and Greed Index history</title>
@@ -534,6 +614,28 @@ export function FearGreedPanel() {
                   pointerEvents="none"
                 />
               )}
+              {hover && !draftMain && (
+                <g pointerEvents="none">
+                  <line
+                    x1={hover.svgX}
+                    x2={hover.svgX}
+                    y1={PAD.top}
+                    y2={H - PAD.bottom}
+                    stroke="#9eb0c8"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    opacity={0.85}
+                  />
+                  <circle
+                    cx={hover.svgX}
+                    cy={hover.svgY}
+                    r={4}
+                    fill="#3b82c4"
+                    stroke="#0c1a2e"
+                    strokeWidth={1.5}
+                  />
+                </g>
+              )}
               <text x={PAD.left} y={H - 8} className="fill-muted" fontSize={10}>
                 {fmtDateShort(chart.t0)}
               </text>
@@ -547,6 +649,37 @@ export function FearGreedPanel() {
                 {fmtDateShort(chart.t1)}
               </text>
             </svg>
+            {hover && !draftMain && (
+              <div
+                className="pointer-events-none absolute z-10 min-w-[140px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
+                style={{
+                  left: `clamp(8px, calc(${(hover.svgX / W) * 100}% + 12px), calc(100% - 168px))`,
+                  top: 12,
+                }}
+              >
+                <p className="mb-1 text-[11px] font-semibold text-[#e8eef7]">
+                  {fmtDate(hover.point.t)}
+                </p>
+                <p className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
+                  <span className="flex items-center gap-1.5 text-muted">
+                    <span
+                      className="inline-block h-2 w-2 rounded-full bg-[#3b82c4]"
+                      aria-hidden
+                    />
+                    Index
+                  </span>
+                  <span className="font-mono font-semibold text-[#e8eef7]">
+                    {hover.point.value}
+                  </span>
+                </p>
+                {hover.point.classification ? (
+                  <p className="mt-1 text-[11px] text-muted">
+                    {hover.point.classification}
+                  </p>
+                ) : null}
+              </div>
+            )}
+            </div>
 
             {brush && (
               <svg
@@ -622,8 +755,8 @@ export function FearGreedPanel() {
               </svg>
             )}
             <p className="mt-2 text-[11px] text-muted">
-              Drag on the chart to zoom · drag the brush window or its edges ·
-              works with touch drag.
+              Hover for daily readings · drag on the chart to zoom · drag the
+              brush window or its edges · works with touch drag.
             </p>
           </>
         )}

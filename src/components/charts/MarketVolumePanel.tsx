@@ -19,6 +19,16 @@ type Payload = {
   errors?: string[];
 };
 
+type TfKey = "7D" | "30D" | "90D" | "1Y" | "ALL";
+
+const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
+  { key: "7D", label: "7D", days: 7 },
+  { key: "30D", label: "30D", days: 30 },
+  { key: "90D", label: "90D", days: 90 },
+  { key: "1Y", label: "1Y", days: 365 },
+  { key: "ALL", label: "ALL", days: null },
+];
+
 const W = 720;
 const H = 240;
 const PAD = { top: 20, right: 16, bottom: 32, left: 56 };
@@ -40,12 +50,14 @@ function fmtDate(t: number) {
 export function MarketVolumePanel() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tf, setTf] = useState<TfKey>("1Y");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/market-volume?days=365");
+        // Fetch full history once; window toggles filter client-side (same pattern as FNG).
+        const res = await fetch("/api/market-volume?days=1825");
         const json = (await res.json()) as Payload;
         if (!cancelled) setData(json);
       } catch (e) {
@@ -64,8 +76,19 @@ export function MarketVolumePanel() {
     };
   }, []);
 
+  const allPoints = data?.points ?? [];
+
+  const windowedPoints = useMemo(() => {
+    if (allPoints.length < 2) return [];
+    const meta = TIMEFRAMES.find((t) => t.key === tf)!;
+    if (meta.days == null) return allPoints;
+    const tEnd = allPoints[allPoints.length - 1].t;
+    const tStart = Math.max(allPoints[0].t, tEnd - meta.days * 86400);
+    return allPoints.filter((p) => p.t >= tStart && p.t <= tEnd);
+  }, [allPoints, tf]);
+
   const chart = useMemo(() => {
-    const points = data?.points ?? [];
+    const points = windowedPoints;
     if (points.length < 2) return null;
     const t0 = points[0].t;
     const t1 = points[points.length - 1].t;
@@ -93,9 +116,16 @@ export function MarketVolumePanel() {
       .join(" ");
     const ticks = [vmin, (vmin + vmax) / 2, vmax];
     return { path, xOf, yOf, t0, t1, ticks };
-  }, [data]);
+  }, [windowedPoints]);
 
-  const hasPoints = (data?.points?.length ?? 0) >= 2;
+  const hasAnyHistory = allPoints.length >= 2;
+  const hasWindowPoints = windowedPoints.length >= 2;
+
+  const toggleBtn =
+    "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
+  const toggleOn = "bg-accent text-white shadow-sm";
+  const toggleOff =
+    "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
 
   return (
     <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
@@ -124,7 +154,29 @@ export function MarketVolumePanel() {
         )}
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+            Window
+          </span>
+          <div
+            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+            role="group"
+            aria-label="Market volume timeframe"
+          >
+            {TIMEFRAMES.map((w) => (
+              <button
+                key={w.key}
+                type="button"
+                className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
+                aria-pressed={tf === w.key}
+                onClick={() => setTf(w.key)}
+              >
+                {w.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <a
           href={
             data?.theBlockUrl ??
@@ -149,10 +201,15 @@ export function MarketVolumePanel() {
             {data.error ?? "Could not load volume"}
           </p>
         )}
-        {!loading && data?.ok && !hasPoints && (
+        {!loading && data?.ok && !hasAnyHistory && (
           <p className="py-12 text-center text-sm text-muted">
             No volume history available from public feeds right now. Try The
             Block link above, or refresh later.
+          </p>
+        )}
+        {!loading && data?.ok && hasAnyHistory && !hasWindowPoints && (
+          <p className="py-12 text-center text-sm text-muted">
+            Not enough volume history for this window.
           </p>
         )}
         {!loading && chart && (
@@ -160,6 +217,7 @@ export function MarketVolumePanel() {
             viewBox={`0 0 ${W} ${H}`}
             className="w-full min-w-[320px]"
             role="img"
+            aria-label={`Total crypto market volume USD, ${tf} window`}
           >
             <title>Total crypto market volume USD</title>
             {chart.ticks.map((v) => (

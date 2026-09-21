@@ -220,7 +220,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const daysRaw = Number(searchParams.get("days") ?? "365");
   const days = Number.isFinite(daysRaw)
-    ? Math.min(Math.max(Math.floor(daysRaw), 30), 1825)
+    ? Math.min(Math.max(Math.floor(daysRaw), 7), 1825)
     : 365;
 
   const errors: string[] = [];
@@ -254,7 +254,8 @@ export async function GET(request: Request) {
     );
   }
 
-  const points = history ? downsample(history.points, 400) : [];
+  // Keep near-daily resolution so client window filters (7D/30D) still have enough ticks.
+  const points = history ? downsample(history.points, 2000) : [];
   const latestFromHistory = points.length
     ? points[points.length - 1].volumeUsd
     : null;
