@@ -31,6 +31,12 @@ const CM_ASSETS = [
   "bch",
 ].join(",");
 
+/**
+ * Single-asset daily spot volume above this is treated as corrupt upstream data
+ * (seen on CoinMetrics USDC prints at 1e36–1e55). No credible asset clears $500B/day.
+ */
+const MAX_ASSET_DAY_USD = 5e11;
+
 async function fetchJson(url: string, init?: RequestInit) {
   const res = await fetch(url, {
     ...init,
@@ -58,7 +64,12 @@ async function fetchCoinGeckoHistory(days: number): Promise<{
         t: Math.floor(ms / 1000),
         volumeUsd: v,
       }))
-      .filter((p) => Number.isFinite(p.volumeUsd) && p.volumeUsd > 0);
+      .filter(
+        (p) =>
+          Number.isFinite(p.volumeUsd) &&
+          p.volumeUsd > 0 &&
+          p.volumeUsd <= MAX_ASSET_DAY_USD * 4,
+      );
     if (points.length < 2) return null;
     return {
       points,
@@ -80,10 +91,18 @@ async function fetchCoinGeckoCurrent(): Promise<{
       { next: { revalidate: 3600 } },
     );
     if (!res.ok || !json) return null;
-    const data = (json as { data?: { total_volume?: { usd?: number }; total_market_cap?: { usd?: number } } })
-      .data;
+    const data = (
+      json as {
+        data?: {
+          total_volume?: { usd?: number };
+          total_market_cap?: { usd?: number };
+        };
+      }
+    ).data;
     const volumeUsd = data?.total_volume?.usd;
-    if (volumeUsd == null || !Number.isFinite(volumeUsd)) return null;
+    if (volumeUsd == null || !Number.isFinite(volumeUsd) || volumeUsd <= 0) {
+      return null;
+    }
     return {
       volumeUsd,
       marketCapUsd: data?.total_market_cap?.usd ?? null,
@@ -108,7 +127,13 @@ async function fetchCoinPaprikaCurrent(): Promise<{
       volume_24h_usd?: number;
       market_cap_usd?: number;
     };
-    if (row.volume_24h_usd == null || !Number.isFinite(row.volume_24h_usd)) return null;
+    if (
+      row.volume_24h_usd == null ||
+      !Number.isFinite(row.volume_24h_usd) ||
+      row.volume_24h_usd <= 0
+    ) {
+      return null;
+    }
     return {
       volumeUsd: row.volume_24h_usd,
       marketCapUsd: row.market_cap_usd ?? null,
@@ -122,6 +147,7 @@ async function fetchCoinPaprikaCurrent(): Promise<{
 async function fetchCoinMetricsHistory(days: number): Promise<{
   points: VolPoint[];
   source: string;
+  droppedCorrupt: number;
 } | null> {
   try {
     const end = new Date();
@@ -134,16 +160,29 @@ async function fetchCoinMetricsHistory(days: number): Promise<{
       `&start_time=${startStr}&end_time=${endStr}&frequency=1d&page_size=10000`;
     const { res, json } = await fetchJson(url, { next: { revalidate: 3600 } });
     if (!res.ok || !json) return null;
-    const rows = (json as { data?: Array<{ time: string; volume_reported_spot_usd_1d?: string | null }> })
-      .data;
+    const rows = (
+      json as {
+        data?: Array<{
+          time: string;
+          asset?: string;
+          volume_reported_spot_usd_1d?: string | null;
+        }>;
+      }
+    ).data;
     if (!rows?.length) return null;
     const byDay = new Map<string, number>();
+    let droppedCorrupt = 0;
     for (const row of rows) {
       const day = row.time.slice(0, 10);
       const v = row.volume_reported_spot_usd_1d;
       if (v == null) continue;
       const n = Number(v);
-      if (!Number.isFinite(n)) continue;
+      if (!Number.isFinite(n) || n <= 0) continue;
+      // Drop corrupt upstream prints (e.g. USDC 1e55) before summing.
+      if (n > MAX_ASSET_DAY_USD) {
+        droppedCorrupt += 1;
+        continue;
+      }
       byDay.set(day, (byDay.get(day) ?? 0) + n);
     }
     const points: VolPoint[] = [...byDay.entries()]
@@ -156,6 +195,7 @@ async function fetchCoinMetricsHistory(days: number): Promise<{
     if (points.length < 2) return null;
     return {
       points,
+      droppedCorrupt,
       source:
         "CoinMetrics community volume_reported_spot_usd_1d (sum of major assets) — total market volume proxy",
     };
@@ -194,10 +234,14 @@ export async function GET(request: Request) {
   const current = cgCurrent ?? paprikaCurrent;
   if (!current) errors.push("Could not load current total market volume");
 
-  let history = cgHistory;
+  let history = cgHistory
+    ? { ...cgHistory, droppedCorrupt: 0 }
+    : null;
   let historyIsProxy = false;
   if (!history) {
-    errors.push("CoinGecko global market_cap_chart unavailable (rate limit or Pro-only)");
+    errors.push(
+      "CoinGecko global market_cap_chart unavailable (rate limit or Pro-only)",
+    );
     history = await fetchCoinMetricsHistory(days);
     historyIsProxy = !!history;
     if (!history) errors.push("CoinMetrics history unavailable");
@@ -211,7 +255,16 @@ export async function GET(request: Request) {
   }
 
   const points = history ? downsample(history.points, 400) : [];
-  const latestFromHistory = points.length ? points[points.length - 1].volumeUsd : null;
+  const latestFromHistory = points.length
+    ? points[points.length - 1].volumeUsd
+    : null;
+
+  const droppedCorrupt = history?.droppedCorrupt ?? 0;
+  if (droppedCorrupt > 0) {
+    errors.push(
+      `Dropped ${droppedCorrupt} corrupt single-asset daily prints (>$500B) before summing`,
+    );
+  }
 
   return Response.json(
     {
@@ -223,10 +276,11 @@ export async function GET(request: Request) {
       points,
       historySource: history?.source ?? null,
       historyIsProxy,
+      droppedCorrupt: droppedCorrupt || undefined,
       theBlockUrl:
         "https://www.theblock.co/data/crypto-markets/spot/total-exchange-volume-daily",
       disclaimer:
-        "Our chart is total crypto market volume from a public feed (or a major-asset volume proxy when CoinGecko’s global history endpoint is unavailable). It is not The Block’s spot exchange volume desk — use the link for that reference. Educational only — not financial advice (NFA).",
+        "Our chart is total crypto market volume from a public feed (or a major-asset volume proxy when CoinGecko’s global history endpoint is unavailable). Corrupt single-asset prints above $500B/day are dropped before summing. It is not The Block’s spot exchange volume desk — use the link for that reference. Educational only — not financial advice (NFA).",
       errors: errors.length ? errors : undefined,
       asOf: new Date().toISOString(),
     },

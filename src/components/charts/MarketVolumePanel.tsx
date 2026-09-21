@@ -12,6 +12,7 @@ type Payload = {
   points?: Point[];
   historySource?: string | null;
   historyIsProxy?: boolean;
+  droppedCorrupt?: number;
   theBlockUrl?: string;
   disclaimer?: string;
   error?: string;
@@ -71,16 +72,19 @@ export function MarketVolumePanel() {
     let vmin = Infinity;
     let vmax = -Infinity;
     for (const p of points) {
+      if (!Number.isFinite(p.volumeUsd)) continue;
       vmin = Math.min(vmin, p.volumeUsd);
       vmax = Math.max(vmax, p.volumeUsd);
     }
+    if (!Number.isFinite(vmin) || !Number.isFinite(vmax)) return null;
     const pad = (vmax - vmin) * 0.08 || vmax * 0.05;
     vmin = Math.max(0, vmin - pad);
     vmax = vmax + pad;
     const xOf = (t: number) =>
       PAD.left + ((t - t0) / Math.max(t1 - t0, 1)) * (W - PAD.left - PAD.right);
     const yOf = (v: number) =>
-      PAD.top + ((vmax - v) / Math.max(vmax - vmin, 1)) * (H - PAD.top - PAD.bottom);
+      PAD.top +
+      ((vmax - v) / Math.max(vmax - vmin, 1)) * (H - PAD.top - PAD.bottom);
     const path = points
       .map(
         (p, i) =>
@@ -90,6 +94,8 @@ export function MarketVolumePanel() {
     const ticks = [vmin, (vmin + vmax) / 2, vmax];
     return { path, xOf, yOf, t0, t1, ticks };
   }, [data]);
+
+  const hasPoints = (data?.points?.length ?? 0) >= 2;
 
   return (
     <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
@@ -134,15 +140,27 @@ export function MarketVolumePanel() {
 
       <div className="mt-5 overflow-x-auto">
         {loading && (
-          <p className="py-16 text-center text-sm text-muted">Loading market volume…</p>
+          <p className="py-16 text-center text-sm text-muted">
+            Loading market volume…
+          </p>
         )}
         {!loading && data && !data.ok && (
           <p className="py-12 text-center text-sm text-red-400">
             {data.error ?? "Could not load volume"}
           </p>
         )}
+        {!loading && data?.ok && !hasPoints && (
+          <p className="py-12 text-center text-sm text-muted">
+            No volume history available from public feeds right now. Try The
+            Block link above, or refresh later.
+          </p>
+        )}
         {!loading && chart && (
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[320px]" role="img">
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="w-full min-w-[320px]"
+            role="img"
+          >
             <title>Total crypto market volume USD</title>
             {chart.ticks.map((v) => (
               <g key={v}>
@@ -169,7 +187,13 @@ export function MarketVolumePanel() {
             <text x={PAD.left} y={H - 8} className="fill-muted" fontSize={10}>
               {fmtDate(chart.t0)}
             </text>
-            <text x={W - PAD.right} y={H - 8} textAnchor="end" className="fill-muted" fontSize={10}>
+            <text
+              x={W - PAD.right}
+              y={H - 8}
+              textAnchor="end"
+              className="fill-muted"
+              fontSize={10}
+            >
               {fmtDate(chart.t1)}
             </text>
           </svg>
@@ -181,6 +205,9 @@ export function MarketVolumePanel() {
           <p>
             Chart series: {data.historySource}
             {data.historyIsProxy ? " (proxy)." : "."}
+            {data.droppedCorrupt
+              ? ` Dropped ${data.droppedCorrupt} corrupt single-asset prints before summing.`
+              : ""}
           </p>
         )}
         <p>
