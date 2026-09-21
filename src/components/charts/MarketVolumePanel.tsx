@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 
 type Point = { t: number; volumeUsd: number };
 type Payload = {
@@ -21,6 +28,12 @@ type Payload = {
 
 type TfKey = "7D" | "30D" | "90D" | "1Y" | "ALL";
 
+type HoverState = {
+  svgX: number;
+  svgY: number;
+  point: Point;
+};
+
 const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
   { key: "7D", label: "7D", days: 7 },
   { key: "30D", label: "30D", days: 30 },
@@ -35,22 +48,56 @@ const PAD = { top: 20, right: 16, bottom: 32, left: 56 };
 
 function fmtUsdCompact(n: number) {
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
   return `$${n.toFixed(0)}`;
 }
 
-function fmtDate(t: number) {
+function fmtUsdTooltip(n: number) {
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  return `$${n.toLocaleString("en-AU", { maximumFractionDigits: 0 })}`;
+}
+
+function fmtDateShort(t: number) {
   return new Date(t * 1000).toLocaleDateString("en-AU", {
     year: "numeric",
     month: "short",
   });
 }
 
+function fmtDate(t: number) {
+  return new Date(t * 1000).toLocaleDateString("en-AU", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+/** Nearest point by timestamp; points assumed sorted ascending by t. */
+function nearestPoint(points: Point[], t: number): Point | null {
+  if (!points.length) return null;
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid]!.t < t) lo = mid + 1;
+    else hi = mid;
+  }
+  let best = points[lo]!;
+  if (lo > 0 && Math.abs(points[lo - 1]!.t - t) <= Math.abs(best.t - t)) {
+    best = points[lo - 1]!;
+  }
+  return best;
+}
+
 export function MarketVolumePanel() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tf, setTf] = useState<TfKey>("1Y");
+  const [hover, setHover] = useState<HoverState | null>(null);
+  const mainSvgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,22 +123,26 @@ export function MarketVolumePanel() {
     };
   }, []);
 
+  useEffect(() => {
+    setHover(null);
+  }, [tf]);
+
   const allPoints = data?.points ?? [];
 
   const windowedPoints = useMemo(() => {
     if (allPoints.length < 2) return [];
     const meta = TIMEFRAMES.find((t) => t.key === tf)!;
     if (meta.days == null) return allPoints;
-    const tEnd = allPoints[allPoints.length - 1].t;
-    const tStart = Math.max(allPoints[0].t, tEnd - meta.days * 86400);
+    const tEnd = allPoints[allPoints.length - 1]!.t;
+    const tStart = Math.max(allPoints[0]!.t, tEnd - meta.days * 86400);
     return allPoints.filter((p) => p.t >= tStart && p.t <= tEnd);
   }, [allPoints, tf]);
 
   const chart = useMemo(() => {
     const points = windowedPoints;
     if (points.length < 2) return null;
-    const t0 = points[0].t;
-    const t1 = points[points.length - 1].t;
+    const t0 = points[0]!.t;
+    const t1 = points[points.length - 1]!.t;
     let vmin = Infinity;
     let vmax = -Infinity;
     for (const p of points) {
@@ -115,8 +166,51 @@ export function MarketVolumePanel() {
       )
       .join(" ");
     const ticks = [vmin, (vmin + vmax) / 2, vmax];
-    return { path, xOf, yOf, t0, t1, ticks };
+    return { path, xOf, yOf, t0, t1, ticks, points };
   }, [windowedPoints]);
+
+  const onMainMouseMove = useCallback(
+    (e: ReactMouseEvent<SVGSVGElement>) => {
+      if (!chart || chart.points.length < 1) {
+        setHover(null);
+        return;
+      }
+      const svg = mainSvgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const svgX = ((e.clientX - rect.left) / rect.width) * W;
+      const svgY = ((e.clientY - rect.top) / rect.height) * H;
+      const iw = W - PAD.left - PAD.right;
+      if (
+        svgX < PAD.left ||
+        svgX > W - PAD.right ||
+        svgY < PAD.top ||
+        svgY > H - PAD.bottom
+      ) {
+        setHover(null);
+        return;
+      }
+      const t =
+        chart.t0 + ((svgX - PAD.left) / Math.max(iw, 1)) * (chart.t1 - chart.t0);
+      const maxGapSec = Math.max((chart.t1 - chart.t0) * 0.04, 1.5 * 86400);
+      const pt = nearestPoint(chart.points, t);
+      if (!pt || Math.abs(pt.t - t) > maxGapSec) {
+        setHover(null);
+        return;
+      }
+      setHover({
+        svgX: chart.xOf(pt.t),
+        svgY: chart.yOf(pt.volumeUsd),
+        point: pt,
+      });
+    },
+    [chart],
+  );
+
+  const onMainMouseLeave = useCallback(() => {
+    setHover(null);
+  }, []);
 
   const hasAnyHistory = allPoints.length >= 2;
   const hasWindowPoints = windowedPoints.length >= 2;
@@ -213,48 +307,108 @@ export function MarketVolumePanel() {
           </p>
         )}
         {!loading && chart && (
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="w-full min-w-[320px]"
-            role="img"
-            aria-label={`Total crypto market volume USD, ${tf} window`}
-          >
-            <title>Total crypto market volume USD</title>
-            {chart.ticks.map((v) => (
-              <g key={v}>
-                <line
-                  x1={PAD.left}
-                  x2={W - PAD.right}
-                  y1={chart.yOf(v)}
-                  y2={chart.yOf(v)}
-                  stroke="#243041"
-                  strokeWidth={1}
-                />
-                <text
-                  x={PAD.left - 8}
-                  y={chart.yOf(v) + 3}
-                  textAnchor="end"
-                  className="fill-muted"
-                  fontSize={10}
-                >
-                  {fmtUsdCompact(v)}
-                </text>
-              </g>
-            ))}
-            <path d={chart.path} fill="none" stroke="#3dcc9a" strokeWidth={2} />
-            <text x={PAD.left} y={H - 8} className="fill-muted" fontSize={10}>
-              {fmtDate(chart.t0)}
-            </text>
-            <text
-              x={W - PAD.right}
-              y={H - 8}
-              textAnchor="end"
-              className="fill-muted"
-              fontSize={10}
+          <div className="relative w-full min-w-[320px]">
+            <svg
+              ref={mainSvgRef}
+              viewBox={`0 0 ${W} ${H}`}
+              className="w-full cursor-crosshair"
+              role="img"
+              aria-label={`Total crypto market volume USD, ${tf} window. Hover for daily values.`}
+              onMouseMove={onMainMouseMove}
+              onMouseLeave={onMainMouseLeave}
             >
-              {fmtDate(chart.t1)}
-            </text>
-          </svg>
+              <title>Total crypto market volume USD</title>
+              {chart.ticks.map((v) => (
+                <g key={v}>
+                  <line
+                    x1={PAD.left}
+                    x2={W - PAD.right}
+                    y1={chart.yOf(v)}
+                    y2={chart.yOf(v)}
+                    stroke="#243041"
+                    strokeWidth={1}
+                  />
+                  <text
+                    x={PAD.left - 8}
+                    y={chart.yOf(v) + 3}
+                    textAnchor="end"
+                    className="fill-muted"
+                    fontSize={10}
+                  >
+                    {fmtUsdCompact(v)}
+                  </text>
+                </g>
+              ))}
+              <path
+                d={chart.path}
+                fill="none"
+                stroke="#3dcc9a"
+                strokeWidth={2}
+              />
+              {hover && (
+                <g pointerEvents="none">
+                  <line
+                    x1={hover.svgX}
+                    x2={hover.svgX}
+                    y1={PAD.top}
+                    y2={H - PAD.bottom}
+                    stroke="#9eb0c8"
+                    strokeWidth={1}
+                    strokeDasharray="3 3"
+                    opacity={0.85}
+                  />
+                  <circle
+                    cx={hover.svgX}
+                    cy={hover.svgY}
+                    r={4}
+                    fill="#3dcc9a"
+                    stroke="#0c1a2e"
+                    strokeWidth={1.5}
+                  />
+                </g>
+              )}
+              <text x={PAD.left} y={H - 8} className="fill-muted" fontSize={10}>
+                {fmtDateShort(chart.t0)}
+              </text>
+              <text
+                x={W - PAD.right}
+                y={H - 8}
+                textAnchor="end"
+                className="fill-muted"
+                fontSize={10}
+              >
+                {fmtDateShort(chart.t1)}
+              </text>
+            </svg>
+            {hover && (
+              <div
+                className="pointer-events-none absolute z-10 min-w-[148px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
+                style={{
+                  left: `clamp(8px, calc(${(hover.svgX / W) * 100}% + 12px), calc(100% - 176px))`,
+                  top: 12,
+                }}
+              >
+                <p className="mb-1 text-[11px] font-semibold text-[#e8eef7]">
+                  {fmtDate(hover.point.t)}
+                </p>
+                <p className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
+                  <span className="flex items-center gap-1.5 text-muted">
+                    <span
+                      className="inline-block h-2 w-2 rounded-full bg-[#3dcc9a]"
+                      aria-hidden
+                    />
+                    Volume
+                  </span>
+                  <span className="font-mono font-semibold text-[#e8eef7]">
+                    {fmtUsdTooltip(hover.point.volumeUsd)}
+                  </span>
+                </p>
+              </div>
+            )}
+            <p className="mt-2 text-[11px] text-muted">
+              Hover for daily volume · snap to nearest day
+            </p>
+          </div>
         )}
       </div>
 
@@ -264,7 +418,7 @@ export function MarketVolumePanel() {
             Chart series: {data.historySource}
             {data.historyIsProxy ? " (proxy)." : "."}
             {data.droppedCorrupt
-              ? ` Dropped ${data.droppedCorrupt} corrupt single-asset prints before summing.`
+              ? ` Dropped ${data.droppedCorrupt} corrupt/outlier single-asset prints before summing.`
               : ""}
           </p>
         )}

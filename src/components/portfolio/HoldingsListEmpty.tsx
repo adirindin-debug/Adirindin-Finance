@@ -2,6 +2,7 @@
 
 import type { HoldingLive } from "@/lib/portfolioTypes";
 import { formatAud, formatPrice } from "@/lib/portfolioCompute";
+import { HoldingLogo } from "./HoldingLogo";
 
 type Props = {
   holdings: HoldingLive[];
@@ -40,7 +41,14 @@ export function HoldingsListEmpty({
           className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-xs text-zinc-400 hover:bg-zinc-900 hover:text-white"
           aria-label="Add holding"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
           Add
@@ -53,7 +61,8 @@ export function HoldingsListEmpty({
       {empty ? (
         <div className="rounded-xl border border-dashed border-zinc-800 px-4 py-12 text-center">
           <p className="text-sm text-zinc-400">
-            No holdings yet — add a security (ticker + qty + cost) or a collectable
+            No holdings yet — add a security (ticker + qty + cost) or a
+            collectable
           </p>
           <button
             type="button"
@@ -88,18 +97,20 @@ export function HoldingsListEmpty({
                   onClick={() => onEdit(h.id)}
                   className="flex w-full items-center gap-3 py-3 text-left hover:bg-zinc-950/80"
                 >
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-black"
-                    style={{ backgroundColor: h.color }}
-                  >
-                    {isCollectable ? "◆" : h.ticker.slice(0, 2)}
-                  </div>
+                  <HoldingLogo
+                    kind={h.kind}
+                    ticker={h.ticker}
+                    name={h.name}
+                    color={h.color}
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-white">{title}</p>
                     <p className="truncate text-xs text-zinc-500">{subtitle}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-white">{formatAud(h.marketValueAud, 2)}</p>
+                    <p className="font-semibold text-white">
+                      {formatAud(h.marketValueAud, 2)}
+                    </p>
                     <p
                       className={`text-xs ${
                         h.gainAud == null
@@ -127,14 +138,23 @@ export function HoldingsListEmpty({
         className="mt-4 flex w-full items-center gap-3 rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-3 text-left hover:border-zinc-700 hover:bg-zinc-900/60"
       >
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-800 text-zinc-300">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          >
             <rect x="2" y="6" width="20" height="12" rx="2" />
             <circle cx="12" cy="12" r="2.5" />
           </svg>
         </div>
         <div className="flex-1">
           <p className="text-sm font-medium text-white">Available Cash</p>
-          <p className="text-[11px] text-zinc-500">Included in total A$ &amp; allocation · tap to edit</p>
+          <p className="text-[11px] text-zinc-500">
+            Included in total A$ &amp; allocation · tap to edit
+          </p>
         </div>
         <p className="text-sm font-semibold text-white">
           {availableCashAud == null ? "A$—" : formatAud(availableCashAud, 2)}

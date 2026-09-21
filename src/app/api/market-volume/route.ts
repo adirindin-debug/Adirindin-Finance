@@ -1,7 +1,8 @@
 /**
  * Total crypto market volume (public feeds).
  * Prefer CoinGecko global / market_cap_chart when available;
- * otherwise CoinPaprika (latest) + CoinMetrics major-asset sum (history proxy).
+ * otherwise CoinMetrics major-asset sum (history proxy) with full pagination
+ * + corrupt-print / relative-outlier hygiene.
  * Not The Block spot exchange desk — link out for that. Educational — NFA.
  */
 
@@ -37,10 +38,17 @@ const CM_ASSETS = [
  */
 const MAX_ASSET_DAY_USD = 5e11;
 
+/** Drop a single-asset day if it exceeds this multiple of that asset's median. */
+const RELATIVE_OUTLIER_MULT = 25;
+
 async function fetchJson(url: string, init?: RequestInit) {
   const res = await fetch(url, {
     ...init,
-    headers: { Accept: "application/json", "User-Agent": UA, ...(init?.headers || {}) },
+    headers: {
+      Accept: "application/json",
+      "User-Agent": UA,
+      ...(init?.headers || {}),
+    },
   });
   return { res, json: res.ok ? await res.json() : null };
 }
@@ -72,7 +80,7 @@ async function fetchCoinGeckoHistory(days: number): Promise<{
       );
     if (points.length < 2) return null;
     return {
-      points,
+      points: dedupeDaily(points),
       source: "CoinGecko /global/market_cap_chart (total_volume, USD)",
     };
   } catch {
@@ -119,9 +127,10 @@ async function fetchCoinPaprikaCurrent(): Promise<{
   source: string;
 } | null> {
   try {
-    const { res, json } = await fetchJson("https://api.coinpaprika.com/v1/global", {
-      next: { revalidate: 3600 },
-    });
+    const { res, json } = await fetchJson(
+      "https://api.coinpaprika.com/v1/global",
+      { next: { revalidate: 3600 } },
+    );
     if (!res.ok || !json) return null;
     const row = json as {
       volume_24h_usd?: number;
@@ -144,60 +153,188 @@ async function fetchCoinPaprikaCurrent(): Promise<{
   }
 }
 
-async function fetchCoinMetricsHistory(days: number): Promise<{
-  points: VolPoint[];
-  source: string;
-  droppedCorrupt: number;
-} | null> {
+type CmRow = {
+  time: string;
+  asset?: string;
+  volume_reported_spot_usd_1d?: string | null;
+};
+
+/** Follow CoinMetrics next_page_url so major assets are not truncated mid-series. */
+async function fetchCoinMetricsRows(
+  days: number,
+): Promise<{ rows: CmRow[]; pages: number } | null> {
   try {
     const end = new Date();
     const start = new Date(Date.now() - days * 86400000);
     const startStr = start.toISOString().slice(0, 10);
     const endStr = end.toISOString().slice(0, 10);
-    const url =
+    let url: string | null =
       `https://community-api.coinmetrics.io/v4/timeseries/asset-metrics` +
       `?assets=${CM_ASSETS}&metrics=volume_reported_spot_usd_1d` +
       `&start_time=${startStr}&end_time=${endStr}&frequency=1d&page_size=10000`;
-    const { res, json } = await fetchJson(url, { next: { revalidate: 3600 } });
-    if (!res.ok || !json) return null;
-    const rows = (
-      json as {
-        data?: Array<{
-          time: string;
-          asset?: string;
-          volume_reported_spot_usd_1d?: string | null;
-        }>;
+
+    const rows: CmRow[] = [];
+    let pages = 0;
+    while (url && pages < 25) {
+      const { res, json } = await fetchJson(url, {
+        next: { revalidate: 3600 },
+      });
+      if (!res.ok || !json) {
+        if (pages === 0) return null;
+        break;
       }
-    ).data;
-    if (!rows?.length) return null;
-    const byDay = new Map<string, number>();
-    let droppedCorrupt = 0;
-    for (const row of rows) {
-      const day = row.time.slice(0, 10);
-      const v = row.volume_reported_spot_usd_1d;
-      if (v == null) continue;
-      const n = Number(v);
-      if (!Number.isFinite(n) || n <= 0) continue;
-      // Drop corrupt upstream prints (e.g. USDC 1e55) before summing.
-      if (n > MAX_ASSET_DAY_USD) {
-        droppedCorrupt += 1;
-        continue;
-      }
-      byDay.set(day, (byDay.get(day) ?? 0) + n);
+      const body = json as {
+        data?: CmRow[];
+        next_page_url?: string | null;
+      };
+      const chunk = body.data ?? [];
+      rows.push(...chunk);
+      pages += 1;
+      url = body.next_page_url ?? null;
+      if (!chunk.length) break;
     }
-    const points: VolPoint[] = [...byDay.entries()]
-      .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([day, volumeUsd]) => ({
-        t: Math.floor(new Date(`${day}T00:00:00Z`).getTime() / 1000),
-        volumeUsd,
+    if (!rows.length) return null;
+    return { rows, pages };
+  } catch {
+    return null;
+  }
+}
+
+function median(nums: number[]): number {
+  if (!nums.length) return 0;
+  const s = [...nums].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
+}
+
+function dedupeDaily(points: VolPoint[]): VolPoint[] {
+  const byDay = new Map<string, VolPoint>();
+  for (const p of points) {
+    const day = new Date(p.t * 1000).toISOString().slice(0, 10);
+    byDay.set(day, p);
+  }
+  return [...byDay.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([, p]) => p);
+}
+
+async function fetchCoinMetricsHistory(days: number): Promise<{
+  points: VolPoint[];
+  source: string;
+  droppedCorrupt: number;
+  pages: number;
+  assetDaysKept: number;
+} | null> {
+  const fetched = await fetchCoinMetricsRows(days);
+  if (!fetched) return null;
+  const { rows, pages } = fetched;
+
+  // Collect finite positive prints per asset (pre absolute-cap) for medians.
+  const byAssetValues = new Map<string, number[]>();
+  for (const row of rows) {
+    const asset = (row.asset ?? "").toLowerCase();
+    const v = row.volume_reported_spot_usd_1d;
+    if (!asset || v == null) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0 || n > MAX_ASSET_DAY_USD) continue;
+    const list = byAssetValues.get(asset) ?? [];
+    list.push(n);
+    byAssetValues.set(asset, list);
+  }
+  const assetMedian = new Map<string, number>();
+  for (const [asset, vals] of byAssetValues) {
+    if (vals.length >= 7) assetMedian.set(asset, median(vals));
+  }
+
+  const byDay = new Map<string, number>();
+  const assetsPerDay = new Map<string, number>();
+  let droppedCorrupt = 0;
+  let assetDaysKept = 0;
+
+  for (const row of rows) {
+    const day = row.time.slice(0, 10);
+    const asset = (row.asset ?? "").toLowerCase();
+    const v = row.volume_reported_spot_usd_1d;
+    if (v == null) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n) || n <= 0) continue;
+
+    // Absolute corrupt-print filter (e.g. USDC 1e55).
+    if (n > MAX_ASSET_DAY_USD) {
+      droppedCorrupt += 1;
+      continue;
+    }
+
+    // Relative outlier vs that asset's own median (keeps series denser than dropping assets wholesale).
+    const med = assetMedian.get(asset);
+    if (med != null && med > 0 && n > RELATIVE_OUTLIER_MULT * med) {
+      droppedCorrupt += 1;
+      continue;
+    }
+
+    byDay.set(day, (byDay.get(day) ?? 0) + n);
+    assetsPerDay.set(day, (assetsPerDay.get(day) ?? 0) + 1);
+    assetDaysKept += 1;
+  }
+
+  // Prefer days with at least a few contributing majors so sparse partial pages don't spike.
+  const MIN_ASSETS = 5;
+  const points: VolPoint[] = [...byDay.entries()]
+    .filter(([day]) => (assetsPerDay.get(day) ?? 0) >= MIN_ASSETS)
+    .sort(([a], [b]) => (a < b ? -1 : 1))
+    .map(([day, volumeUsd]) => ({
+      t: Math.floor(new Date(`${day}T00:00:00Z`).getTime() / 1000),
+      volumeUsd,
+    }))
+    .filter((p) => p.volumeUsd > 0);
+
+  if (points.length < 2) return null;
+
+  return {
+    points,
+    droppedCorrupt,
+    pages,
+    assetDaysKept,
+    source:
+      "CoinMetrics community volume_reported_spot_usd_1d (paginated sum of major assets) — total market volume proxy",
+  };
+}
+
+/**
+ * DefiLlama aggregate daily DEX volume — honest last-resort series when
+ * CoinGecko + CoinMetrics history are unavailable. Not CEX spot volume.
+ */
+async function fetchDefiLlamaDexHistory(days: number): Promise<{
+  points: VolPoint[];
+  source: string;
+} | null> {
+  try {
+    const { res, json } = await fetchJson(
+      "https://api.llama.fi/overview/dexs?excludeTotalDataChart=false&excludeTotalDataChartBreakdown=true&dataType=dailyVolume",
+      { next: { revalidate: 3600 } },
+    );
+    if (!res.ok || !json) return null;
+    const chart = (json as { totalDataChart?: [number, number][] })
+      .totalDataChart;
+    if (!chart?.length) return null;
+    const tMin = Math.floor(Date.now() / 1000) - days * 86400;
+    const points: VolPoint[] = chart
+      .map(([t, v]) => ({
+        t: typeof t === "number" && t > 1e12 ? Math.floor(t / 1000) : t,
+        volumeUsd: v,
       }))
-      .filter((p) => p.volumeUsd > 0);
+      .filter(
+        (p) =>
+          p.t >= tMin &&
+          Number.isFinite(p.volumeUsd) &&
+          p.volumeUsd > 0 &&
+          p.volumeUsd <= MAX_ASSET_DAY_USD * 4,
+      );
     if (points.length < 2) return null;
     return {
-      points,
-      droppedCorrupt,
+      points: dedupeDaily(points),
       source:
-        "CoinMetrics community volume_reported_spot_usd_1d (sum of major assets) — total market volume proxy",
+        "DefiLlama DEX aggregate dailyVolume (DEX only — not CEX / total market spot)",
     };
   } catch {
     return null;
@@ -210,8 +347,8 @@ function downsample(points: VolPoint[], maxPts: number): VolPoint[] {
   const lastIdx = points.length - 1;
   for (let k = 0; k < maxPts; k++) {
     const i = Math.round((k * lastIdx) / (maxPts - 1));
-    const p = points[i];
-    if (!out.length || out[out.length - 1].t !== p.t) out.push(p);
+    const p = points[i]!;
+    if (!out.length || out[out.length - 1]!.t !== p.t) out.push(p);
   }
   return out;
 }
@@ -234,17 +371,39 @@ export async function GET(request: Request) {
   const current = cgCurrent ?? paprikaCurrent;
   if (!current) errors.push("Could not load current total market volume");
 
-  let history = cgHistory
+  let history: {
+    points: VolPoint[];
+    source: string;
+    droppedCorrupt: number;
+  } | null = cgHistory
     ? { ...cgHistory, droppedCorrupt: 0 }
     : null;
   let historyIsProxy = false;
+
   if (!history) {
     errors.push(
       "CoinGecko global market_cap_chart unavailable (rate limit or Pro-only)",
     );
-    history = await fetchCoinMetricsHistory(days);
-    historyIsProxy = !!history;
-    if (!history) errors.push("CoinMetrics history unavailable");
+    const cm = await fetchCoinMetricsHistory(days);
+    if (cm) {
+      history = cm;
+      historyIsProxy = true;
+      if (cm.pages > 1) {
+        errors.push(
+          `CoinMetrics history fetched across ${cm.pages} pages (${cm.assetDaysKept} asset-days kept)`,
+        );
+      }
+    } else {
+      errors.push("CoinMetrics history unavailable");
+      const llama = await fetchDefiLlamaDexHistory(days);
+      if (llama) {
+        history = { ...llama, droppedCorrupt: 0 };
+        historyIsProxy = true;
+        errors.push("Fell back to DefiLlama DEX daily volume (labelled)");
+      } else {
+        errors.push("DefiLlama DEX history unavailable");
+      }
+    }
   }
 
   if (!current && !history) {
@@ -257,13 +416,13 @@ export async function GET(request: Request) {
   // Keep near-daily resolution so client window filters (7D/30D) still have enough ticks.
   const points = history ? downsample(history.points, 2000) : [];
   const latestFromHistory = points.length
-    ? points[points.length - 1].volumeUsd
+    ? points[points.length - 1]!.volumeUsd
     : null;
 
   const droppedCorrupt = history?.droppedCorrupt ?? 0;
   if (droppedCorrupt > 0) {
     errors.push(
-      `Dropped ${droppedCorrupt} corrupt single-asset daily prints (>$500B) before summing`,
+      `Dropped ${droppedCorrupt} corrupt/outlier single-asset daily prints before summing`,
     );
   }
 
@@ -281,7 +440,7 @@ export async function GET(request: Request) {
       theBlockUrl:
         "https://www.theblock.co/data/crypto-markets/spot/total-exchange-volume-daily",
       disclaimer:
-        "Our chart is total crypto market volume from a public feed (or a major-asset volume proxy when CoinGecko’s global history endpoint is unavailable). Corrupt single-asset prints above $500B/day are dropped before summing. It is not The Block’s spot exchange volume desk — use the link for that reference. Educational only — not financial advice (NFA).",
+        "Our chart is total crypto market volume from a public feed (or a major-asset / DEX volume proxy when CoinGecko’s global history endpoint is unavailable). Corrupt and extreme single-asset prints are dropped before summing. It is not The Block’s spot exchange volume desk — use the link for that reference. Educational only — not financial advice (NFA).",
       errors: errors.length ? errors : undefined,
       asOf: new Date().toISOString(),
     },
