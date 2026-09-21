@@ -1,9 +1,9 @@
 /**
  * Best-effort logo URLs for holdings list.
- * Securities: Clearbit Logo API by company domain (common AU/US map).
+ * Securities: public favicon CDNs by company domain (common AU/US map).
  * Bitcoin: inline SVG / public icon path handled in the UI component.
  * Collectables: unchanged (caller keeps ◆).
- * Broken images → initials fallback (onError in UI).
+ * Broken images → secondary CDN → initials fallback (onError in UI).
  */
 
 export type LogoKind = "image" | "bitcoin" | "collectable" | "initials";
@@ -12,11 +12,13 @@ export type LogoDescriptor = {
   kind: LogoKind;
   /** Remote image URL when kind === "image" */
   src?: string;
+  /** Secondary remote image URL when the primary CDN fails. */
+  fallbackSrc?: string;
   /** Initials / symbol for fallback pill */
   initials: string;
 };
 
-/** Ticker → company domain for Clearbit / favicon CDNs. */
+/** Ticker → company domain for favicon CDNs. */
 const TICKER_DOMAIN: Record<string, string> = {
   "CBA.AX": "commbank.com.au",
   "NAB.AX": "nab.com.au",
@@ -132,9 +134,14 @@ function isBitcoinTicker(ticker: string): boolean {
   );
 }
 
-/** Prefer Clearbit; UI may fall back via onError. */
+/** Google hosts a useful 128px favicon proxy without an API key. */
 export function logoUrlForDomain(domain: string): string {
-  return `https://logo.clearbit.com/${domain}`;
+  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+}
+
+/** DuckDuckGo provides a second public favicon source for CDN fallback. */
+export function fallbackLogoUrlForDomain(domain: string): string {
+  return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`;
 }
 
 export function resolveHoldingLogo(input: {
@@ -169,6 +176,7 @@ export function resolveHoldingLogo(input: {
     return {
       kind: "image",
       src: logoUrlForDomain(domain),
+      fallbackSrc: fallbackLogoUrlForDomain(domain),
       initials,
     };
   }

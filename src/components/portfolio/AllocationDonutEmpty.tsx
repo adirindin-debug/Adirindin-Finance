@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { HoldingLive } from "@/lib/portfolioTypes";
 import { CASH_COLOR, formatAud } from "@/lib/portfolioCompute";
 import { buildSectorSlices } from "@/lib/portfolioSectors";
+import { HoldingLogo } from "./HoldingLogo";
 
 type Slice = {
   id: string;
@@ -12,6 +13,9 @@ type Slice = {
   value: number;
   pct: number;
   start: number;
+  kind?: string;
+  ticker?: string;
+  name?: string;
 };
 
 type Props = {
@@ -41,6 +45,9 @@ function buildAssetSlices(holdings: HoldingLive[], cashAud: number): Slice[] {
       value,
       pct,
       start,
+      kind: h.kind,
+      ticker: h.ticker,
+      name: h.name,
     };
     start += pct;
     return slice;
@@ -194,10 +201,20 @@ export function AllocationDonutEmpty({ holdings, cashAud }: Props) {
               <ul className="space-y-3">
                 {slices.map((s) => (
                   <li key={s.id} className="flex items-center gap-3 text-sm">
-                    <span
-                      className="h-2.5 w-2.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: s.color }}
-                    />
+                    {mode === "assets" && s.kind && s.ticker ? (
+                      <HoldingLogo
+                        kind={s.kind}
+                        ticker={s.ticker}
+                        name={s.name}
+                        color={s.color}
+                        size="sm"
+                      />
+                    ) : (
+                      <span
+                        className="h-2.5 w-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: s.color }}
+                      />
+                    )}
                     <span className="min-w-0 flex-1 truncate font-medium text-white">
                       {s.label}
                     </span>

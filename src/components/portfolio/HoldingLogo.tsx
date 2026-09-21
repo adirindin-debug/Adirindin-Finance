@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveHoldingLogo } from "@/lib/portfolioLogos";
 
 type Props = {
@@ -8,6 +8,7 @@ type Props = {
   ticker: string;
   name?: string;
   color: string;
+  size?: "sm" | "md";
 };
 
 function BitcoinGlyph({ className }: { className?: string }) {
@@ -29,14 +30,21 @@ function BitcoinGlyph({ className }: { className?: string }) {
   );
 }
 
-export function HoldingLogo({ kind, ticker, name, color }: Props) {
+export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
   const desc = resolveHoldingLogo({ kind, ticker, name });
+  const [imageSrc, setImageSrc] = useState(desc.src);
   const [failed, setFailed] = useState(false);
+  const dimension = size === "sm" ? "h-6 w-6" : "h-10 w-10";
+
+  useEffect(() => {
+    setImageSrc(desc.src);
+    setFailed(false);
+  }, [desc.src]);
 
   if (desc.kind === "collectable") {
     return (
       <div
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-black"
+        className={`flex ${dimension} shrink-0 items-center justify-center rounded-full text-xs font-semibold text-black`}
         style={{ backgroundColor: color }}
         aria-hidden
       >
@@ -47,26 +55,32 @@ export function HoldingLogo({ kind, ticker, name, color }: Props) {
 
   if (desc.kind === "bitcoin") {
     return (
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full">
-        <BitcoinGlyph className="h-10 w-10" />
+      <div className={`flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full`}>
+        <BitcoinGlyph className={`${dimension}`} />
         <span className="sr-only">Bitcoin</span>
       </div>
     );
   }
 
-  if (desc.kind === "image" && desc.src && !failed) {
+  if (desc.kind === "image" && imageSrc && !failed) {
     return (
-      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800">
+      <div className={`relative flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={desc.src}
+          src={imageSrc}
           alt=""
           width={40}
           height={40}
           className="h-full w-full object-contain p-1"
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
+          onError={() => {
+            if (imageSrc === desc.src && desc.fallbackSrc) {
+              setImageSrc(desc.fallbackSrc);
+            } else {
+              setFailed(true);
+            }
+          }}
         />
       </div>
     );
@@ -74,7 +88,7 @@ export function HoldingLogo({ kind, ticker, name, color }: Props) {
 
   return (
     <div
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-black"
+      className={`flex ${dimension} shrink-0 items-center justify-center rounded-full text-xs font-semibold text-black`}
       style={{ backgroundColor: color }}
       aria-hidden
     >
