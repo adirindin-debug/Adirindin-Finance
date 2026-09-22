@@ -1,4 +1,7 @@
-import { logoFillOnDark, resolveHoldingLogo } from "@/lib/portfolioLogos";
+"use client";
+
+import { useState } from "react";
+import { resolveHoldingLogo } from "@/lib/portfolioLogos";
 
 type Props = {
   kind: string;
@@ -27,34 +30,9 @@ function BitcoinGlyph({ className }: { className?: string }) {
   );
 }
 
-function SimpleIconGlyph({
-  path,
-  hex,
-  title,
-  className,
-}: {
-  path: string;
-  hex?: string;
-  title?: string;
-  className?: string;
-}) {
-  const fill = logoFillOnDark(hex);
-  return (
-    <svg
-      role="img"
-      viewBox="0 0 24 24"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      aria-hidden={!title}
-    >
-      {title ? <title>{title}</title> : null}
-      <path d={path} fill={fill} />
-    </svg>
-  );
-}
-
 export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
   const desc = resolveHoldingLogo({ kind, ticker, name });
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
   const dimension = size === "sm" ? "h-6 w-6" : "h-10 w-10";
   const pad = size === "sm" ? "p-1" : "p-1.5";
 
@@ -73,24 +51,27 @@ export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
   if (desc.kind === "bitcoin") {
     return (
       <div className={`flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full`}>
-        <BitcoinGlyph className={`${dimension}`} />
+        <BitcoinGlyph className={dimension} />
         <span className="sr-only">Bitcoin</span>
       </div>
     );
   }
 
-  if (desc.kind === "svg" && desc.path) {
+  if (desc.kind === "logo-dev" && desc.src && failedSrc !== desc.src) {
     return (
       <div
-        className={`relative flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 ${pad}`}
+        className={`flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 ${pad}`}
+        role="img"
+        aria-label={`${desc.label ?? ticker} logo`}
       >
-        <SimpleIconGlyph
-          path={desc.path}
-          hex={desc.hex}
-          title={desc.title}
-          className="h-full w-full"
+        {/* The browser only sees our local proxy URL; the Logo.dev token stays server-side. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={desc.src}
+          alt=""
+          className="h-full w-full object-contain"
+          onError={() => setFailedSrc(desc.src ?? null)}
         />
-        {desc.title ? <span className="sr-only">{desc.title}</span> : null}
       </div>
     );
   }
