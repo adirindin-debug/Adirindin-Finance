@@ -1,126 +1,165 @@
 /**
- * Best-effort logo URLs for holdings list.
- * Securities: public favicon CDNs by company domain (common AU/US map).
- * Bitcoin: inline SVG / public icon path handled in the UI component.
- * Collectables: unchanged (caller keeps ◆).
- * Broken images → secondary CDN → initials fallback (onError in UI).
+ * Holding logos via Simple Icons (CC0) where a brand mark exists in the package.
+ * Missing slug / unknown ticker → initials. Bitcoin keeps dedicated orange ₿.
+ * Collectables keep ◆. No favicon CDN hotlinks for securities.
  */
 
-export type LogoKind = "image" | "bitcoin" | "collectable" | "initials";
+import type { SimpleIcon } from "simple-icons";
+import {
+  siAmd,
+  siApple,
+  siBankofamerica,
+  siBinance,
+  siBnbchain,
+  siBroadcom,
+  siCardano,
+  siCashapp,
+  siChainlink,
+  siChase,
+  siCisco,
+  siCloudflare,
+  siCocacola,
+  siCoinbase,
+  siDogecoin,
+  siEthereum,
+  siGoogle,
+  siIntel,
+  siMastercard,
+  siMcdonalds,
+  siMeta,
+  siMicrostrategy,
+  siNetflix,
+  siNike,
+  siNvidia,
+  siPalantir,
+  siPolkadot,
+  siQantas,
+  siShopify,
+  siSnowflake,
+  siSolana,
+  siSquare,
+  siStarbucks,
+  siTesla,
+  siVisa,
+  siWise,
+  siXero,
+  siXrp,
+} from "simple-icons";
+
+export type LogoKind = "svg" | "bitcoin" | "collectable" | "initials";
 
 export type LogoDescriptor = {
   kind: LogoKind;
-  /** Remote image URL when kind === "image" */
-  src?: string;
-  /** Secondary remote image URL when the primary CDN fails. */
-  fallbackSrc?: string;
+  /** Simple Icons SVG path when kind === "svg" */
+  path?: string;
+  /** Brand hex (no #) when kind === "svg" */
+  hex?: string;
+  /** Accessible title from Simple Icons metadata */
+  title?: string;
   /** Initials / symbol for fallback pill */
   initials: string;
 };
 
-/** Ticker → company domain for favicon CDNs. */
-const TICKER_DOMAIN: Record<string, string> = {
-  "CBA.AX": "commbank.com.au",
-  "NAB.AX": "nab.com.au",
-  "WBC.AX": "westpac.com.au",
-  "ANZ.AX": "anz.com.au",
-  "MQG.AX": "macquarie.com",
-  "BHP.AX": "bhp.com",
-  "RIO.AX": "riotinto.com",
-  "FMG.AX": "fmgl.com.au",
-  "CSL.AX": "csl.com",
-  "WOW.AX": "woolworthsgroup.com.au",
-  "COL.AX": "colesgroup.com.au",
-  "WES.AX": "wesfarmers.com.au",
-  "TLS.AX": "telstra.com.au",
-  "TCL.AX": "transurban.com",
-  "QAN.AX": "qantas.com",
-  "XRO.AX": "xero.com",
-  "WTC.AX": "wise.com",
-  "GMG.AX": "goodman.com",
-  "ALL.AX": "aristocrat.com",
-  "COH.AX": "cochlear.com",
-  "ORG.AX": "originenergy.com.au",
-  "STO.AX": "santos.com",
-  "WDS.AX": "woodside.com",
-  "NCM.AX": "newcrest.com",
-  "S32.AX": "south32.net",
-  "PLS.AX": "pilbaraminerals.com.au",
-  "JHX.AX": "jameshardie.com.au",
-  "REA.AX": "rea-group.com",
-  "CAR.AX": "carsales.com.au",
-  "SEK.AX": "seek.com.au",
-  AAPL: "apple.com",
-  MSFT: "microsoft.com",
-  GOOGL: "abc.xyz",
-  GOOG: "abc.xyz",
-  AMZN: "amazon.com",
-  META: "meta.com",
-  NVDA: "nvidia.com",
-  AMD: "amd.com",
-  TSLA: "tesla.com",
-  MSTR: "microstrategy.com",
-  COIN: "coinbase.com",
-  NFLX: "netflix.com",
-  DIS: "disney.com",
-  JPM: "jpmorganchase.com",
-  BAC: "bankofamerica.com",
-  V: "visa.com",
-  MA: "mastercard.com",
-  WMT: "walmart.com",
-  COST: "costco.com",
-  NFL: "nfl.com",
-  "BRK-B": "berkshirehathaway.com",
-  "BRK.B": "berkshirehathaway.com",
-  JNJ: "jnj.com",
-  UNH: "unitedhealthgroup.com",
-  LLY: "lilly.com",
-  XOM: "exxonmobil.com",
-  CVX: "chevron.com",
-  ORCL: "oracle.com",
-  CRM: "salesforce.com",
-  ADBE: "adobe.com",
-  INTC: "intel.com",
-  IBM: "ibm.com",
-  CSCO: "cisco.com",
-  AVGO: "broadcom.com",
-  SHOP: "shopify.com",
-  SQ: "block.xyz",
-  XYZ: "block.xyz",
-  PLTR: "palantir.com",
-  NET: "cloudflare.com",
-  SNOW: "snowflake.com",
-  NKE: "nike.com",
-  MCD: "mcdonalds.com",
-  SBUX: "starbucks.com",
-  HD: "homedepot.com",
-  PG: "pg.com",
-  KO: "coca-cola.com",
-  PEP: "pepsico.com",
-  QQQ: "invesco.com",
-  SPY: "ssga.com",
-  VOO: "vanguard.com",
-  IVV: "ishares.com",
-  IBIT: "blackrock.com",
-  FBTC: "fidelity.com",
-  ARKB: "ark-funds.com",
-  "VAS.AX": "vanguard.com.au",
-  "STW.AX": "vaneck.com.au",
-  "IOZ.AX": "ishares.com",
-  "NDQ.AX": "betashares.com.au",
-  "IVV.AX": "ishares.com",
-  "VGS.AX": "vanguard.com.au",
-  "ETH-USD": "ethereum.org",
-  ETH: "ethereum.org",
-  "SOL-USD": "solana.com",
-  SOL: "solana.com",
-  "XRP-USD": "ripple.com",
-  "ADA-USD": "cardano.org",
-  "DOGE-USD": "dogecoin.com",
-  "AVAX-USD": "avax.network",
-  "DOT-USD": "polkadot.network",
-  "LINK-USD": "chain.link",
-  "BNB-USD": "binance.com",
+/**
+ * Ticker → Simple Icons slug. Only include slugs verified to exist in the
+ * installed `simple-icons` package — resolveHoldingLogo looks them up and
+ * falls back to initials if an icon is missing at runtime.
+ */
+const TICKER_SLUG: Record<string, string> = {
+  // US mega / tech
+  AAPL: "apple",
+  GOOGL: "google",
+  GOOG: "google",
+  META: "meta",
+  NVDA: "nvidia",
+  AMD: "amd",
+  TSLA: "tesla",
+  MSTR: "microstrategy",
+  COIN: "coinbase",
+  NFLX: "netflix",
+  // Finance / payments
+  JPM: "chase", // Chase = JPMorgan Chase consumer brand in Simple Icons
+  BAC: "bankofamerica",
+  V: "visa",
+  MA: "mastercard",
+  // Semis / infra / software
+  INTC: "intel",
+  CSCO: "cisco",
+  AVGO: "broadcom",
+  SHOP: "shopify",
+  SQ: "square", // Block (ex-Square)
+  XYZ: "square",
+  PLTR: "palantir",
+  NET: "cloudflare",
+  SNOW: "snowflake",
+  // Consumer brands
+  NKE: "nike",
+  MCD: "mcdonalds",
+  SBUX: "starbucks",
+  KO: "cocacola",
+  // AU listings with SI coverage
+  "QAN.AX": "qantas",
+  "XRO.AX": "xero",
+  "WTC.AX": "wise",
+  // Crypto (spot) — BTC handled separately
+  "ETH-USD": "ethereum",
+  ETH: "ethereum",
+  "SOL-USD": "solana",
+  SOL: "solana",
+  "XRP-USD": "xrp",
+  XRP: "xrp",
+  "ADA-USD": "cardano",
+  ADA: "cardano",
+  "DOGE-USD": "dogecoin",
+  DOGE: "dogecoin",
+  "DOT-USD": "polkadot",
+  DOT: "polkadot",
+  "LINK-USD": "chainlink",
+  LINK: "chainlink",
+  "BNB-USD": "bnbchain",
+  BNB: "bnbchain",
+};
+
+/** Curated slug → icon (avoids importing the full 3k+ catalog into the client). */
+const ICONS_BY_SLUG: Record<string, SimpleIcon> = {
+  apple: siApple,
+  google: siGoogle,
+  meta: siMeta,
+  nvidia: siNvidia,
+  amd: siAmd,
+  tesla: siTesla,
+  microstrategy: siMicrostrategy,
+  coinbase: siCoinbase,
+  netflix: siNetflix,
+  chase: siChase,
+  bankofamerica: siBankofamerica,
+  visa: siVisa,
+  mastercard: siMastercard,
+  intel: siIntel,
+  cisco: siCisco,
+  broadcom: siBroadcom,
+  shopify: siShopify,
+  square: siSquare,
+  cashapp: siCashapp,
+  palantir: siPalantir,
+  cloudflare: siCloudflare,
+  snowflake: siSnowflake,
+  nike: siNike,
+  mcdonalds: siMcdonalds,
+  starbucks: siStarbucks,
+  cocacola: siCocacola,
+  qantas: siQantas,
+  xero: siXero,
+  wise: siWise,
+  ethereum: siEthereum,
+  solana: siSolana,
+  xrp: siXrp,
+  cardano: siCardano,
+  dogecoin: siDogecoin,
+  polkadot: siPolkadot,
+  chainlink: siChainlink,
+  bnbchain: siBnbchain,
+  binance: siBinance,
 };
 
 function isBitcoinTicker(ticker: string): boolean {
@@ -134,14 +173,33 @@ function isBitcoinTicker(ticker: string): boolean {
   );
 }
 
-/** Google hosts a useful 128px favicon proxy without an API key. */
-export function logoUrlForDomain(domain: string): string {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+function initialsFor(input: { kind: string; ticker: string; name?: string }): string {
+  if (input.kind === "collectable") return "◆";
+  const ticker = input.ticker.trim().toUpperCase();
+  return (
+    ticker.replace(/[^A-Z0-9]/g, "").slice(0, 2) ||
+    (input.name ?? "?").slice(0, 2).toUpperCase()
+  );
 }
 
-/** DuckDuckGo provides a second public favicon source for CDN fallback. */
-export function fallbackLogoUrlForDomain(domain: string): string {
-  return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(domain)}.ico`;
+/** Relative luminance 0–1 for a 6-char hex (no #). */
+function luminance(hex: string): number {
+  const h = hex.replace(/^#/, "");
+  if (h.length !== 6) return 1;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Brand fill on dark zinc chip. Near-black brand colours (e.g. Apple) become
+ * zinc-200 so the mark stays visible; otherwise use Simple Icons hex.
+ */
+export function logoFillOnDark(hex: string | undefined): string {
+  if (!hex) return "#e4e4e7";
+  const cleaned = hex.replace(/^#/, "");
+  return luminance(cleaned) < 0.18 ? "#e4e4e7" : `#${cleaned}`;
 }
 
 export function resolveHoldingLogo(input: {
@@ -150,41 +208,34 @@ export function resolveHoldingLogo(input: {
   name?: string;
 }): LogoDescriptor {
   const ticker = input.ticker.trim().toUpperCase();
-  const initials =
-    input.kind === "collectable"
-      ? "◆"
-      : (ticker.replace(/[^A-Z0-9]/g, "").slice(0, 2) ||
-        (input.name ?? "?").slice(0, 2).toUpperCase());
+  const initials = initialsFor(input);
 
   if (input.kind === "collectable") {
     return { kind: "collectable", initials: "◆" };
   }
 
-  // Spot Bitcoin gets the dedicated orange ₿ treatment; spot ETF tickers use issuer logos.
-  if (
-    ticker === "BTC" ||
-    ticker === "BTC-USD" ||
-    ticker === "BTC-AUD" ||
-    ticker === "XBT-USD" ||
-    ticker === "BITCOIN"
-  ) {
-    return { kind: "bitcoin", initials: "₿" };
-  }
-
-  const domain = TICKER_DOMAIN[ticker];
-  if (domain) {
-    return {
-      kind: "image",
-      src: logoUrlForDomain(domain),
-      fallbackSrc: fallbackLogoUrlForDomain(domain),
-      initials,
-    };
-  }
-
-  // Soft heuristic for unknown *-USD crypto: no fake logo
   if (isBitcoinTicker(ticker)) {
     return { kind: "bitcoin", initials: "₿" };
   }
 
+  const slug = TICKER_SLUG[ticker];
+  if (slug) {
+    const icon = ICONS_BY_SLUG[slug];
+    if (icon?.path) {
+      return {
+        kind: "svg",
+        path: icon.path,
+        hex: icon.hex,
+        title: icon.title,
+        initials,
+      };
+    }
+  }
+
   return { kind: "initials", initials };
+}
+
+/** Exposed for tests / docs — tickers with a verified Simple Icons slug. */
+export function mappedLogoTickers(): string[] {
+  return Object.keys(TICKER_SLUG).sort();
 }

@@ -1,7 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { resolveHoldingLogo } from "@/lib/portfolioLogos";
+import { logoFillOnDark, resolveHoldingLogo } from "@/lib/portfolioLogos";
 
 type Props = {
   kind: string;
@@ -30,16 +27,36 @@ function BitcoinGlyph({ className }: { className?: string }) {
   );
 }
 
+function SimpleIconGlyph({
+  path,
+  hex,
+  title,
+  className,
+}: {
+  path: string;
+  hex?: string;
+  title?: string;
+  className?: string;
+}) {
+  const fill = logoFillOnDark(hex);
+  return (
+    <svg
+      role="img"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden={!title}
+    >
+      {title ? <title>{title}</title> : null}
+      <path d={path} fill={fill} />
+    </svg>
+  );
+}
+
 export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
   const desc = resolveHoldingLogo({ kind, ticker, name });
-  const [imageSrc, setImageSrc] = useState(desc.src);
-  const [failed, setFailed] = useState(false);
   const dimension = size === "sm" ? "h-6 w-6" : "h-10 w-10";
-
-  useEffect(() => {
-    setImageSrc(desc.src);
-    setFailed(false);
-  }, [desc.src]);
+  const pad = size === "sm" ? "p-1" : "p-1.5";
 
   if (desc.kind === "collectable") {
     return (
@@ -62,26 +79,18 @@ export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
     );
   }
 
-  if (desc.kind === "image" && imageSrc && !failed) {
+  if (desc.kind === "svg" && desc.path) {
     return (
-      <div className={`relative flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800`}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={imageSrc}
-          alt=""
-          width={40}
-          height={40}
-          className="h-full w-full object-contain p-1"
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onError={() => {
-            if (imageSrc === desc.src && desc.fallbackSrc) {
-              setImageSrc(desc.fallbackSrc);
-            } else {
-              setFailed(true);
-            }
-          }}
+      <div
+        className={`relative flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full bg-zinc-800 ${pad}`}
+      >
+        <SimpleIconGlyph
+          path={desc.path}
+          hex={desc.hex}
+          title={desc.title}
+          className="h-full w-full"
         />
+        {desc.title ? <span className="sr-only">{desc.title}</span> : null}
       </div>
     );
   }

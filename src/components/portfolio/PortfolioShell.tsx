@@ -239,6 +239,17 @@ export function PortfolioShell({ seed }: Props) {
 
       <p className="mt-10 text-center text-[11px] leading-relaxed text-zinc-600">
         NFA: Educational tracker only · Not financial advice. Quotes delayed · AUD via Yahoo.
+        <br />
+        Holding logos via{" "}
+        <a
+          href="https://simpleicons.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-400"
+        >
+          Simple Icons
+        </a>{" "}
+        (CC0) where available · trademarks remain with their owners · else initials.
       </p>
 
       <PortfolioEditor
