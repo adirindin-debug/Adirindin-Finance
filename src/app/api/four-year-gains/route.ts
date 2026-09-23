@@ -29,10 +29,12 @@ import { join } from "path";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+/** Allow long windows on Pro; still fail soft under this so the UI never hangs. */
+export const maxDuration = 60;
 
-/** Soft network budget — Vercel hobby often kills ~10–15s; give FRED more room then fall back. */
-const FRED_TIMEOUT_MS = 50_000;
-const MIRROR_TIMEOUT_MS = 20_000;
+/** Soft network budget — fail FRED fast and use mirrors/bundled so cold starts stay under ~15s. */
+const FRED_TIMEOUT_MS = 8_000;
+const MIRROR_TIMEOUT_MS = 10_000;
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -552,26 +554,36 @@ async function fetchFredSeries(seriesId: string): Promise<FredLoadResult> {
     }
   }
 
-  try {
-    const obs = await fetchFredCsv(seriesId);
-    return {
-      closes: obs.map((o) => ({ t: o.t, c: o.v })),
+  // Race CSV vs live mirror so a hung FRED CSV does not block mirrors for ~50s.
+  type RaceOk = { obs: FredObs[]; origin: string; usedFallback: boolean };
+  const racers: Promise<RaceOk>[] = [
+    fetchFredCsv(seriesId).then((obs) => ({
+      obs,
       origin: "fred-csv",
       usedFallback: false,
-    };
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : "csv failed");
-  }
-
-  try {
-    const { obs, origin } = await fetchLiveMirror(seriesId);
-    return {
-      closes: obs.map((o) => ({ t: o.t, c: o.v })),
+    })),
+    fetchLiveMirror(seriesId).then(({ obs, origin }) => ({
+      obs,
       origin,
       usedFallback: true,
+    })),
+  ];
+
+  try {
+    const winner = await Promise.any(racers);
+    return {
+      closes: winner.obs.map((o) => ({ t: o.t, c: o.v })),
+      origin: winner.origin,
+      usedFallback: winner.usedFallback,
     };
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : "mirror failed");
+  } catch (agg) {
+    if (agg && typeof agg === "object" && "errors" in agg) {
+      for (const e of (agg as AggregateError).errors) {
+        errors.push(e instanceof Error ? e.message : "race failed");
+      }
+    } else {
+      errors.push("csv+mirror race failed");
+    }
   }
 
   try {
@@ -587,6 +599,7 @@ async function fetchFredSeries(seriesId: string): Promise<FredLoadResult> {
 
   throw new Error(errors.join("; ") || `FRED ${seriesId} failed`);
 }
+
 
 /**
  * Forward-fill sparse (monthly/quarterly) observations onto a daily step so

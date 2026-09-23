@@ -444,11 +444,16 @@ export function BtcFourYearChart() {
 
   useEffect(() => {
     let cancelled = false;
+    const ac = new AbortController();
+    // Hard ceiling so relative mode never sits on "Loading…" forever (cold FRED / Vercel).
+    const hardStop = setTimeout(() => ac.abort(), 35_000);
     (async () => {
       try {
         setStatus("loading");
         setError(null);
-        const r = await fetch(`/api/four-year-gains?window=${windowKey}`);
+        const r = await fetch(`/api/four-year-gains?window=${windowKey}`, {
+          signal: ac.signal,
+        });
         const data = (await r.json()) as ApiPayload;
         if (cancelled) return;
         if (!r.ok || !data.ok || !data.series?.length) {
@@ -459,11 +464,19 @@ export function BtcFourYearChart() {
       } catch (e) {
         if (cancelled) return;
         setStatus("error");
-        setError(e instanceof Error ? e.message : "Chart unavailable");
+        const msg =
+          e instanceof Error
+            ? e.name === "AbortError"
+              ? "Timed out waiting for market data"
+              : e.message
+            : "Chart unavailable";
+        setError(msg);
       }
     })();
     return () => {
       cancelled = true;
+      clearTimeout(hardStop);
+      ac.abort();
     };
   }, [windowKey]);
 
