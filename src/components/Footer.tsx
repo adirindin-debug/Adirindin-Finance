@@ -37,7 +37,7 @@ export function Footer() {
             Charts
           </Link>
           <Link href="/dashboard/btc-cycle" className="hover:text-accent">
-            Cycle map
+            BTC cycle
           </Link>
           <Link href="/tools/real-estate-cycle" className="hover:text-accent">
             RE cycle
