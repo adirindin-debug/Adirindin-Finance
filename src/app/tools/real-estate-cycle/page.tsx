@@ -3,9 +3,9 @@ import Link from "next/link";
 import RealEstateCycleChart from "@/components/RealEstateCycleChart";
 
 export const metadata: Metadata = {
-  title: "18 Year Real Estate Cycle",
+  title: "18.6 Year Real Estate Cycle theory",
   description:
-    "Educational ~18 / 18.6-year real estate / land cycle framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic), with next-lap theory waypoints overlaid on the same loop. Not a predictive model or financial advice.",
+    "Educational 18.6 Year Real Estate Cycle theory framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic), with next-lap theory waypoints overlaid on the same loop. Not a predictive model or financial advice.",
 };
 
 /**
@@ -57,12 +57,12 @@ export default function RealEstateCyclePage() {
         · Real estate
       </p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
-        ~18 / 18.6-year real estate cycle
+        18.6 Year Real Estate Cycle theory
       </h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Classic land / property cycle framing used in research communities (often shown as an ~18-year
+        Classic land / property cycle framing used in research communities (often shown as an ~18.6-year
         Recovery → Mid-cycle slowdown → Land boom → Major peak → Downturn schematic, sometimes linked to
-        long lunar-nodal periodicity ≈ 18.6y). Treat it as a{" "}
+        long lunar-nodal periodicity). Treat it as a{" "}
         <strong className="font-medium text-foreground">
           study framework and historical observation
         </strong>{" "}
@@ -74,7 +74,7 @@ export default function RealEstateCyclePage() {
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
             Classic cycle diagram
           </h2>
-          <span className="font-mono text-xs text-muted">≈ 18 / 18.6 years · schematic · NFA</span>
+          <span className="font-mono text-xs text-muted">≈ 18.6 years · schematic · NFA</span>
         </div>
 
         {/* Compact phase strip matching card vocabulary */}
@@ -152,7 +152,6 @@ export default function RealEstateCyclePage() {
         ))}
       </div>
 
-
       <section className="mt-8 rounded-xl border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-foreground">Attribution &amp; sources</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted">
@@ -187,15 +186,7 @@ export default function RealEstateCyclePage() {
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
         Educational content only · not financial advice (NFA) · no fake returns shown · @Dirindin533 /
-        Adirindin Finance. Past patterns do not guarantee future results.{" "}
-        <Link href="/dashboard" className="text-accent hover:underline">
-          Back to cycle desk
-        </Link>
-        {" · "}
-        <Link href="/dashboard/btc-cycle" className="text-accent hover:underline">
-          BTC cycle map
-        </Link>
-        .
+        Adirindin Finance. Past patterns do not guarantee future results.
       </p>
     </div>
   );

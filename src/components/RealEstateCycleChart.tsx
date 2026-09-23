@@ -1,17 +1,16 @@
 /**
- * Classic “18 Year Real Estate Cycle” schematic (educational diagram).
+ * Classic “18.6 Year Real Estate Cycle theory” schematic (educational diagram).
  * Jagged phase line with stacked historical/framework years. Next-cycle
  * theory waypoints (≈2037 / 2039 / 2044 / 2048) overlay the same loop
  * shape — a reset/wrap onto the classic schematic, not a linear runway
  * past 2030. Green Live marker is calendar-dated on classic year vertices
  * (end-of-year → vertex), with an outward pulse — not a decorative tour.
- * Research only — not prices, not predictive, not for timing.
+ * Active-cycle years render bold yellow (current lap before end-2030; next-lap
+ * theory years after). Research only — not prices, not predictive, not for timing.
  */
 
 type YearStack = {
   years: string[];
-  /** Emphasize framework years (underline) — still schematic, not predictions */
-  emphasize?: string[];
   placement: "above" | "below";
   /** Horizontal offset from vertex (keeps stacks from colliding) */
   dx?: number;
@@ -117,7 +116,6 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   },
   peak: {
     years: ["2026", "2007", "1989"],
-    emphasize: ["2026"],
     placement: "above",
     /** Right + up so stack clears crest, Live badge, Land Boom callouts */
     dx: 40,
@@ -125,13 +123,11 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
-    emphasize: ["2028"],
     placement: "below",
     dx: -4,
   },
   next: {
     years: ["2030", "2011", "1993", "1974"],
-    emphasize: ["2030"],
     placement: "above",
     dx: 6,
   },
@@ -181,6 +177,54 @@ function endOfYearMs(year: number): number {
   return Date.UTC(year, 11, 31, 23, 59, 59, 999);
 }
 
+/** Classic-lap framework years on the current cycle (top of each stack). */
+const CURRENT_CYCLE_YEARS = new Set([
+  "2012",
+  "2019",
+  "2022",
+  "2024",
+  "2026",
+  "2028",
+  "2030",
+]);
+
+/** Next-lap theory timing years — bold yellow only after the ~2030 low. */
+const NEXT_CYCLE_YEARS = new Set(["2037", "2039", "2044", "2048"]);
+
+/** Bold yellow for the active cycle highlight. */
+const ACTIVE_YEAR_FILL = "#ffe14a";
+/** White / neutral once a year is no longer the active highlight. */
+const INACTIVE_YEAR_FILL = "#e8eef7";
+const MUTED_YEAR_FILL = "#c8d0dc";
+
+/**
+ * Melbourne-local calendar parts (same zone as Live marker).
+ */
+function melbourneYmd(nowMs: number = Date.now()): { y: number; m: number; d: number } {
+  const melParts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(nowMs));
+  return {
+    y: Number(melParts.find((p) => p.type === "year")!.value),
+    m: Number(melParts.find((p) => p.type === "month")!.value),
+    d: Number(melParts.find((p) => p.type === "day")!.value),
+  };
+}
+
+/**
+ * True once Melbourne calendar is past end-2030 (assumed ~2030 low / restart).
+ * Before that, classic current-lap years stay bold yellow; after, next-lap theory years do.
+ */
+function isPast2030Low(nowMs: number = Date.now()): boolean {
+  const { y, m, d } = melbourneYmd(nowMs);
+  const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
+  return now > endOfYearMs(2030);
+}
+
+
 function dist(a: Pt, b: Pt): number {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -218,15 +262,7 @@ function pointAlong(points: Pt[], t: number): Pt {
  * 2024→2026 leg, movement follows path length through LAND_ACCEL.
  */
 function livePositionFromNow(nowMs: number = Date.now()): Pt {
-  const melParts = new Intl.DateTimeFormat("en-AU", {
-    timeZone: "Australia/Melbourne",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(nowMs));
-  const y = Number(melParts.find((p) => p.type === "year")!.value);
-  const m = Number(melParts.find((p) => p.type === "month")!.value);
-  const d = Number(melParts.find((p) => p.type === "day")!.value);
+  const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
 
   const ends = YEAR_WAYPOINTS.map((w) => endOfYearMs(w.year));
@@ -267,10 +303,12 @@ function YearColumn({
   x,
   pointY,
   stack,
+  past2030,
 }: {
   x: number;
   pointY: number;
   stack: YearStack;
+  past2030: boolean;
 }) {
   const lineH = 13;
   const gap = 1;
@@ -303,18 +341,32 @@ function YearColumn({
       )}
       {stack.years.map((yr, i) => {
         const y = startY + i * (lineH + gap);
-        const emph = stack.emphasize?.includes(yr);
+        const isCurrentLap = CURRENT_CYCLE_YEARS.has(yr);
+        // Before end-2030: current-lap years bold yellow. After: 2030 goes white; others stay muted.
+        let fill = MUTED_YEAR_FILL;
+        let bold = false;
+        if (isCurrentLap) {
+          if (!past2030) {
+            fill = ACTIVE_YEAR_FILL;
+            bold = true;
+          } else if (yr === "2030") {
+            fill = INACTIVE_YEAR_FILL;
+            bold = false;
+          } else {
+            fill = MUTED_YEAR_FILL;
+          }
+        }
         return (
           <text
             key={yr}
             x={cx}
             y={y}
             textAnchor="middle"
-            fill={emph ? "#f0d78c" : "#c8d0dc"}
-            fontSize={emph ? 11 : 10}
+            fill={fill}
+            fontSize={bold ? 11 : 10}
             fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-            fontWeight={emph ? 700 : 500}
-            textDecoration={emph ? "underline" : undefined}
+            fontWeight={bold ? 700 : 500}
+            textDecoration={bold ? "underline" : undefined}
           >
             {yr}
           </text>
@@ -324,7 +376,7 @@ function YearColumn({
   );
 }
 
-/** Muted next-lap theory label at a classic loop vertex — not a linear forecast. */
+/** Next-lap theory label at a classic loop vertex — muted until past ~2030, then bold yellow. */
 function TheoryOverlayLabel({
   x,
   y,
@@ -333,6 +385,7 @@ function TheoryOverlayLabel({
   placement,
   dx = 0,
   dy = 0,
+  active,
 }: {
   x: number;
   y: number;
@@ -341,20 +394,24 @@ function TheoryOverlayLabel({
   placement: "above" | "below";
   dx?: number;
   dy?: number;
+  /** True after end-2030 — next-lap timing years become the bold yellow highlight */
+  active?: boolean;
 }) {
   const cx = x + dx;
   const baseY = y + dy;
   const yearY = placement === "above" ? baseY - 18 : baseY + 22;
   const capY = placement === "above" ? baseY - 30 : baseY + 34;
+  const yearFill = active ? ACTIVE_YEAR_FILL : "#8fa0b8";
+  const haloStroke = active ? ACTIVE_YEAR_FILL : "#8fa0b8";
   return (
-    <g opacity="0.78">
+    <g opacity={active ? 1 : 0.78}>
       {Math.abs(dx) >= 14 && (
         <line
           x1={x}
           y1={placement === "above" ? y - 8 : y + 8}
           x2={cx}
           y2={placement === "above" ? yearY + 4 : yearY - 8}
-          stroke="#5a6a80"
+          stroke={active ? "#c9a227" : "#5a6a80"}
           strokeWidth="1"
           strokeDasharray="2 3"
           opacity="0.65"
@@ -364,7 +421,7 @@ function TheoryOverlayLabel({
         x={cx}
         y={capY}
         textAnchor="middle"
-        fill="#6b7a90"
+        fill={active ? "#d4b84a" : "#6b7a90"}
         fontSize="7"
         fontFamily="system-ui, sans-serif"
         fontWeight="600"
@@ -375,10 +432,11 @@ function TheoryOverlayLabel({
         x={cx}
         y={yearY}
         textAnchor="middle"
-        fill="#8fa0b8"
-        fontSize="10"
+        fill={yearFill}
+        fontSize={active ? 11 : 10}
         fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="600"
+        fontWeight={active ? 700 : 600}
+        textDecoration={active ? "underline" : undefined}
       >
         {year}
       </text>
@@ -388,10 +446,10 @@ function TheoryOverlayLabel({
         cy={y}
         r="8"
         fill="none"
-        stroke="#8fa0b8"
+        stroke={haloStroke}
         strokeWidth="1"
         strokeDasharray="3 3"
-        opacity="0.45"
+        opacity={active ? 0.7 : 0.45}
       />
     </g>
   );
@@ -458,6 +516,7 @@ export default function RealEstateCycleChart() {
   const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
 
   const live = livePositionFromNow();
+  const past2030 = isPast2030Low();
   /** Below-left of dot — crest has peak years (above-right) + Land Boom callouts */
   const liveLabelDx = -42;
   const liveLabelDy = 20;
@@ -467,7 +526,7 @@ export default function RealEstateCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years and next-lap theory waypoints overlaid on the same loop — educational rough guide only, not a predictive model or financial advice"
+      aria-label="Classic 18.6 Year Real Estate Cycle theory schematic with stacked historical framework years and next-lap theory waypoints overlaid on the same loop — educational rough guide only, not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -498,7 +557,7 @@ export default function RealEstateCycleChart() {
         fontFamily="system-ui, sans-serif"
         fontWeight="700"
       >
-        18 Year Real Estate Cycle
+        18.6 Year Real Estate Cycle theory
       </text>
       <text
         x={SVG_W / 2}
@@ -508,7 +567,7 @@ export default function RealEstateCycleChart() {
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        Schematic · ~18 / 18.6y framing · stacked years = classic series · muted = next-lap theory overlay · not a forecast · NFA
+        Schematic · 18.6y framing · bold yellow = active cycle years · muted = inactive / next-lap until after 2030 · not a forecast · NFA
       </text>
 
       {/* Shift chart geometry down into the padded canvas; title stays in the top band */}
@@ -624,7 +683,13 @@ export default function RealEstateCycleChart() {
         ).map((id) => {
           const pt = POINTS.find((p) => p.id === id)!;
           return (
-            <YearColumn key={id} x={pt.x} pointY={pt.y} stack={YEAR_STACKS[id]} />
+            <YearColumn
+              key={id}
+              x={pt.x}
+              pointY={pt.y}
+              stack={YEAR_STACKS[id]}
+              past2030={past2030}
+            />
           );
         })}
 
@@ -665,6 +730,7 @@ export default function RealEstateCycleChart() {
               placement={t.placement}
               dx={t.dx}
               dy={t.dy}
+              active={past2030 && NEXT_CYCLE_YEARS.has(t.year)}
             />
           );
         })}
@@ -813,8 +879,7 @@ export default function RealEstateCycleChart() {
           fontSize="9"
           fontFamily="system-ui, sans-serif"
         >
-          Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions.
-          Muted years (2037 / 2039 / 2044 / 2048) are next-lap theory overlays on the same loop.
+          Bold yellow years mark the active cycle (current lap before end-2030; next-lap theory years after). Framework dates — not predictions.
         </text>
 
         {/* Prominent theory disclaimer — AU English, NFA tone */}
