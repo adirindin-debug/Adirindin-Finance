@@ -3,7 +3,9 @@
  * Jagged phase line with stacked historical/framework years. Next-cycle
  * theory waypoints (≈2037 / 2039 / 2044 / 2048) overlay the same loop
  * shape — a reset/wrap onto the classic schematic, not a linear runway
- * past 2030. Research only — not prices, not predictive, not for timing.
+ * past 2030. Green Live marker is calendar-dated on classic year vertices
+ * (end-of-year → vertex), with an outward pulse — not a decorative tour.
+ * Research only — not prices, not predictive, not for timing.
  */
 
 type YearStack = {
@@ -143,10 +145,118 @@ const PATH_VERTS = [
 
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
-/** Closed loop path for the Live dot: classic stroke, then soft wrap back to start. */
-const LOOP_PATH = `${LINE_PATH} L ${POINTS[6].x + 28} 348 L ${POINTS[0].x - 18} 348 L ${POINTS[0].x} ${POINTS[0].y}`;
-
 const SVG_W = 820;
+
+type Pt = { x: number; y: number };
+
+/**
+ * Classic labelled year vertices (framework years). Each year maps to
+ * end-of-calendar-year on that vertex — so end-2026 sits at the peak.
+ * Between 2024→2026 the path includes the unlabeled LAND_ACCEL inflection.
+ */
+const YEAR_WAYPOINTS: { year: number; points: Pt[] }[] = [
+  { year: 2012, points: [{ x: POINTS[0].x, y: POINTS[0].y }] },
+  { year: 2019, points: [{ x: POINTS[1].x, y: POINTS[1].y }] },
+  { year: 2022, points: [{ x: POINTS[2].x, y: POINTS[2].y }] },
+  { year: 2024, points: [{ x: POINTS[3].x, y: POINTS[3].y }] },
+  {
+    year: 2026,
+    points: [
+      { x: POINTS[3].x, y: POINTS[3].y },
+      { x: LAND_ACCEL.x, y: LAND_ACCEL.y },
+      { x: POINTS[4].x, y: POINTS[4].y },
+    ],
+  },
+  { year: 2028, points: [{ x: POINTS[5].x, y: POINTS[5].y }] },
+  { year: 2030, points: [{ x: POINTS[6].x, y: POINTS[6].y }] },
+];
+
+/** End of calendar year Y as UTC ms (schematic; Melbourne date used for "now"). */
+function endOfYearMs(year: number): number {
+  return Date.UTC(year, 11, 31, 23, 59, 59, 999);
+}
+
+function dist(a: Pt, b: Pt): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  return Math.hypot(dx, dy);
+}
+
+/** Interpolate along a polyline by normalised distance t ∈ [0, 1]. */
+function pointAlong(points: Pt[], t: number): Pt {
+  if (points.length === 1) return points[0];
+  const clamped = Math.min(1, Math.max(0, t));
+  const segs: number[] = [];
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const d = dist(points[i], points[i + 1]);
+    segs.push(d);
+    total += d;
+  }
+  if (total <= 0) return points[points.length - 1];
+  let remain = clamped * total;
+  for (let i = 0; i < segs.length; i++) {
+    if (remain <= segs[i] || i === segs.length - 1) {
+      const u = segs[i] <= 0 ? 1 : remain / segs[i];
+      const a = points[i];
+      const b = points[i + 1];
+      return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u };
+    }
+    remain -= segs[i];
+  }
+  return points[points.length - 1];
+}
+
+/**
+ * Melbourne-local Y-M-D → Live (cx, cy) on the classic path.
+ * Linear in calendar time between neighbouring year waypoints; on the
+ * 2024→2026 leg, movement follows path length through LAND_ACCEL.
+ */
+function livePositionFromNow(nowMs: number = Date.now()): Pt {
+  const melParts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Melbourne",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(nowMs));
+  const y = Number(melParts.find((p) => p.type === "year")!.value);
+  const m = Number(melParts.find((p) => p.type === "month")!.value);
+  const d = Number(melParts.find((p) => p.type === "day")!.value);
+  const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
+
+  const ends = YEAR_WAYPOINTS.map((w) => endOfYearMs(w.year));
+  if (now <= ends[0]) {
+    return YEAR_WAYPOINTS[0].points[YEAR_WAYPOINTS[0].points.length - 1];
+  }
+  if (now >= ends[ends.length - 1]) {
+    const last = YEAR_WAYPOINTS[YEAR_WAYPOINTS.length - 1];
+    return last.points[last.points.length - 1];
+  }
+
+  for (let i = 0; i < YEAR_WAYPOINTS.length - 1; i++) {
+    const t0 = ends[i];
+    const t1 = ends[i + 1];
+    if (now > t1) continue;
+    const frac = (now - t0) / (t1 - t0);
+    const a = YEAR_WAYPOINTS[i];
+    const b = YEAR_WAYPOINTS[i + 1];
+    // Segment geometry: start at end of prior waypoint, end at next year vertex.
+    // For 2026 entry, YEAR_WAYPOINTS[2026].points is landBoom→accel→peak; use that
+    // full polyline when leaving 2024. Otherwise straight lerp between vertices.
+    if (b.year === 2026 && b.points.length > 1) {
+      return pointAlong(b.points, frac);
+    }
+    const from = a.points[a.points.length - 1];
+    const to = b.points[b.points.length - 1];
+    return {
+      x: from.x + (to.x - from.x) * frac,
+      y: from.y + (to.y - from.y) * frac,
+    };
+  }
+
+  const last = YEAR_WAYPOINTS[YEAR_WAYPOINTS.length - 1];
+  return last.points[last.points.length - 1];
+}
 
 function YearColumn({
   x,
@@ -342,6 +452,11 @@ export default function RealEstateCycleChart() {
   const BOTTOM_PAD = 36;
   const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
 
+  const live = livePositionFromNow();
+  /** Label below-right of dot so peak year stack (above) stays clear */
+  const liveLabelDx = 10;
+  const liveLabelDy = 14;
+
   return (
     <svg
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
@@ -365,8 +480,6 @@ export default function RealEstateCycleChart() {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        {/* Motion path for Live dot: classic stroke then soft wrap to restart */}
-        <path id="re-live-loop" d={LOOP_PATH} fill="none" />
       </defs>
 
       <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
@@ -573,16 +686,70 @@ export default function RealEstateCycleChart() {
           Mid-cycle peak
         </text>
 
-        {/* Green Live dot — travels the classic path + wrap, full loop ≈ 10s */}
-        <g aria-label="Live marker animating along the cycle path" filter="url(#live-glow)">
-          <animateMotion dur="10s" repeatCount="indefinite" calcMode="linear">
-            <mpath xlinkHref="#re-live-loop" />
-          </animateMotion>
-          <circle r="5.5" fill="#2fd67b" stroke="#9dffc4" strokeWidth="1.5" />
-          <circle r="2" fill="#0a0a0a" opacity="0.55" />
+        {/* Green Live dot — calendar-dated on classic year waypoints; pulse resonates out */}
+        <g
+          aria-label="Live marker positioned by calendar date on the cycle path"
+          filter="url(#live-glow)"
+        >
+          {/* Expanding opacity rings — resonate outward from the fixed dot (~2.5s) */}
+          <circle
+            cx={live.x}
+            cy={live.y}
+            r="6"
+            fill="none"
+            stroke="#2fd67b"
+            strokeWidth="1.5"
+            opacity="0"
+          >
+            <animate
+              attributeName="r"
+              values="5;20"
+              dur="2.5s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.75;0"
+              dur="2.5s"
+              repeatCount="indefinite"
+            />
+          </circle>
+          <circle
+            cx={live.x}
+            cy={live.y}
+            r="6"
+            fill="none"
+            stroke="#7dffb0"
+            strokeWidth="1"
+            opacity="0"
+          >
+            <animate
+              attributeName="r"
+              values="5;20"
+              dur="2.5s"
+              begin="1.25s"
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0.55;0"
+              dur="2.5s"
+              begin="1.25s"
+              repeatCount="indefinite"
+            />
+          </circle>
+          <circle
+            cx={live.x}
+            cy={live.y}
+            r="5.5"
+            fill="#2fd67b"
+            stroke="#9dffc4"
+            strokeWidth="1.5"
+          />
+          <circle cx={live.x} cy={live.y} r="2" fill="#0a0a0a" opacity="0.55" />
           <rect
-            x="8"
-            y="-18"
+            x={live.x + liveLabelDx}
+            y={live.y + liveLabelDy - 10}
             width="34"
             height="14"
             rx="3"
@@ -591,8 +758,8 @@ export default function RealEstateCycleChart() {
             strokeWidth="1"
           />
           <text
-            x="25"
-            y="-8"
+            x={live.x + liveLabelDx + 17}
+            y={live.y + liveLabelDy}
             textAnchor="middle"
             fill="#7dffb0"
             fontSize="9"
