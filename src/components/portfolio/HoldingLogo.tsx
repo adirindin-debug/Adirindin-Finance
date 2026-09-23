@@ -17,9 +17,10 @@ function BitcoinGlyph({ className }: { className?: string }) {
       <circle cx="16" cy="16" r="16" fill="#f7931a" />
       <text
         x="16"
-        y="21"
+        y="16"
         textAnchor="middle"
-        fontSize="16"
+        dominantBaseline="central"
+        fontSize="22"
         fontWeight="700"
         fill="#fff"
         fontFamily="system-ui, -apple-system, sans-serif"
