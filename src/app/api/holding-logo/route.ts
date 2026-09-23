@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { LOGO_DEV_PUBLISHABLE_KEY } from "@/lib/logoDevToken";
 
 const TICKER_PATTERN = /^[A-Z0-9.-]+$/;
 const CACHE_CONTROL = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
@@ -11,29 +12,40 @@ function errorResponse(status: number): NextResponse {
   });
 }
 
+function resolvePublishableToken(): string | null {
+  const candidates = [
+    process.env.LOGO_DEV_PUBLISHABLE_KEY,
+    process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY,
+    LOGO_DEV_PUBLISHABLE_KEY,
+  ];
+  for (const raw of candidates) {
+    const t = raw?.trim();
+    if (t?.startsWith("pk_")) return t;
+  }
+  return null;
+}
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const ticker = request.nextUrl.searchParams.get("ticker")?.trim().toUpperCase() ?? "";
   if (!ticker || ticker.length > 32 || !TICKER_PATTERN.test(ticker)) {
     return errorResponse(400);
   }
 
-  const primaryToken = process.env.LOGO_DEV_PUBLISHABLE_KEY;
-  const token = primaryToken?.startsWith("pk_")
-    ? primaryToken
-    : process.env.NEXT_PUBLIC_LOGO_DEV_PUBLISHABLE_KEY;
-  if (!token?.startsWith("pk_")) {
-    return errorResponse(404);
-  }
+  const token = resolvePublishableToken();
+  if (!token) return errorResponse(404);
 
   const upstreamUrl = new URL(`https://img.logo.dev/ticker/${encodeURIComponent(ticker)}`);
   upstreamUrl.searchParams.set("token", token);
   upstreamUrl.searchParams.set("fallback", "404");
   upstreamUrl.searchParams.set("format", "png");
-  upstreamUrl.searchParams.set("size", "80");
+  upstreamUrl.searchParams.set("size", "128");
+  upstreamUrl.searchParams.set("retina", "true");
 
   try {
-    const upstream = await fetch(upstreamUrl, {
+    const upstream = await fetch(upstreamUrl.toString(), {
       next: { revalidate: 86400 },
+      signal: AbortSignal.timeout(8_000),
+      headers: { Accept: "image/*", "User-Agent": "AdirindinFinance/1.0" },
     });
 
     if (upstream.status === 404) return errorResponse(404);
@@ -47,6 +59,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       headers: {
         "Cache-Control": CACHE_CONTROL,
         "Content-Type": contentType,
+        "Access-Control-Allow-Origin": "*",
       },
     });
   } catch {

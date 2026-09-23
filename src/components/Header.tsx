@@ -18,8 +18,9 @@ export function Header() {
     <header className="sticky top-0 z-50 border-b border-border/80 bg-navy/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="flex items-center gap-2">
+          {/* Local asset — unavatar.io was 429ing in production */}
           <img
-            src="https://unavatar.io/twitter/Dirindin533"
+            src="/logo-x.jpg"
             alt="Adirindin Finance"
             width={36}
             height={36}

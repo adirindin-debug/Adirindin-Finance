@@ -6,7 +6,7 @@ export function Footer() {
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted sm:flex-row sm:items-start sm:justify-between">
         <div className="flex max-w-xl items-start gap-2">
           <img
-            src="https://unavatar.io/twitter/Dirindin533"
+            src="/logo-x.jpg"
             alt=""
             width={28}
             height={28}
@@ -18,7 +18,11 @@ export function Footer() {
               Not personal financial advice (NFA). Not a licensed Australian financial services
               business; nothing here is an AFSL product, recommendation, or solicitation. Index
               names, logos and trademarks remain with their owners. Chart data is attributed on
-              each panel.
+              each panel.{" "}
+              <Link href="/disclaimer" className="text-foreground/90 hover:text-accent">
+                Full disclaimer
+              </Link>
+              .
             </p>
           </div>
         </div>
@@ -37,6 +41,9 @@ export function Footer() {
           </Link>
           <Link href="/tools/real-estate-cycle" className="hover:text-accent">
             RE cycle
+          </Link>
+          <Link href="/disclaimer" className="hover:text-accent">
+            Disclaimer
           </Link>
           <a
             href="https://x.com/Dirindin533"

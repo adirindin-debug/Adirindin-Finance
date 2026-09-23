@@ -1,9 +1,10 @@
 /**
- * Holding logos: spot crypto via CoinGecko (proxied), equities/ETFs via Logo.dev,
- * collectables as a glyph. Unavailable logos fall back to ticker initials (₿ for BTC).
+ * Holding logos: spot crypto via CoinGecko (proxied), equities/ETFs via Logo.dev
+ * through same-origin /api/holding-logo (avoids broken client img when env or CDN
+ * blocks direct img.logo.dev), collectables as a glyph.
+ * Unavailable logos fall back to ticker initials (₿ for BTC).
  */
 
-import { LOGO_DEV_PUBLISHABLE_KEY } from "@/lib/logoDevToken";
 import {
   cryptoLogoProxyUrl,
   isBitcoinTicker,
@@ -37,9 +38,9 @@ function initialsFor(input: { kind: string; ticker: string; name?: string }): st
   );
 }
 
-/** Browser-safe Logo.dev URL using the publishable (pk_) token. */
-function logoDevTickerUrl(ticker: string): string {
-  return `https://img.logo.dev/ticker/${encodeURIComponent(ticker)}?token=${LOGO_DEV_PUBLISHABLE_KEY}&format=png&size=128&retina=true&theme=dark&fallback=404`;
+/** Same-origin Logo.dev proxy — works with canvas colour sampling (CORS). */
+function logoDevProxyUrl(ticker: string): string {
+  return `/api/holding-logo?ticker=${encodeURIComponent(ticker)}`;
 }
 
 export function resolveHoldingLogo(input: {
@@ -68,7 +69,7 @@ export function resolveHoldingLogo(input: {
   if (input.kind === "security" && ticker) {
     return {
       kind: "logo-dev",
-      src: logoDevTickerUrl(ticker),
+      src: logoDevProxyUrl(ticker),
       initials,
       label: input.name?.trim() || ticker,
     };
