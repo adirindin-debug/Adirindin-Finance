@@ -171,7 +171,7 @@
       </div>
     </div>
     <footer>
-      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 / Oct 6 2025 fixed top; Dec 2010 / Jan 2012 / Jan 2015 / Dec 2018 / Jan 2023 / Jul 1 2026 current low). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder (june washout ~50–65k zone). Scroll-wheel or drag to zoom; use All / 2017+ / 4Y / Reset. MSTR overlay is optional. Educational only — NFA.</div>
+      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 / Oct 6 2025 fixed top; Dec 2010 / Jan 2012 / Jan 2015 / Dec 2018 / Jan 2023 / Jul 1 2026 current low). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Scroll-wheel or drag to zoom; use All / 2017+ / 4Y / Reset. MSTR overlay is optional. Educational only — NFA.</div>
       Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. Early BTC weekly (~2010–2013) embedded from blockchain.info market-price; live weekly from Kraken, daily/spot from Coinbase/Kraken. MSTR last print is TradingView (NASDAQ:MSTR); the path is split-adjusted daily/weekly bars stamped to that last so it matches the TV chart. MAs are simple weekly closes.
     </footer>
   </div>
@@ -185,8 +185,6 @@
       handle: "@Dirindin533",
       oct2025Top: 126198,
       oct2025TopDate: "2025-10-06",
-      juneWashout: 59000,
-      midBull: 70000,
       pinMa50: null,
       pinMa200: null,
       mstrTreasury: "2020-08-11",
@@ -682,16 +680,10 @@
         shapes.push(hline(ma50, COL.gold));
         annotations.push(sideLabel(ma50, "50-WEEK MA  " + kfmt(ma50) + "  confirmation", COL.gold));
       }
-      if (FRAMEWORK.midBull) {
-        shapes.push(hline(FRAMEWORK.midBull, "rgba(215,226,240,0.55)"));
-        annotations.push(sideLabel(FRAMEWORK.midBull, "50% BULL RANGE  $70k  cleared", "rgba(215,226,240,0.85)"));
-      }
       if (ma200) {
         shapes.push(hline(ma200, COL.cyan));
         annotations.push(sideLabel(ma200, "200-WEEK MA  " + kfmt(ma200) + "  cycle floor", COL.cyan));
       }
-      shapes.push(hline(FRAMEWORK.juneWashout, "rgba(139,155,176,0.55)"));
-      annotations.push(sideLabel(FRAMEWORK.juneWashout, "JUNE WASHOUT  ~$59k", "rgba(139,155,176,0.95)"));
       if (state.price) {
         annotations.push({
           x: lastX, y: state.price,
@@ -705,8 +697,6 @@
       const levels = y.slice();
       if (ma50) levels.push(ma50);
       if (ma200) levels.push(ma200);
-      if (FRAMEWORK.midBull) levels.push(FRAMEWORK.midBull);
-      if (FRAMEWORK.juneWashout) levels.push(FRAMEWORK.juneWashout);
       if (state.price) levels.push(state.price);
       const lo = Math.min.apply(null, levels);
       const hi = Math.max.apply(null, levels);
