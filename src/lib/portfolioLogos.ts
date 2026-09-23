@@ -38,7 +38,7 @@ function initialsFor(input: { kind: string; ticker: string; name?: string }): st
 
 /** Browser-safe Logo.dev URL using the publishable (pk_) token. */
 function logoDevTickerUrl(ticker: string): string {
-  return `https://img.logo.dev/ticker/${encodeURIComponent(ticker)}?token=${LOGO_DEV_PUBLISHABLE_KEY}&format=png&size=80&fallback=404`;
+  return `https://img.logo.dev/ticker/${encodeURIComponent(ticker)}?token=${LOGO_DEV_PUBLISHABLE_KEY}&format=png&size=128&retina=true&theme=dark&fallback=404`;
 }
 
 export function resolveHoldingLogo(input: {
