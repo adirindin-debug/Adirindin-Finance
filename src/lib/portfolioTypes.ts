@@ -77,13 +77,14 @@ export const POSITION_RETURN_WINDOWS = [
   { key: "1D", label: "Daily" },
   { key: "1W", label: "Weekly" },
   { key: "1M", label: "Monthly" },
+  { key: "YTD", label: "YTD" },
   { key: "1Y", label: "Yearly" },
   { key: "ALL", label: "All time" },
 ] as const;
 export type PositionReturnWindow = (typeof POSITION_RETURN_WINDOWS)[number]["key"];
 
 export const POSITION_RETURN_CAPTION =
-  "Daily: vs prior trading-day close · Weekly: ~7 calendar days · Monthly: ~30 days · Yearly: ~365 days · All time: vs cost basis (AUD). Collectables have no market history — shown as — outside All time. NFA.";
+  "Daily: vs prior trading-day close · Weekly: ~7 calendar days · Monthly: ~30 days · YTD: calendar year-to-date vs start-of-year AUD price · Yearly: ~365 days · All time: vs cost basis (AUD). Collectables have no market history — shown as — outside All time. NFA.";
 
 export const PORTFOLIO_STORAGE_KEY = "adirindin-portfolio-v1";
 

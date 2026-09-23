@@ -1,6 +1,7 @@
 /**
  * Period returns for portfolio securities (AUD).
- * Windows: 1D (prior trading-day close), 1W (~7d), 1M (~30d), 1Y (~365d).
+ * Windows: 1D (prior trading-day close), 1W (~7d), 1M (~30d), YTD (UTC 1 January),
+ * 1Y (~365d).
  * All-time (vs cost) is computed client-side — not served here.
  * Educational — NFA.
  */
@@ -14,7 +15,7 @@ export const revalidate = 0;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-type Tf = "1D" | "1W" | "1M" | "1Y";
+type Tf = "1D" | "1W" | "1M" | "YTD" | "1Y";
 type ClosePoint = { t: number; c: number };
 
 type TickerReturn = {
@@ -27,14 +28,23 @@ type TickerReturn = {
 };
 
 function parseTf(raw: string | null): Tf {
-  if (raw === "1D" || raw === "1W" || raw === "1M" || raw === "1Y") return raw;
+  if (raw === "1D" || raw === "1W" || raw === "1M" || raw === "YTD" || raw === "1Y") return raw;
   return "1D";
 }
 
-function windowLookbackSec(tf: Tf): number {
+function ytdStartSec(nowSec: number): number {
+  const d = new Date(nowSec * 1000);
+  return Math.floor(Date.UTC(d.getUTCFullYear(), 0, 1) / 1000);
+}
+
+function windowLookbackSec(tf: Tf, nowSec: number): number {
   if (tf === "1D") return 14 * 86400; // enough bars to find prior close
   if (tf === "1W") return 21 * 86400;
   if (tf === "1M") return 60 * 86400;
+  if (tf === "YTD") {
+    // Start at UTC 1 January, with a small buffer for FX conversion.
+    return Math.max(14 * 86400, nowSec - ytdStartSec(nowSec) + 14 * 86400);
+  }
   return Math.round(400 * 86400); // 1Y + buffer
 }
 
@@ -42,6 +52,7 @@ function targetStartSec(tf: Tf, nowSec: number): number {
   if (tf === "1D") return nowSec - 86400; // seek prior trading day near here
   if (tf === "1W") return nowSec - 7 * 86400;
   if (tf === "1M") return nowSec - 30 * 86400;
+  if (tf === "YTD") return ytdStartSec(nowSec);
   return nowSec - Math.round(365.25 * 86400);
 }
 
@@ -108,6 +119,11 @@ function priceAtOrBefore(points: ClosePoint[], targetSec: number): ClosePoint | 
   return points[0] ?? null;
 }
 
+/** Earliest point at or after target; used for calendar-period starts. */
+function priceAtOrAfter(points: ClosePoint[], targetSec: number): ClosePoint | null {
+  return points.find((p) => p.t >= targetSec) ?? null;
+}
+
 function isAudQuoted(ticker: string): boolean {
   const t = ticker.toUpperCase();
   return t.endsWith(".AX") || t.includes("AUD");
@@ -154,6 +170,10 @@ function computeReturn(
         start = p;
       }
     }
+  } else if (tf === "YTD") {
+    // Match the performance chart: use the first available trading price on or
+    // after UTC 1 January rather than the final close from the prior year.
+    start = priceAtOrAfter(points, targetStartSec(tf, nowSec));
   } else {
     start = priceAtOrBefore(points, targetStartSec(tf, nowSec));
   }
@@ -210,7 +230,7 @@ export async function GET(req: NextRequest) {
   }
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const fetchFrom = Math.max(0, nowSec - windowLookbackSec(tf));
+  const fetchFrom = Math.max(0, nowSec - windowLookbackSec(tf, nowSec));
 
   try {
     const errors: Record<string, string> = {};
@@ -254,6 +274,7 @@ export async function GET(req: NextRequest) {
       "1D": "vs prior trading-day close",
       "1W": "~7 calendar days",
       "1M": "~30 calendar days",
+      YTD: "calendar year-to-date vs start-of-year AUD price (UTC 1 January)",
       "1Y": "~365 calendar days",
     };
 

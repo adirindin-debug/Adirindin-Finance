@@ -269,6 +269,8 @@ export function returnWindowHint(window: PositionReturnWindow): string {
       return "weekly · ~7 days";
     case "1M":
       return "monthly · ~30 days";
+    case "YTD":
+      return "YTD · since 1 January";
     case "1Y":
       return "yearly · ~1 year";
     case "ALL":
