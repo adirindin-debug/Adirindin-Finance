@@ -6,6 +6,8 @@
  */
 
 export const CHART_TIMEFRAME_STORAGE_KEY = "adirindin.chartTimeframe";
+/** Homepage-only preference; the shared key remains the portfolio/legacy fallback. */
+export const HOMEPAGE_CHART_TIMEFRAME_STORAGE_KEY = "adirindin.homepageChartTimeframe";
 
 /** Canonical keys (homepage API + localStorage). */
 export const CHART_TIMEFRAME_KEYS = [
@@ -46,8 +48,10 @@ export const CHART_TIMEFRAMES: readonly ChartTimeframeDef[] = [
   { key: "all", label: "ALL", portfolioTf: "ALL" },
 ] as const;
 
-/** Default when localStorage is empty / invalid. */
+/** Portfolio default when localStorage is empty / invalid. */
 export const DEFAULT_CHART_TIMEFRAME: ChartTimeframeKey = "1y";
+/** Homepage compare default when localStorage is empty / invalid. */
+export const DEFAULT_HOMEPAGE_CHART_TIMEFRAME: ChartTimeframeKey = "4y";
 
 const KEY_SET = new Set<string>(CHART_TIMEFRAME_KEYS);
 
@@ -133,10 +137,10 @@ export function writeStoredChartTimeframe(key: ChartTimeframeKey): void {
 
 const HOMEPAGE_KEY_SET = new Set<string>(HOMEPAGE_CHART_TIMEFRAME_KEYS);
 
-/** Parse for homepage: 1d/1w (or other non-homepage keys) fall back to 1y. */
+/** Parse for homepage: 1d/1w (or other non-homepage keys) use the homepage fallback. */
 export function parseHomepageChartTimeframe(
   raw: string | null | undefined,
-  fallback: ChartTimeframeKey = DEFAULT_CHART_TIMEFRAME,
+  fallback: ChartTimeframeKey = DEFAULT_HOMEPAGE_CHART_TIMEFRAME,
 ): ChartTimeframeKey {
   const parsed = parseChartTimeframe(raw, fallback);
   if (HOMEPAGE_KEY_SET.has(parsed)) return parsed;
@@ -144,16 +148,32 @@ export function parseHomepageChartTimeframe(
 }
 
 export function readStoredHomepageChartTimeframe(
-  fallback: ChartTimeframeKey = DEFAULT_CHART_TIMEFRAME,
+  fallback: ChartTimeframeKey = DEFAULT_HOMEPAGE_CHART_TIMEFRAME,
 ): ChartTimeframeKey {
   if (typeof window === "undefined") return fallback;
   try {
+    const homepageStored = window.localStorage.getItem(
+      HOMEPAGE_CHART_TIMEFRAME_STORAGE_KEY,
+    );
+    if (homepageStored != null) {
+      return parseHomepageChartTimeframe(homepageStored, fallback);
+    }
+    // Preserve an existing choice saved under the former shared key.
     return parseHomepageChartTimeframe(
       window.localStorage.getItem(CHART_TIMEFRAME_STORAGE_KEY),
       fallback,
     );
   } catch {
     return fallback;
+  }
+}
+
+export function writeStoredHomepageChartTimeframe(key: ChartTimeframeKey): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(HOMEPAGE_CHART_TIMEFRAME_STORAGE_KEY, key);
+  } catch {
+    // ignore quota / private mode
   }
 }
 

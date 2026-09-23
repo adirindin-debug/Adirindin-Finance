@@ -9,11 +9,11 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
-  DEFAULT_CHART_TIMEFRAME,
+  DEFAULT_HOMEPAGE_CHART_TIMEFRAME,
   HOMEPAGE_CHART_TIMEFRAMES,
   chartTimeframeLongLabel,
   readStoredHomepageChartTimeframe,
-  writeStoredChartTimeframe,
+  writeStoredHomepageChartTimeframe,
   type ChartTimeframeKey,
 } from "@/lib/chartTimeframes";
 
@@ -407,7 +407,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
 }
 
 export function BtcFourYearChart() {
-  const [windowKey, setWindowKey] = useState<WindowKey>(DEFAULT_CHART_TIMEFRAME);
+  const [windowKey, setWindowKey] = useState<WindowKey>(DEFAULT_HOMEPAGE_CHART_TIMEFRAME);
   const [chartMode, setChartMode] = useState<ChartMode>("line");
   const [selected, setSelected] = useState<Set<SeriesId>>(
     () => new Set(DEFAULT_SELECTED),
@@ -418,15 +418,15 @@ export function BtcFourYearChart() {
   const [lineHover, setLineHover] = useState<LineHover | null>(null);
   const lineSvgRef = useRef<SVGSVGElement | null>(null);
 
-  // Sync timeframe with portfolio chart via shared localStorage key.
+  // Read the homepage preference, preserving legacy shared-key choices.
   useEffect(() => {
-    const stored = readStoredHomepageChartTimeframe(DEFAULT_CHART_TIMEFRAME);
+    const stored = readStoredHomepageChartTimeframe(DEFAULT_HOMEPAGE_CHART_TIMEFRAME);
     setWindowKey(stored);
   }, []);
 
   const selectWindow = useCallback((key: WindowKey) => {
     setWindowKey(key);
-    writeStoredChartTimeframe(key);
+    writeStoredHomepageChartTimeframe(key);
   }, []);
 
   const toggleSeries = useCallback((id: SeriesId) => {
