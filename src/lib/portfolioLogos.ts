@@ -40,7 +40,8 @@ function initialsFor(input: { kind: string; ticker: string; name?: string }): st
 
 /** Same-origin Logo.dev proxy — works with canvas colour sampling (CORS). */
 function logoDevProxyUrl(ticker: string): string {
-  return `/api/holding-logo?ticker=${encodeURIComponent(ticker)}`;
+  // v=2: Logo.dev theme=dark on black UI (bust CDN after monochrome fix)
+  return `/api/holding-logo?ticker=${encodeURIComponent(ticker)}&v=2`;
 }
 
 export function resolveHoldingLogo(input: {
