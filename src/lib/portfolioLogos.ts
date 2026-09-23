@@ -1,15 +1,25 @@
 /**
- * Holding logos via Logo.dev's ticker endpoint. Bitcoin and collectables keep
- * their local glyphs; unavailable logos fall back to ticker initials.
+ * Holding logos: spot crypto via CoinGecko (proxied), equities/ETFs via Logo.dev,
+ * collectables as a glyph. Unavailable logos fall back to ticker initials (₿ for BTC).
  */
 
 import { LOGO_DEV_PUBLISHABLE_KEY } from "@/lib/logoDevToken";
+import {
+  cryptoLogoProxyUrl,
+  isBitcoinTicker,
+  isSpotCryptoTicker,
+} from "@/lib/cryptoLogos";
 
-export type LogoKind = "logo-dev" | "bitcoin" | "collectable" | "initials";
+export type LogoKind =
+  | "logo-dev"
+  | "coingecko"
+  | "bitcoin"
+  | "collectable"
+  | "initials";
 
 export type LogoDescriptor = {
   kind: LogoKind;
-  /** Logo.dev image URL when kind === "logo-dev". */
+  /** Remote image URL when kind is logo-dev or coingecko. */
   src?: string;
   /** Initials / symbol for fallback pill. */
   initials: string;
@@ -17,19 +27,10 @@ export type LogoDescriptor = {
   label?: string;
 };
 
-function isBitcoinTicker(ticker: string): boolean {
-  return (
-    ticker === "BTC" ||
-    ticker === "BTC-USD" ||
-    ticker === "BTC-AUD" ||
-    ticker === "XBT-USD" ||
-    ticker === "BITCOIN"
-  );
-}
-
 function initialsFor(input: { kind: string; ticker: string; name?: string }): string {
   if (input.kind === "collectable") return "◆";
   const ticker = input.ticker.trim().toUpperCase();
+  if (isBitcoinTicker(ticker)) return "₿";
   return (
     ticker.replace(/[^A-Z0-9]/g, "").slice(0, 2) ||
     (input.name ?? "?").slice(0, 2).toUpperCase()
@@ -53,8 +54,15 @@ export function resolveHoldingLogo(input: {
     return { kind: "collectable", initials: "◆" };
   }
 
-  if (isBitcoinTicker(ticker)) {
-    return { kind: "bitcoin", initials: "₿" };
+  // Spot crypto (incl. BTC) → CoinGecko via same-origin proxy. Equity crypto
+  // products (IBIT, GBTC, …) are excluded inside isSpotCryptoTicker.
+  if (input.kind === "security" && ticker && isSpotCryptoTicker(ticker)) {
+    return {
+      kind: "coingecko",
+      src: cryptoLogoProxyUrl(ticker),
+      initials,
+      label: input.name?.trim() || ticker,
+    };
   }
 
   if (input.kind === "security" && ticker) {
@@ -68,3 +76,6 @@ export function resolveHoldingLogo(input: {
 
   return { kind: "initials", initials };
 }
+
+/** @deprecated Prefer resolveHoldingLogo; retained for any bitcoin-glyph callers. */
+export { isBitcoinTicker };

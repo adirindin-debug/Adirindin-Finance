@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isBitcoinTicker } from "@/lib/cryptoLogos";
 import { resolveHoldingLogo } from "@/lib/portfolioLogos";
 
 type Props = {
@@ -91,16 +92,12 @@ export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
     );
   }
 
-  if (desc.kind === "bitcoin") {
-    return (
-      <div className={`flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full`}>
-        <BitcoinGlyph className={dimension} />
-        <span className="sr-only">Bitcoin</span>
-      </div>
-    );
-  }
+  const useRemoteImage =
+    (desc.kind === "logo-dev" || desc.kind === "coingecko") &&
+    !!desc.src &&
+    failedSrc !== desc.src;
 
-  if (desc.kind === "logo-dev" && desc.src && failedSrc !== desc.src) {
+  if (useRemoteImage && desc.src) {
     return (
       <div
         className={`overflow-hidden rounded-full ${dimension} shrink-0`}
@@ -108,7 +105,7 @@ export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
         role="img"
         aria-label={`${desc.label ?? ticker} logo`}
       >
-        {/* Browser loads Logo.dev directly with the publishable (pk_) token. */}
+        {/* Logo.dev (pk_) or same-origin CoinGecko proxy — object-cover fills the circle. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={desc.src}
@@ -121,6 +118,25 @@ export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
           }}
           onError={() => setFailedSrc(desc.src ?? null)}
         />
+      </div>
+    );
+  }
+
+  // CoinGecko miss for Bitcoin → keep the orange ₿ glyph as a last resort
+  if (desc.kind === "coingecko" && isBitcoinTicker(ticker)) {
+    return (
+      <div className={`flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full`}>
+        <BitcoinGlyph className={dimension} />
+        <span className="sr-only">Bitcoin</span>
+      </div>
+    );
+  }
+
+  if (desc.kind === "bitcoin") {
+    return (
+      <div className={`flex ${dimension} shrink-0 items-center justify-center overflow-hidden rounded-full`}>
+        <BitcoinGlyph className={dimension} />
+        <span className="sr-only">Bitcoin</span>
       </div>
     );
   }
