@@ -1,6 +1,8 @@
 /**
  * Classic “18 Year Real Estate Cycle” schematic (educational diagram).
- * Jagged phase line with stacked historical/framework years — not prices, not a forecast.
+ * Jagged phase line with stacked historical/framework years, plus a dashed
+ * theory-based extension after the assumed ~2030 cycle low — not prices,
+ * not a predictive model, not for market timing.
  */
 
 type YearStack = {
@@ -29,8 +31,19 @@ const POINTS = [
   { id: "peak", x: 610, y: 42 },
   /** Clear decline, trough near mid-slowdown depth (not below recovery) */
   { id: "downturn", x: 680, y: 230 },
-  /** Gentle lift toward next recovery — similar height to mid-cycle peak */
+  /** Assumed ~2030 cycle low / restart — schematic framework, not a prediction */
   { id: "next", x: 760, y: 182 },
+] as const;
+
+/**
+ * Theory-based forecast waypoints after assuming ~2030 is the cycle low.
+ * Schematic cycle-theory extension only — rough guide, not a model.
+ */
+const FORECAST_POINTS = [
+  { id: "fcMid", x: 928, y: 98, year: "2037", caption: "Mid cycle" },
+  { id: "fcMidSlow", x: 976, y: 158, year: "2039", caption: "Mid-cycle correction" },
+  { id: "fcPeak", x: 1096, y: 45, year: "2044", caption: "Projected top" },
+  { id: "fcLow", x: 1192, y: 295, year: "2048", caption: "Next low" },
 ] as const;
 
 /**
@@ -39,6 +52,9 @@ const POINTS = [
  * classic diagram silhouette without adding a labeled vertex.
  */
 const LAND_ACCEL = { x: 525, y: 128 };
+
+/** Unlabeled steepening before the theory top (silhouette only). */
+const FC_ACCEL = { x: 1040, y: 120 };
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   recovery: {
@@ -93,6 +109,22 @@ const PATH_VERTS = [
 ] as const;
 
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+/** Forecast path starts at the assumed 2030 low so the schematic continues forward. */
+const FORECAST_VERTS = [
+  POINTS[6],
+  FORECAST_POINTS[0],
+  FORECAST_POINTS[1],
+  FC_ACCEL,
+  FORECAST_POINTS[2],
+  FORECAST_POINTS[3],
+] as const;
+
+const FORECAST_PATH = FORECAST_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(
+  " ",
+);
+
+const SVG_W = 1260;
 
 /** Framework timeline for NOW placement along landBoom → LAND_ACCEL → peak. */
 const LAND_BOOM_MS = Date.UTC(2024, 0, 1);
@@ -202,6 +234,64 @@ function YearColumn({
   );
 }
 
+/** Single theory-year label with caption — kept clear of the stroke. */
+function ForecastLabel({
+  x,
+  y,
+  year,
+  caption,
+  placement,
+  dx = 0,
+}: {
+  x: number;
+  y: number;
+  year: string;
+  caption: string;
+  placement: "above" | "below";
+  dx?: number;
+}) {
+  const cx = x + dx;
+  const yearY = placement === "above" ? y - 22 : y + 26;
+  const capY = placement === "above" ? y - 36 : y + 40;
+  return (
+    <g>
+      {Math.abs(dx) >= 14 && (
+        <line
+          x1={x}
+          y1={placement === "above" ? y - 8 : y + 8}
+          x2={cx}
+          y2={placement === "above" ? yearY + 4 : yearY - 10}
+          stroke="#3a4558"
+          strokeWidth="1"
+          strokeDasharray="2 2"
+        />
+      )}
+      <text
+        x={cx}
+        y={capY}
+        textAnchor="middle"
+        fill="#7a8aa0"
+        fontSize="8"
+        fontFamily="system-ui, sans-serif"
+        fontWeight="600"
+      >
+        {caption}
+      </text>
+      <text
+        x={cx}
+        y={yearY}
+        textAnchor="middle"
+        fill="#b8c4d4"
+        fontSize="11"
+        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+        fontWeight="700"
+      >
+        {year}
+      </text>
+    </g>
+  );
+}
+
 /** Orange double-headed span under the chart (classic diagram framing). */
 function SpanArrow({
   x1,
@@ -256,6 +346,10 @@ export default function RealEstateCycleChart() {
   const peak = POINTS[4];
   const downturn = POINTS[5];
   const next = POINTS[6];
+  const fcMid = FORECAST_POINTS[0];
+  const fcMidSlow = FORECAST_POINTS[1];
+  const fcPeak = FORECAST_POINTS[2];
+  const fcLow = FORECAST_POINTS[3];
 
   // Client/server both use "today" — schematic placement on the classic timeline.
   const nowMs = Date.now();
@@ -269,14 +363,16 @@ export default function RealEstateCycleChart() {
 
   /** Extra top band so title/subtitle sit clear of the high peak / NOW marker */
   const TOP_PAD = 60;
-  const SVG_H = 500 + TOP_PAD;
+  /** Extra bottom band for theory disclaimer */
+  const BOTTOM_PAD = 36;
+  const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
 
   return (
     <svg
-      viewBox={`0 0 840 ${SVG_H}`}
+      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years, mid-cycle dip, land boom marker, NOW time marker, peak and downturn — educational only, not a forecast"
+      aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years and a dashed theory-based extension after an assumed 2030 cycle low — educational rough guide only, not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -289,10 +385,10 @@ export default function RealEstateCycleChart() {
         </filter>
       </defs>
 
-      <rect width="840" height={SVG_H} fill="#0a0a0a" rx="8" />
+      <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
 
       <text
-        x="420"
+        x={SVG_W / 2}
         y="28"
         textAnchor="middle"
         fill="#e8eef4"
@@ -303,19 +399,19 @@ export default function RealEstateCycleChart() {
         18 Year Real Estate Cycle
       </text>
       <text
-        x="420"
+        x={SVG_W / 2}
         y="46"
         textAnchor="middle"
         fill="#8b9bb4"
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        {`As of ${nowLabel} · schematic · ~18 / 18.6y framing · stacked years = classic series · not a forecast · NFA`}
+        {`As of ${nowLabel} · schematic · ~18 / 18.6y framing · stacked years = classic series · dashed = theory extension · not a forecast · NFA`}
       </text>
 
       {/* Shift chart geometry down into the padded canvas; title stays in the top band */}
       <g transform={`translate(0, ${TOP_PAD})`}>
-      {/* Soft 7–7–4 guide bands */}
+      {/* Soft 7–7–4 guide bands (classic series only) */}
       <rect
         x={recovery.x}
         y="58"
@@ -340,13 +436,52 @@ export default function RealEstateCycleChart() {
         fill="#ef6b6b"
         opacity="0.05"
       />
+      {/* Muted theory-extension band after assumed 2030 low */}
+      <rect
+        x={next.x}
+        y="58"
+        width={fcLow.x - next.x + 24}
+        height="290"
+        fill="#5b6b82"
+        opacity="0.06"
+      />
 
       {/* Subtle horizontal grid */}
       {[90, 130, 170, 210, 250, 290, 330].map((y) => (
-        <line key={y} x1="56" y1={y} x2="784" y2={y} stroke="#1a1a1a" strokeWidth="1" />
+        <line
+          key={y}
+          x1="56"
+          y1={y}
+          x2={fcLow.x + 24}
+          y2={y}
+          stroke="#1a1a1a"
+          strokeWidth="1"
+        />
       ))}
 
-      {/* Jagged cycle line — straight segments like the classic infographic */}
+      {/* Junction marker — assumed 2030 low / start of theory extension */}
+      <line
+        x1={next.x}
+        y1="58"
+        x2={next.x}
+        y2="348"
+        stroke="#3a4558"
+        strokeWidth="1"
+        strokeDasharray="3 4"
+      />
+      <text
+        x={next.x + 8}
+        y="72"
+        textAnchor="start"
+        fill="#8b9bb4"
+        fontSize="9"
+        fontFamily="system-ui, sans-serif"
+        fontWeight="700"
+      >
+        Theory extension →
+      </text>
+
+      {/* Classic jagged cycle line — straight segments like the classic infographic */}
       <path
         d={LINE_PATH}
         fill="none"
@@ -357,6 +492,18 @@ export default function RealEstateCycleChart() {
         filter="url(#re-glow)"
       />
 
+      {/* Theory forecast segment — dashed / muted, distinct from classic series */}
+      <path
+        d={FORECAST_PATH}
+        fill="none"
+        stroke="#8fa0b8"
+        strokeWidth="2.75"
+        strokeLinejoin="miter"
+        strokeLinecap="square"
+        strokeDasharray="7 5"
+        opacity="0.92"
+      />
+
       {/* Vertex dots (land boom uses gold marker instead) */}
       {POINTS.filter((p) => p.id !== "landBoom").map((p) => (
         <circle
@@ -365,8 +512,21 @@ export default function RealEstateCycleChart() {
           cy={p.y}
           r={p.id === "peak" ? 5.5 : 4}
           fill="#0a0a0a"
-          stroke={p.id === "peak" ? "#d4a017" : "#e8eef7"}
-          strokeWidth={p.id === "peak" ? 2.25 : 1.75}
+          stroke={p.id === "peak" || p.id === "next" ? "#d4a017" : "#e8eef7"}
+          strokeWidth={p.id === "peak" || p.id === "next" ? 2.25 : 1.75}
+        />
+      ))}
+
+      {/* Forecast vertex dots — muted */}
+      {FORECAST_POINTS.map((p) => (
+        <circle
+          key={p.id}
+          cx={p.x}
+          cy={p.y}
+          r={p.id === "fcPeak" ? 5 : 3.75}
+          fill="#0a0a0a"
+          stroke="#8fa0b8"
+          strokeWidth={p.id === "fcPeak" ? 2 : 1.6}
         />
       ))}
 
@@ -488,6 +648,40 @@ export default function RealEstateCycleChart() {
         );
       })}
 
+      {/* Forecast year labels — spaced to avoid peak-line / caption crossover */}
+      <ForecastLabel
+        x={fcMid.x}
+        y={fcMid.y}
+        year={fcMid.year}
+        caption={fcMid.caption}
+        placement="above"
+        dx={-4}
+      />
+      <ForecastLabel
+        x={fcMidSlow.x}
+        y={fcMidSlow.y}
+        year={fcMidSlow.year}
+        caption={fcMidSlow.caption}
+        placement="below"
+        dx={10}
+      />
+      <ForecastLabel
+        x={fcPeak.x}
+        y={fcPeak.y}
+        year={fcPeak.year}
+        caption={fcPeak.caption}
+        placement="above"
+        dx={42}
+      />
+      <ForecastLabel
+        x={fcLow.x}
+        y={fcLow.y}
+        year={fcLow.year}
+        caption={fcLow.caption}
+        placement="below"
+        dx={-6}
+      />
+
       {/* Mid-cycle peak caption — left of vertex so year stack stays clear */}
       <text
         x={midPeak.x - 52}
@@ -534,15 +728,49 @@ export default function RealEstateCycleChart() {
       >
         Major land-driven downturn
       </text>
+      <text
+        x={(next.x + fcLow.x) / 2}
+        y={398}
+        textAnchor="middle"
+        fill="#8b9bb4"
+        fontSize="10"
+        fontFamily="system-ui, sans-serif"
+        fontWeight="600"
+      >
+        Next-cycle theory (schematic)
+      </text>
 
-      {/* 7 · 7 · 4 span arrows */}
+      {/* 7 · 7 · 4 span arrows (classic series) */}
       <SpanArrow x1={recovery.x} x2={midSlow.x} y={422} label="~7 years" />
       <SpanArrow x1={midSlow.x} x2={peak.x} y={422} label="~7 years" />
       <SpanArrow x1={peak.x} x2={next.x} y={422} label="~4 years" />
+      {/* Theory span — muted */}
+      <g opacity="0.85">
+        <line
+          x1={next.x}
+          y1={422}
+          x2={fcLow.x}
+          y2={422}
+          stroke="#8fa0b8"
+          strokeWidth="2"
+          strokeDasharray="5 4"
+        />
+        <text
+          x={(next.x + fcLow.x) / 2}
+          y={438}
+          textAnchor="middle"
+          fill="#8fa0b8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          ~18y theory stretch (rough guide)
+        </text>
+      </g>
 
       <text
-        x="420"
-        y="472"
+        x={SVG_W / 2}
+        y={472}
         textAnchor="middle"
         fill="#6b7a90"
         fontSize="9"
@@ -550,6 +778,39 @@ export default function RealEstateCycleChart() {
       >
         Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions.
         NOW is live as-of placement on that schematic timeline, not a forecast.
+      </text>
+
+      {/* Prominent theory disclaimer — AU English, NFA tone */}
+      <rect
+        x="48"
+        y="488"
+        width={SVG_W - 96}
+        height="42"
+        rx="6"
+        fill="#121820"
+        stroke="#3a4558"
+        strokeWidth="1"
+      />
+      <text
+        x={SVG_W / 2}
+        y="506"
+        textAnchor="middle"
+        fill="#d0d8e4"
+        fontSize="10"
+        fontFamily="system-ui, sans-serif"
+        fontWeight="700"
+      >
+        Theory extension (dashed): rough guide based on real estate cycle theory — not a predictive model.
+      </text>
+      <text
+        x={SVG_W / 2}
+        y="520"
+        textAnchor="middle"
+        fill="#9eb0c8"
+        fontSize="9"
+        fontFamily="system-ui, sans-serif"
+      >
+        Not to be relied on for market timing. Research / educational purposes only. Not financial advice (NFA).
       </text>
       </g>
     </svg>

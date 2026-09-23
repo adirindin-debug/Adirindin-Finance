@@ -5,7 +5,7 @@ import RealEstateCycleChart from "@/components/RealEstateCycleChart";
 export const metadata: Metadata = {
   title: "18 Year Real Estate Cycle",
   description:
-    "Educational ~18 / 18.6-year real estate / land cycle framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic). Observation framework — not a forecast or financial advice.",
+    "Educational ~18 / 18.6-year real estate / land cycle framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic), with a theory-based rough guide after an assumed ~2030 low. Not a predictive model or financial advice.",
 };
 
 /**
@@ -108,6 +108,31 @@ export default function RealEstateCyclePage() {
         </div>
 
         <RealEstateCycleChart />
+
+        <aside
+          className="mt-5 rounded-lg border border-[#3a4558] bg-[#121820] px-4 py-3"
+          role="note"
+          aria-label="Theory extension disclaimer"
+        >
+          <p className="text-sm font-semibold text-[#d0d8e4]">
+            Theory extension after an assumed ~2030 cycle low
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-[#9eb0c8] sm:text-sm">
+            The dashed segment (~2030 → ~2037 mid cycle → ~2039 mid-cycle correction → ~2044
+            projected top → ~2048 next low) is a{" "}
+            <strong className="font-medium text-[#d0d8e4]">
+              rough guide based on real estate cycle theory
+            </strong>
+            . It is <strong className="font-medium text-[#d0d8e4]">not a predictive model</strong>,{" "}
+            <strong className="font-medium text-[#d0d8e4]">
+              not to be relied on for market timing
+            </strong>
+            , and is for <strong className="font-medium text-[#d0d8e4]">research / educational purposes only</strong>.
+            Classic solid line and &quot;As of … live placement · schematic framework&quot; remain
+            honesty markers for the historical / framework series — the extension is schematic theory,
+            not live data. Not financial advice (NFA).
+          </p>
+        </aside>
       </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
