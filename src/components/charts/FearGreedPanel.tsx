@@ -465,10 +465,10 @@ export function FearGreedPanel() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Crypto Fear &amp; Greed Index
+            Fear &amp; Greed Index
           </h2>
           <p className="mt-1 text-sm text-muted">
-            Sentiment gauge from Alternative.me — educational only (NFA).
+            US stock market sentiment from CNN — educational only (NFA).
           </p>
         </div>
         {current && (
@@ -550,7 +550,7 @@ export function FearGreedPanel() {
               viewBox={`0 0 ${W} ${H}`}
               className="w-full cursor-crosshair touch-none"
               role="img"
-              aria-label="Crypto Fear and Greed Index history. Hover for daily values. Drag to zoom."
+              aria-label="US stock market Fear and Greed Index history. Hover for daily values. Drag to zoom."
               onPointerDown={onMainPointerDown}
               onPointerMove={onMainPointerMove}
               onPointerUp={onMainPointerUp}
@@ -563,7 +563,7 @@ export function FearGreedPanel() {
                 setHover(null);
               }}
             >
-              <title>Crypto Fear and Greed Index history</title>
+              <title>US stock market Fear and Greed Index history</title>
               {chart.zones.map((z) => (
                 <rect
                   key={z.y0}
@@ -767,13 +767,13 @@ export function FearGreedPanel() {
         <a
           href={
             data?.sourceUrl ??
-            "https://alternative.me/crypto/fear-and-greed-index/"
+            "https://www.cnn.com/markets/fear-and-greed"
           }
           target="_blank"
           rel="noopener noreferrer"
           className="text-accent hover:underline"
         >
-          {data?.source ?? "Alternative.me Crypto Fear & Greed Index"}
+          {data?.source ?? "CNN Fear & Greed Index (US stocks)"}
         </a>
         . {data?.note ?? "Educational only — NFA."}
       </p>

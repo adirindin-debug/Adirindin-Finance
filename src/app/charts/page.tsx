@@ -6,7 +6,7 @@ import { WilshireM2Panel } from "@/components/charts/WilshireM2Panel";
 export const metadata: Metadata = {
   title: "Charts",
   description:
-    "Crypto Fear & Greed, total market volume, and Wilshire 5000 / US M2 — educational charts for Adirindin Finance (NFA).",
+    "US stock market Fear & Greed, total market volume, and Wilshire 5000 / US M2 — educational charts for Adirindin Finance (NFA).",
 };
 
 export default function ChartsPage() {

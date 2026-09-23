@@ -1,16 +1,15 @@
 /**
- * Crypto Fear & Greed Index — Alternative.me (server fetch, ~1h cache).
- * Educational only — NFA.
+ * US stock market Fear & Greed Index — CNN dataviz (server fetch, ~1h cache).
+ * Undocumented CNN production.dataviz endpoint; educational only — NFA.
  */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type FngRow = {
-  value: string;
-  value_classification: string;
-  timestamp: string;
-  time_until_update?: string;
+type CnnHistPoint = {
+  x: number;
+  y: number;
+  rating?: string;
 };
 
 type FngPoint = {
@@ -18,6 +17,13 @@ type FngPoint = {
   value: number;
   classification: string;
 };
+
+const CNN_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const CNN_URL =
+  "https://production.dataviz.cnn.io/index/fearandgreed/graphdata/2021-02-01";
+const SOURCE = "CNN Fear & Greed Index (US stocks)";
+const SOURCE_URL = "https://www.cnn.com/markets/fear-and-greed";
 
 function classificationColor(c: string): string {
   const s = c.toLowerCase();
@@ -28,67 +34,96 @@ function classificationColor(c: string): string {
   return "#94a3b8";
 }
 
+/** Title-case CNN ratings like "extreme fear" → "Extreme Fear". */
+function titleCaseRating(rating: string): string {
+  return rating
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
+    .join(" ");
+}
+
 export async function GET() {
   try {
-    const res = await fetch("https://api.alternative.me/fng/?limit=0", {
-      headers: { Accept: "application/json" },
+    const res = await fetch(CNN_URL, {
+      headers: {
+        Accept: "application/json",
+        "User-Agent": CNN_UA,
+        Origin: "https://www.cnn.com",
+        Referer: "https://www.cnn.com/",
+      },
       next: { revalidate: 3600 },
     });
     if (!res.ok) {
       return Response.json(
-        { ok: false, error: `Alternative.me HTTP ${res.status}` },
+        { ok: false, error: `CNN Fear & Greed HTTP ${res.status}` },
         { status: 502 },
       );
     }
     const json = (await res.json()) as {
-      name?: string;
-      data?: FngRow[];
-      metadata?: { error?: string | null };
+      fear_and_greed?: {
+        score?: number;
+        rating?: string;
+        timestamp?: string;
+      };
+      fear_and_greed_historical?: {
+        data?: CnnHistPoint[];
+      };
     };
-    if (json.metadata?.error) {
-      return Response.json(
-        { ok: false, error: String(json.metadata.error) },
-        { status: 502 },
-      );
+
+    const hist = json.fear_and_greed_historical?.data ?? [];
+    const points: FngPoint[] = [];
+    for (const row of hist) {
+      const value = Number(row.y);
+      const ms = Number(row.x);
+      if (!Number.isFinite(value) || !Number.isFinite(ms)) continue;
+      const classification = titleCaseRating(String(row.rating ?? "neutral"));
+      points.push({
+        t: Math.floor(ms / 1000),
+        value,
+        classification,
+      });
     }
-    const rows = json.data ?? [];
-    if (!rows.length) {
+    points.sort((a, b) => a.t - b.t);
+
+    if (!points.length) {
       return Response.json(
         { ok: false, error: "No Fear & Greed data" },
         { status: 502 },
       );
     }
 
-    // API returns newest-first
-    const points: FngPoint[] = [];
-    for (const row of rows) {
-      const value = Number(row.value);
-      const t = Number(row.timestamp);
-      if (!Number.isFinite(value) || !Number.isFinite(t)) continue;
-      points.push({
-        t,
-        value,
-        classification: row.value_classification,
-      });
-    }
-    points.sort((a, b) => a.t - b.t);
-
+    const fg = json.fear_and_greed;
     const latest = points[points.length - 1];
+    const score =
+      fg?.score != null && Number.isFinite(Number(fg.score))
+        ? Number(fg.score)
+        : latest.value;
+    const classification = titleCaseRating(
+      String(fg?.rating ?? latest.classification),
+    );
+    let t = latest.t;
+    if (fg?.timestamp) {
+      const parsed = Date.parse(fg.timestamp);
+      if (Number.isFinite(parsed)) t = Math.floor(parsed / 1000);
+    }
+
     const current = {
-      value: latest.value,
-      classification: latest.classification,
-      color: classificationColor(latest.classification),
-      t: latest.t,
+      value: score,
+      classification,
+      color: classificationColor(classification),
+      t,
     };
 
     return Response.json(
       {
         ok: true,
-        name: json.name ?? "Fear and Greed Index",
+        name: "Fear and Greed Index",
         current,
         points,
-        source: "Alternative.me Crypto Fear & Greed Index",
-        sourceUrl: "https://alternative.me/crypto/fear-and-greed-index/",
+        source: SOURCE,
+        sourceUrl: SOURCE_URL,
         asOf: new Date().toISOString(),
         note: "Educational sentiment gauge only — not financial advice (NFA).",
       },
