@@ -7,7 +7,7 @@ const nav = [
   { href: "/portfolio", label: "Portfolio" },
   { href: "/property-prices", label: "Property prices" },
   { href: "/charts", label: "Charts" },
-  { href: "/dashboard/btc-cycle", label: "Cycle map" },
+  { href: "/dashboard/btc-cycle", label: "BTC cycle" },
   { href: "/tools/real-estate-cycle", label: "RE cycle" },
   { href: "/contact", label: "Contact" },
 ];
