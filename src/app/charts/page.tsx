@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Btc200wMaPanel } from "@/components/charts/Btc200wMaPanel";
 import { FearGreedPanel } from "@/components/charts/FearGreedPanel";
 import { MarketVolumePanel } from "@/components/charts/MarketVolumePanel";
 import { WilshireM2Panel } from "@/components/charts/WilshireM2Panel";
@@ -6,7 +7,7 @@ import { WilshireM2Panel } from "@/components/charts/WilshireM2Panel";
 export const metadata: Metadata = {
   title: "Charts",
   description:
-    "US stock and crypto Fear & Greed, total market volume, and Wilshire 5000 / US M2 — educational charts for Adirindin Finance (NFA).",
+    "US stock and crypto Fear & Greed, total market volume, Bitcoin 200-week MA, and Wilshire 5000 / US M2 — educational charts for Adirindin Finance (NFA).",
 };
 
 export default function ChartsPage() {
@@ -19,8 +20,9 @@ export default function ChartsPage() {
         Charts
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        Clean public-data charts for sentiment, market volume, and a classic equity /
-        money-supply ratio. Educational content only — not financial advice (NFA).
+        Clean public-data charts for sentiment, market volume, Bitcoin’s
+        200-week moving average, and a classic equity / money-supply ratio.
+        Educational content only — not financial advice (NFA).
       </p>
 
       <div className="mt-8 flex flex-col gap-6">
@@ -44,6 +46,7 @@ export default function ChartsPage() {
           defaultSourceUrl="https://alternative.me/crypto/fear-and-greed-index/"
         />
         <MarketVolumePanel />
+        <Btc200wMaPanel />
         <WilshireM2Panel />
       </div>
 

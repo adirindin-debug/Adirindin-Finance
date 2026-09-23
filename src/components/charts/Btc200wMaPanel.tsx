@@ -9,26 +9,40 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 
-type Point = { t: number; ratio: number; wilshire: number; m2: number };
-type Payload = {
-  ok: boolean;
-  current?: { ratio: number; wilshire: number; m2: number; t: number };
-  points?: Point[];
-  wilshireSource?: string;
-  m2Source?: string;
-  ratioDefinition?: string;
-  fredCredits?: string;
-  macroMicroUrl?: string;
-  note?: string;
-  error?: string;
-  errors?: string[];
+type Point = {
+  t: number;
+  price: number;
+  ma200w: number;
+  pctFromMa: number;
+  absFromMa?: number;
 };
 
-type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
+type Payload = {
+  ok: boolean;
+  current?: {
+    t: number;
+    price: number;
+    ma200w: number;
+    pctFromMa: number;
+    absFromMa: number;
+    spotIsLive?: boolean;
+  };
+  points?: Point[];
+  maWindowWeeks?: number;
+  firstMaDate?: string | null;
+  historyStart?: string | null;
+  source?: string;
+  sourceUrl?: string;
+  note?: string;
+  error?: string;
+};
+
+type TfKey = "1Y" | "3Y" | "5Y" | "ALL";
 
 type HoverState = {
   svgX: number;
-  svgY: number;
+  svgYPrice: number;
+  svgYMa: number;
   point: Point;
 };
 
@@ -36,21 +50,32 @@ const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
   { key: "1Y", label: "1Y", days: 365 },
   { key: "3Y", label: "3Y", days: 365 * 3 },
   { key: "5Y", label: "5Y", days: 365 * 5 },
-  { key: "10Y", label: "10Y", days: 365 * 10 },
   { key: "ALL", label: "ALL", days: null },
 ];
 
 const W = 720;
-const H = 240;
-const PAD = { top: 20, right: 16, bottom: 32, left: 48 };
+const H = 260;
+const PAD = { top: 20, right: 16, bottom: 32, left: 60 };
 
-const LINE_COLOR = "#e8873a";
+const PRICE_COLOR = "#f2a900"; // BTC-ish gold on navy
+const MA_COLOR = "#3dcc9a";
 
-function fmtDateMonth(t: number) {
-  return new Date(t * 1000).toLocaleDateString("en-AU", {
-    year: "numeric",
-    month: "short",
-  });
+function fmtUsd(n: number) {
+  if (n >= 1000) {
+    return `$${n.toLocaleString("en-AU", { maximumFractionDigits: 0 })}`;
+  }
+  return `$${n.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`;
+}
+
+function fmtUsdCompact(n: number) {
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(n >= 10_000 ? 0 : 1)}k`;
+  return `$${n.toFixed(0)}`;
+}
+
+function fmtPct(n: number) {
+  const sign = n > 0 ? "+" : "";
+  return `${sign}${n.toFixed(1)}%`;
 }
 
 function fmtDate(t: number) {
@@ -61,16 +86,13 @@ function fmtDate(t: number) {
   });
 }
 
-function fmtWilshire(n: number) {
-  return n.toLocaleString("en-AU", { maximumFractionDigits: 0 });
+function fmtDateShort(t: number) {
+  return new Date(t * 1000).toLocaleDateString("en-AU", {
+    year: "numeric",
+    month: "short",
+  });
 }
 
-function fmtM2(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(2)}T`;
-  return `${n.toFixed(1)}B`;
-}
-
-/** Nearest point by timestamp; points assumed sorted ascending by t. */
 function nearestPoint(points: Point[], t: number): Point | null {
   if (!points.length) return null;
   let lo = 0;
@@ -87,7 +109,28 @@ function nearestPoint(points: Point[], t: number): Point | null {
   return best;
 }
 
-export function WilshireM2Panel() {
+/** Nice log-scale tick candidates spanning [vmin, vmax]. */
+function logTicks(vmin: number, vmax: number): number[] {
+  if (!(vmin > 0) || !(vmax > vmin)) return [vmin, vmax].filter((v) => v > 0);
+  const lo = Math.floor(Math.log10(vmin));
+  const hi = Math.ceil(Math.log10(vmax));
+  const out: number[] = [];
+  for (let e = lo; e <= hi; e++) {
+    for (const m of [1, 2, 5]) {
+      const v = m * 10 ** e;
+      if (v >= vmin * 0.98 && v <= vmax * 1.02) out.push(v);
+    }
+  }
+  if (out.length < 2) return [vmin, vmax];
+  // Cap tick count for readability
+  if (out.length > 6) {
+    const step = Math.ceil(out.length / 5);
+    return out.filter((_, i) => i % step === 0 || i === out.length - 1);
+  }
+  return out;
+}
+
+export function Btc200wMaPanel() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tf, setTf] = useState<TfKey>("ALL");
@@ -98,8 +141,7 @@ export function WilshireM2Panel() {
     let cancelled = false;
     (async () => {
       try {
-        // Full monthly history once; window toggles filter client-side.
-        const res = await fetch("/api/wilshire-m2");
+        const res = await fetch("/api/btc-200w-ma");
         const json = (await res.json()) as Payload;
         if (!cancelled) setData(json);
       } catch (e) {
@@ -133,49 +175,102 @@ export function WilshireM2Panel() {
     return allPoints.filter((p) => p.t >= tStart && p.t <= tEnd);
   }, [allPoints, tf]);
 
-  /** Headline = latest point in the visible window (matches chart end). */
   const headline = useMemo(() => {
     if (windowedPoints.length) {
       const last = windowedPoints[windowedPoints.length - 1]!;
+      // Prefer live spot from API current when window includes the latest overall point.
+      const overallLast = allPoints[allPoints.length - 1];
+      if (
+        data?.current &&
+        overallLast &&
+        last.t === overallLast.t
+      ) {
+        return data.current;
+      }
       return {
-        ratio: last.ratio,
-        wilshire: last.wilshire,
-        m2: last.m2,
         t: last.t,
+        price: last.price,
+        ma200w: last.ma200w,
+        pctFromMa: last.pctFromMa,
+        absFromMa: last.absFromMa ?? last.price - last.ma200w,
+        spotIsLive: false,
       };
     }
     return data?.current ?? null;
-  }, [windowedPoints, data?.current]);
+  }, [windowedPoints, allPoints, data?.current]);
 
   const chart = useMemo(() => {
     const points = windowedPoints;
     if (points.length < 2) return null;
     const t0 = points[0]!.t;
     const t1 = points[points.length - 1]!.t;
+
     let vmin = Infinity;
     let vmax = -Infinity;
     for (const p of points) {
-      if (!Number.isFinite(p.ratio)) continue;
-      vmin = Math.min(vmin, p.ratio);
-      vmax = Math.max(vmax, p.ratio);
+      for (const v of [p.price, p.ma200w]) {
+        if (Number.isFinite(v) && v > 0) {
+          vmin = Math.min(vmin, v);
+          vmax = Math.max(vmax, v);
+        }
+      }
     }
-    if (!Number.isFinite(vmin) || !Number.isFinite(vmax)) return null;
-    const pad = (vmax - vmin) * 0.08 || 0.1;
-    vmin -= pad;
-    vmax += pad;
+    if (!Number.isFinite(vmin) || !Number.isFinite(vmax) || vmin <= 0) {
+      return null;
+    }
+
+    // Log y when price spans orders of magnitude (typical for ALL-time BTC).
+    const useLog = vmax / vmin >= 8;
+    const padRatio = 0.08;
+    if (useLog) {
+      const logMin = Math.log10(vmin);
+      const logMax = Math.log10(vmax);
+      const pad = (logMax - logMin) * padRatio || 0.05;
+      vmin = 10 ** (logMin - pad);
+      vmax = 10 ** (logMax + pad);
+    } else {
+      const pad = (vmax - vmin) * padRatio || vmax * 0.05;
+      vmin = Math.max(1, vmin - pad);
+      vmax = vmax + pad;
+    }
+
     const xOf = (t: number) =>
       PAD.left + ((t - t0) / Math.max(t1 - t0, 1)) * (W - PAD.left - PAD.right);
-    const yOf = (v: number) =>
-      PAD.top +
-      ((vmax - v) / Math.max(vmax - vmin, 1)) * (H - PAD.top - PAD.bottom);
-    const path = points
+    const yOf = (v: number) => {
+      const safe = Math.max(v, vmin * 0.5);
+      if (useLog) {
+        const logMin = Math.log10(vmin);
+        const logMax = Math.log10(vmax);
+        return (
+          PAD.top +
+          ((logMax - Math.log10(safe)) / Math.max(logMax - logMin, 1e-9)) *
+            (H - PAD.top - PAD.bottom)
+        );
+      }
+      return (
+        PAD.top +
+        ((vmax - safe) / Math.max(vmax - vmin, 1)) * (H - PAD.top - PAD.bottom)
+      );
+    };
+
+    const pricePath = points
       .map(
         (p, i) =>
-          `${i === 0 ? "M" : "L"}${xOf(p.t).toFixed(1)} ${yOf(p.ratio).toFixed(1)}`,
+          `${i === 0 ? "M" : "L"}${xOf(p.t).toFixed(1)} ${yOf(p.price).toFixed(1)}`,
       )
       .join(" ");
-    const ticks = [vmin, (vmin + vmax) / 2, vmax];
-    return { path, xOf, yOf, t0, t1, ticks, points };
+    const maPath = points
+      .map(
+        (p, i) =>
+          `${i === 0 ? "M" : "L"}${xOf(p.t).toFixed(1)} ${yOf(p.ma200w).toFixed(1)}`,
+      )
+      .join(" ");
+
+    const ticks = useLog
+      ? logTicks(vmin, vmax)
+      : [vmin, (vmin + vmax) / 2, vmax];
+
+    return { pricePath, maPath, xOf, yOf, t0, t1, ticks, points, useLog };
   }, [windowedPoints]);
 
   const onMainMouseMove = useCallback(
@@ -202,8 +297,7 @@ export function WilshireM2Panel() {
       }
       const t =
         chart.t0 + ((svgX - PAD.left) / Math.max(iw, 1)) * (chart.t1 - chart.t0);
-      // Monthly series — allow ~45-day snap gap.
-      const maxGapSec = Math.max((chart.t1 - chart.t0) * 0.04, 45 * 86400);
+      const maxGapSec = Math.max((chart.t1 - chart.t0) * 0.04, 10 * 86400);
       const pt = nearestPoint(chart.points, t);
       if (!pt || Math.abs(pt.t - t) > maxGapSec) {
         setHover(null);
@@ -211,7 +305,8 @@ export function WilshireM2Panel() {
       }
       setHover({
         svgX: chart.xOf(pt.t),
-        svgY: chart.yOf(pt.ratio),
+        svgYPrice: chart.yOf(pt.price),
+        svgYMa: chart.yOf(pt.ma200w),
         point: pt,
       });
     },
@@ -231,26 +326,38 @@ export function WilshireM2Panel() {
   const toggleOff =
     "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
 
+  const above = headline != null && headline.pctFromMa >= 0;
+
   return (
     <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Wilshire 5000 / US M2
+            Bitcoin · 200-week MA
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted">
-            Equity market vs money supply ratio from public FRED data (monthly).
-            Educational framing only (NFA).
+            BTC-USD weekly close versus its 200-week simple moving average —
+            a long-cycle reference often watched in crypto. Educational only
+            (NFA).
           </p>
         </div>
         {headline && (
           <div className="text-right">
             <p className="font-mono text-3xl font-semibold tabular-nums text-foreground">
-              {headline.ratio.toFixed(2)}
+              {fmtUsd(headline.price)}
             </p>
-            <p className="mt-0.5 text-xs text-muted">Wilshire ÷ M2SL</p>
+            <p
+              className={`mt-0.5 text-sm font-semibold tabular-nums ${
+                above ? "text-[#3dcc9a]" : "text-[#f07178]"
+              }`}
+            >
+              {fmtPct(headline.pctFromMa)}{" "}
+              {above ? "above" : "below"} 200W MA
+            </p>
             <p className="mt-1 font-mono text-[11px] text-muted">
-              {fmtDateMonth(headline.t)}
+              MA {fmtUsd(headline.ma200w)}
+              {headline.spotIsLive ? " · live spot" : ""} ·{" "}
+              {fmtDate(headline.t)}
             </p>
           </div>
         )}
@@ -264,7 +371,7 @@ export function WilshireM2Panel() {
           <div
             className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
             role="group"
-            aria-label="Wilshire to M2 timeframe"
+            aria-label="Bitcoin 200-week MA timeframe"
           >
             {TIMEFRAMES.map((w) => (
               <button
@@ -279,45 +386,50 @@ export function WilshireM2Panel() {
             ))}
           </div>
         </div>
-        <a
-          href={
-            data?.macroMicroUrl ??
-            "https://en.macromicro.me/collections/34/us-stock-relative/24033/wilshire5000-to-us-m2"
-          }
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center rounded-md border border-border bg-navy/60 px-3 py-2 text-sm text-accent hover:border-accent hover:bg-accent-soft"
-        >
-          Compare on MacroMicro →
-        </a>
+        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: PRICE_COLOR }}
+              aria-hidden
+            />
+            BTC price
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span
+              className="inline-block h-2 w-2 rounded-full"
+              style={{ background: MA_COLOR }}
+              aria-hidden
+            />
+            200W MA
+          </span>
+          {chart?.useLog && (
+            <span className="rounded border border-border/80 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">
+              log y
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-5 overflow-x-auto">
         {loading && (
           <p className="py-16 text-center text-sm text-muted">
-            Loading Wilshire / M2…
+            Loading Bitcoin 200-week MA…
           </p>
         )}
         {!loading && data && !data.ok && (
-          <div className="py-12 text-center text-sm text-red-400">
-            <p>{data.error ?? "Could not load Wilshire/M2"}</p>
-            {data.errors && data.errors.length > 0 && (
-              <ul className="mx-auto mt-3 max-w-lg list-disc space-y-1 px-6 text-left text-xs text-muted">
-                {data.errors.map((err) => (
-                  <li key={err}>{err}</li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <p className="py-12 text-center text-sm text-red-400">
+            {data.error ?? "Could not load Bitcoin 200-week MA"}
+          </p>
         )}
         {!loading && data?.ok && !hasAnyHistory && (
           <p className="py-12 text-center text-sm text-muted">
-            No Wilshire/M2 history available right now.
+            Not enough weekly history to plot the 200-week MA.
           </p>
         )}
         {!loading && data?.ok && hasAnyHistory && !hasWindowPoints && (
           <p className="py-12 text-center text-sm text-muted">
-            Not enough monthly history for this window.
+            Not enough history for this window.
           </p>
         )}
         {!loading && chart && (
@@ -327,11 +439,11 @@ export function WilshireM2Panel() {
               viewBox={`0 0 ${W} ${H}`}
               className="w-full cursor-crosshair"
               role="img"
-              aria-label={`Wilshire 5000 to US M2 ratio, ${tf} window. Hover for values.`}
+              aria-label={`Bitcoin price versus 200-week moving average, ${tf} window. Hover for values.`}
               onMouseMove={onMainMouseMove}
               onMouseLeave={onMainMouseLeave}
             >
-              <title>Wilshire 5000 to US M2 ratio</title>
+              <title>Bitcoin price versus 200-week moving average</title>
               {chart.ticks.map((v) => (
                 <g key={v}>
                   <line
@@ -349,14 +461,21 @@ export function WilshireM2Panel() {
                     className="fill-muted"
                     fontSize={10}
                   >
-                    {v.toFixed(2)}
+                    {fmtUsdCompact(v)}
                   </text>
                 </g>
               ))}
               <path
-                d={chart.path}
+                d={chart.maPath}
                 fill="none"
-                stroke={LINE_COLOR}
+                stroke={MA_COLOR}
+                strokeWidth={2}
+                strokeDasharray="5 3"
+              />
+              <path
+                d={chart.pricePath}
+                fill="none"
+                stroke={PRICE_COLOR}
                 strokeWidth={2}
               />
               {hover && (
@@ -373,16 +492,24 @@ export function WilshireM2Panel() {
                   />
                   <circle
                     cx={hover.svgX}
-                    cy={hover.svgY}
+                    cy={hover.svgYMa}
+                    r={3.5}
+                    fill={MA_COLOR}
+                    stroke="#0c1a2e"
+                    strokeWidth={1.5}
+                  />
+                  <circle
+                    cx={hover.svgX}
+                    cy={hover.svgYPrice}
                     r={4}
-                    fill={LINE_COLOR}
+                    fill={PRICE_COLOR}
                     stroke="#0c1a2e"
                     strokeWidth={1.5}
                   />
                 </g>
               )}
               <text x={PAD.left} y={H - 8} className="fill-muted" fontSize={10}>
-                {fmtDateMonth(chart.t0)}
+                {fmtDateShort(chart.t0)}
               </text>
               <text
                 x={W - PAD.right}
@@ -391,14 +518,14 @@ export function WilshireM2Panel() {
                 className="fill-muted"
                 fontSize={10}
               >
-                {fmtDateMonth(chart.t1)}
+                {fmtDateShort(chart.t1)}
               </text>
             </svg>
             {hover && (
               <div
-                className="pointer-events-none absolute z-10 min-w-[176px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
+                className="pointer-events-none absolute z-10 min-w-[188px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
                 style={{
-                  left: `clamp(8px, calc(${(hover.svgX / W) * 100}% + 12px), calc(100% - 204px))`,
+                  left: `clamp(8px, calc(${(hover.svgX / W) * 100}% + 12px), calc(100% - 216px))`,
                   top: 12,
                 }}
               >
@@ -409,58 +536,72 @@ export function WilshireM2Panel() {
                   <span className="flex items-center gap-1.5 text-muted">
                     <span
                       className="inline-block h-2 w-2 rounded-full"
-                      style={{ background: LINE_COLOR }}
+                      style={{ background: PRICE_COLOR }}
                       aria-hidden
                     />
-                    Ratio
+                    Price
                   </span>
                   <span className="font-mono font-semibold text-[#e8eef7]">
-                    {hover.point.ratio.toFixed(3)}
+                    {fmtUsd(hover.point.price)}
                   </span>
                 </p>
                 <p className="mt-1 flex items-center justify-between gap-3 text-[11px] tabular-nums">
-                  <span className="text-muted">Wilshire</span>
+                  <span className="flex items-center gap-1.5 text-muted">
+                    <span
+                      className="inline-block h-2 w-2 rounded-full"
+                      style={{ background: MA_COLOR }}
+                      aria-hidden
+                    />
+                    200W MA
+                  </span>
                   <span className="font-mono text-[#c5d0de]">
-                    {fmtWilshire(hover.point.wilshire)}
+                    {fmtUsd(hover.point.ma200w)}
                   </span>
                 </p>
                 <p className="mt-1 flex items-center justify-between gap-3 text-[11px] tabular-nums">
-                  <span className="text-muted">M2SL</span>
-                  <span className="font-mono text-[#c5d0de]">
-                    {fmtM2(hover.point.m2)}
+                  <span className="text-muted">Distance</span>
+                  <span
+                    className={`font-mono font-semibold ${
+                      hover.point.pctFromMa >= 0
+                        ? "text-[#3dcc9a]"
+                        : "text-[#f07178]"
+                    }`}
+                  >
+                    {fmtPct(hover.point.pctFromMa)} (
+                    {fmtUsd(Math.abs(hover.point.absFromMa ?? hover.point.price - hover.point.ma200w))}
+                    )
                   </span>
                 </p>
               </div>
             )}
             <p className="mt-2 text-[11px] text-muted">
-              Hover for ratio, Wilshire level and M2 · snap to nearest month
+              Hover for weekly close, 200W MA, and distance · snap to nearest
+              week
+              {data?.firstMaDate
+                ? ` · MA series from ${data.firstMaDate}`
+                : ""}
             </p>
           </div>
         )}
       </div>
 
       <div className="mt-4 space-y-1 text-xs text-muted">
-        {data?.ratioDefinition && <p>{data.ratioDefinition}</p>}
-        {data?.wilshireSource && <p>Wilshire: {data.wilshireSource}</p>}
-        {data?.m2Source && <p>M2: {data.m2Source}</p>}
         <p>
-          {data?.fredCredits ??
-            "Data via FRED®, Federal Reserve Bank of St. Louis."}{" "}
-          Concept similar to{" "}
+          Source:{" "}
           <a
-            href={
-              data?.macroMicroUrl ??
-              "https://en.macromicro.me/collections/34/us-stock-relative/24033/wilshire5000-to-us-m2"
-            }
+            href={data?.sourceUrl ?? "https://www.coinbase.com/price/bitcoin"}
             target="_blank"
             rel="noopener noreferrer"
             className="text-accent hover:underline"
           >
-            MacroMicro Wilshire/M2
-          </a>{" "}
-          (attribution only — we do not scrape their page).
+            {data?.source ?? "Coinbase Exchange BTC-USD"}
+          </a>
+          .
         </p>
-        <p>{data?.note ?? "Educational only — NFA."}</p>
+        <p>
+          {data?.note ??
+            "200-week simple moving average of weekly closes. Educational only — NFA."}
+        </p>
       </div>
     </section>
   );
