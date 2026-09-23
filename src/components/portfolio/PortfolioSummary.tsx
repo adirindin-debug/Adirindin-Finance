@@ -1,9 +1,8 @@
 "use client";
 
-import {
-  POSITION_RETURN_WINDOWS,
-  type PortfolioLiveSummary,
-  type PositionReturnWindow,
+import type {
+  PortfolioLiveSummary,
+  PositionReturnWindow,
 } from "@/lib/portfolioTypes";
 import { formatAud, formatGain, returnWindowHint } from "@/lib/portfolioCompute";
 
@@ -15,8 +14,8 @@ type Props = {
   periodGainAud: number | null;
   periodGainPct: number | null;
   periodAvailable: boolean;
+  /** Shared with Performance chart chips (drives gain line hint). */
   returnWindow: PositionReturnWindow;
-  onReturnWindowChange: (w: PositionReturnWindow) => void;
   returnsLoading: boolean;
   quotesLoading: boolean;
   quotesError: string | null;
@@ -33,7 +32,6 @@ export function PortfolioSummary({
   periodGainPct,
   periodAvailable,
   returnWindow,
-  onReturnWindowChange,
   returnsLoading,
   quotesLoading,
   quotesError,
@@ -100,34 +98,6 @@ export function PortfolioSummary({
           )}
           <span className="ml-2 text-xs text-zinc-600">{statusHint}</span>
         </p>
-
-        {hasHoldings && (
-          <div
-            className="mt-3 flex flex-wrap gap-1"
-            role="tablist"
-            aria-label="Return timeframe"
-          >
-            {POSITION_RETURN_WINDOWS.map((w) => {
-              const active = w.key === returnWindow;
-              return (
-                <button
-                  key={w.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => onReturnWindowChange(w.key)}
-                  className={`rounded-full px-2.5 py-1 text-xs transition ${
-                    active
-                      ? "bg-zinc-800 text-white"
-                      : "text-zinc-500 hover:text-zinc-300"
-                  }`}
-                >
-                  {w.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
     </section>
   );

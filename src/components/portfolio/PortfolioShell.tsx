@@ -4,10 +4,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   PortfolioConfig,
   PortfolioHolding,
-  PositionReturnWindow,
+  PortfolioTimeframe,
   QuoteResult,
 } from "@/lib/portfolioTypes";
 import { DEFAULT_PORTFOLIO, HOLDING_COLORS } from "@/lib/portfolioTypes";
+import {
+  DEFAULT_CHART_TIMEFRAME,
+  readStoredChartTimeframe,
+  toHomepageKey,
+  toPortfolioTf,
+  writeStoredChartTimeframe,
+} from "@/lib/chartTimeframes";
 import {
   clearPortfolioStorage,
   exportPortfolioJson,
@@ -40,7 +47,11 @@ export function PortfolioShell({ seed }: Props) {
   const [quotesError, setQuotesError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [returnWindow, setReturnWindow] = useState<PositionReturnWindow>("ALL");
+  /** Shared Performance / summary / holdings timeframe (localStorage-backed). */
+  const [tf, setTf] = useState<PortfolioTimeframe>(() =>
+    toPortfolioTf(DEFAULT_CHART_TIMEFRAME),
+  );
+  const [tfReady, setTfReady] = useState(false);
   const [periodReturns, setPeriodReturns] = useState<PeriodTickerReturn[] | null>(null);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
@@ -51,6 +62,17 @@ export function PortfolioShell({ seed }: Props) {
     setPortfolio(loadPortfolioFromSources(seed));
     setHydrated(true);
   }, [seed]);
+
+  // Shared chart timeframe (homepage + Performance chips)
+  useEffect(() => {
+    setTf(toPortfolioTf(readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME)));
+    setTfReady(true);
+  }, []);
+
+  const selectTf = useCallback((next: PortfolioTimeframe) => {
+    setTf(next);
+    writeStoredChartTimeframe(toHomepageKey(next));
+  }, []);
 
   // Persist
   useEffect(() => {
@@ -121,7 +143,7 @@ export function PortfolioShell({ seed }: Props) {
   }, [hydrated, fetchQuotes]);
 
   const fetchPeriodReturns = useCallback(async () => {
-    if (returnWindow === "ALL") {
+    if (tf === "ALL") {
       setPeriodReturns(null);
       setReturnsError(null);
       setReturnsLoading(false);
@@ -136,7 +158,7 @@ export function PortfolioShell({ seed }: Props) {
     setReturnsLoading(true);
     try {
       const res = await fetch(
-        `/api/portfolio-returns?tf=${encodeURIComponent(returnWindow)}&tickers=${encodeURIComponent(securityTickersKey)}`,
+        `/api/portfolio-returns?tf=${encodeURIComponent(tf)}&tickers=${encodeURIComponent(securityTickersKey)}`,
       );
       const data = (await res.json()) as {
         ok?: boolean;
@@ -156,12 +178,12 @@ export function PortfolioShell({ seed }: Props) {
     } finally {
       setReturnsLoading(false);
     }
-  }, [returnWindow, securityTickersKey]);
+  }, [tf, securityTickersKey]);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !tfReady) return;
     void fetchPeriodReturns();
-  }, [hydrated, fetchPeriodReturns]);
+  }, [hydrated, tfReady, fetchPeriodReturns]);
 
   const { holdings: baseLiveHoldings, summary } = useMemo(
     () => computeLiveHoldings(portfolio, quotes, audPerUsd),
@@ -169,13 +191,13 @@ export function PortfolioShell({ seed }: Props) {
   );
 
   const liveHoldings = useMemo(
-    () => applyPeriodReturns(baseLiveHoldings, periodReturns, returnWindow),
-    [baseLiveHoldings, periodReturns, returnWindow],
+    () => applyPeriodReturns(baseLiveHoldings, periodReturns, tf),
+    [baseLiveHoldings, periodReturns, tf],
   );
 
   const periodSummary = useMemo(
-    () => computePeriodSummary(baseLiveHoldings, periodReturns, returnWindow, summary),
-    [baseLiveHoldings, periodReturns, returnWindow, summary],
+    () => computePeriodSummary(baseLiveHoldings, periodReturns, tf, summary),
+    [baseLiveHoldings, periodReturns, tf, summary],
   );
 
   const editing = useMemo(
@@ -299,8 +321,7 @@ export function PortfolioShell({ seed }: Props) {
         periodGainAud={periodSummary.totalGainAud}
         periodGainPct={periodSummary.totalGainPct}
         periodAvailable={periodSummary.available}
-        returnWindow={returnWindow}
-        onReturnWindowChange={setReturnWindow}
+        returnWindow={tf}
         returnsLoading={returnsLoading}
         quotesLoading={quotesLoading}
         quotesError={quotesError}
@@ -308,12 +329,17 @@ export function PortfolioShell({ seed }: Props) {
         onEditName={openMeta}
         onAdd={openAdd}
       />
-      <PerformanceChart portfolio={portfolio} hasHoldings={hasHoldings} />
+      <PerformanceChart
+        portfolio={portfolio}
+        hasHoldings={hasHoldings}
+        tf={tf}
+        onTfChange={selectTf}
+      />
       <AllocationDonutEmpty holdings={liveHoldings} cashAud={summary.cashAud} />
       <HoldingsListEmpty
         holdings={liveHoldings}
         availableCashAud={portfolio.availableCashAud}
-        returnWindow={returnWindow}
+        returnWindow={tf}
         returnsLoading={returnsLoading}
         highlightId={justAddedId}
         onEdit={openEdit}

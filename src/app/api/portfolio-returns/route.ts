@@ -1,7 +1,7 @@
 /**
  * Period returns for portfolio securities (AUD).
  * Windows: 1D (prior trading-day close), 1W (~7d), 1M (~30d), YTD (UTC 1 January),
- * 1Y (~365d).
+ * 1Y / 3Y / 4Y / 5Y / 10Y / 20Y (calendar lookbacks ~N*365d).
  * All-time (vs cost) is computed client-side — not served here.
  * Educational — NFA.
  */
@@ -15,7 +15,7 @@ export const revalidate = 0;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-type Tf = "1D" | "1W" | "1M" | "YTD" | "1Y";
+type Tf = "1D" | "1W" | "1M" | "YTD" | "1Y" | "3Y" | "4Y" | "5Y" | "10Y" | "20Y";
 type ClosePoint = { t: number; c: number };
 
 type TickerReturn = {
@@ -27,9 +27,31 @@ type TickerReturn = {
   endSec: number | null;
 };
 
+const TF_SET = new Set<Tf>(["1D", "1W", "1M", "YTD", "1Y", "3Y", "4Y", "5Y", "10Y", "20Y"]);
+
 function parseTf(raw: string | null): Tf {
-  if (raw === "1D" || raw === "1W" || raw === "1M" || raw === "YTD" || raw === "1Y") return raw;
-  return "1D";
+  if (raw && TF_SET.has(raw as Tf)) return raw as Tf;
+  return "1Y";
+}
+
+/** Calendar years for multi-year lookbacks (same pattern as 1Y). */
+function multiYearLookback(tf: Tf): number | null {
+  switch (tf) {
+    case "1Y":
+      return 1;
+    case "3Y":
+      return 3;
+    case "4Y":
+      return 4;
+    case "5Y":
+      return 5;
+    case "10Y":
+      return 10;
+    case "20Y":
+      return 20;
+    default:
+      return null;
+  }
 }
 
 function ytdStartSec(nowSec: number): number {
@@ -45,7 +67,12 @@ function windowLookbackSec(tf: Tf, nowSec: number): number {
     // Start at UTC 1 January, with a small buffer for FX conversion.
     return Math.max(14 * 86400, nowSec - ytdStartSec(nowSec) + 14 * 86400);
   }
-  return Math.round(400 * 86400); // 1Y + buffer
+  const years = multiYearLookback(tf);
+  if (years != null) {
+    // N years + ~35d buffer (same pattern as 1Y ≈ 400d)
+    return Math.round((years * 365.25 + 35) * 86400);
+  }
+  return Math.round(400 * 86400);
 }
 
 function targetStartSec(tf: Tf, nowSec: number): number {
@@ -53,6 +80,8 @@ function targetStartSec(tf: Tf, nowSec: number): number {
   if (tf === "1W") return nowSec - 7 * 86400;
   if (tf === "1M") return nowSec - 30 * 86400;
   if (tf === "YTD") return ytdStartSec(nowSec);
+  const years = multiYearLookback(tf);
+  if (years != null) return nowSec - Math.round(years * 365.25 * 86400);
   return nowSec - Math.round(365.25 * 86400);
 }
 
@@ -276,6 +305,11 @@ export async function GET(req: NextRequest) {
       "1M": "~30 calendar days",
       YTD: "calendar year-to-date vs start-of-year AUD price (UTC 1 January)",
       "1Y": "~365 calendar days",
+      "3Y": "~3 × 365 calendar days",
+      "4Y": "~4 × 365 calendar days",
+      "5Y": "~5 × 365 calendar days",
+      "10Y": "~10 × 365 calendar days",
+      "20Y": "~20 × 365 calendar days",
     };
 
     return NextResponse.json({

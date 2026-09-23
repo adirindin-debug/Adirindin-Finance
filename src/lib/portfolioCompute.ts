@@ -263,17 +263,23 @@ export function computePeriodSummary(
 
 export function returnWindowHint(window: PositionReturnWindow): string {
   switch (window) {
-    case "1D":
-      return "daily · vs prior close";
-    case "1W":
-      return "weekly · ~7 days";
     case "1M":
-      return "monthly · ~30 days";
+      return "1M · price change";
     case "YTD":
-      return "YTD · since 1 January";
+      return "YTD · price change";
     case "1Y":
-      return "yearly · ~1 year";
+      return "1Y · price change";
+    case "3Y":
+      return "3Y · price change";
+    case "4Y":
+      return "4Y · price change";
+    case "5Y":
+      return "5Y · price change";
+    case "10Y":
+      return "10Y · price change";
+    case "20Y":
+      return "20Y · price change";
     case "ALL":
-      return "all time · vs cost";
+      return "ALL · vs cost";
   }
 }

@@ -1,7 +1,7 @@
 /**
  * Shared chart timeframe toggles for homepage compare + portfolio performance.
  * Canonical key is lowercase (API / localStorage). Labels are uppercase for UI chips.
- * Position return windows (Daily/Weekly/…) stay in portfolioTypes — do not merge.
+ * Portfolio summary/holdings return window uses the same keys (via PortfolioTimeframe).
  * Educational — NFA.
  */
 

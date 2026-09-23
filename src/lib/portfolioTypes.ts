@@ -77,20 +77,13 @@ export type PortfolioTimeframe = PortfolioChartTimeframe;
 
 /**
  * Shared return window for portfolio summary + per-position gains.
- * ALL = vs cost basis (existing). Other windows = price change over the period.
+ * Same set as Performance chart / homepage compare (see chartTimeframes).
+ * ALL = vs cost basis. Other windows = price change over the period.
  */
-export const POSITION_RETURN_WINDOWS = [
-  { key: "1D", label: "Daily" },
-  { key: "1W", label: "Weekly" },
-  { key: "1M", label: "Monthly" },
-  { key: "YTD", label: "YTD" },
-  { key: "1Y", label: "Yearly" },
-  { key: "ALL", label: "All time" },
-] as const;
-export type PositionReturnWindow = (typeof POSITION_RETURN_WINDOWS)[number]["key"];
+export type PositionReturnWindow = PortfolioTimeframe;
 
 export const POSITION_RETURN_CAPTION =
-  "Daily: vs prior trading-day close · Weekly: ~7 calendar days · Monthly: ~30 days · YTD: calendar year-to-date vs start-of-year AUD price · Yearly: ~365 days · All time: vs cost basis (AUD). Collectables have no market history — shown as — outside All time. NFA.";
+  "1M: ~30 days · YTD: calendar year-to-date vs start-of-year AUD price · 1Y–20Y: calendar lookbacks · ALL: vs cost basis (AUD). Synced with Performance chart. Collectables have no market history — shown as — outside ALL. NFA.";
 
 export const PORTFOLIO_STORAGE_KEY = "adirindin-portfolio-v1";
 

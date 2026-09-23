@@ -13,13 +13,6 @@ import {
   type PortfolioConfig,
   type PortfolioTimeframe,
 } from "@/lib/portfolioTypes";
-import {
-  DEFAULT_CHART_TIMEFRAME,
-  readStoredChartTimeframe,
-  toHomepageKey,
-  toPortfolioTf,
-  writeStoredChartTimeframe,
-} from "@/lib/chartTimeframes";
 
 type PctPoint = { t: number; pct: number };
 
@@ -41,6 +34,9 @@ type ApiPayload = {
 type Props = {
   portfolio: PortfolioConfig;
   hasHoldings: boolean;
+  /** Shared timeframe owned by PortfolioShell (localStorage-backed). */
+  tf: PortfolioTimeframe;
+  onTfChange: (tf: PortfolioTimeframe) => void;
 };
 
 const W = 640;
@@ -94,10 +90,7 @@ function pathFor(
     .join(" ");
 }
 
-export function PerformanceChart({ portfolio, hasHoldings }: Props) {
-  const [tf, setTf] = useState<PortfolioTimeframe>(() =>
-    toPortfolioTf(DEFAULT_CHART_TIMEFRAME),
-  );
+export function PerformanceChart({ portfolio, hasHoldings, tf, onTfChange }: Props) {
   const [series, setSeries] = useState<SeriesPayload[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -106,17 +99,6 @@ export function PerformanceChart({ portfolio, hasHoldings }: Props) {
     t: number;
     values: Array<{ id: string; label: string; color: string; pct: number | null }>;
   } | null>(null);
-
-  // Sync timeframe with homepage compare chart via shared localStorage key.
-  useEffect(() => {
-    const stored = readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME);
-    setTf(toPortfolioTf(stored));
-  }, []);
-
-  const selectTf = useCallback((next: PortfolioTimeframe) => {
-    setTf(next);
-    writeStoredChartTimeframe(toHomepageKey(next));
-  }, []);
 
   const holdingsKey = useMemo(() => {
     return JSON.stringify(
@@ -261,7 +243,7 @@ export function PerformanceChart({ portfolio, hasHoldings }: Props) {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => selectTf(t)}
+                onClick={() => onTfChange(t)}
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   active
                     ? "bg-zinc-800 text-white"
