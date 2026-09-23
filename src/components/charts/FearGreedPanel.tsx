@@ -17,6 +17,8 @@ type Payload = {
   points?: Point[];
   source?: string;
   sourceUrl?: string;
+  /** Optional link to a well-known peer index for comparison (no data republish). */
+  compareUrl?: string;
   error?: string;
   note?: string;
 };
@@ -124,17 +126,21 @@ type FearGreedPanelProps = {
   timeframeAriaLabel?: string;
   defaultSource?: string;
   defaultSourceUrl?: string;
+  defaultCompareUrl?: string;
+  defaultCompareLabel?: string;
 };
 
 export function FearGreedPanel({
   endpoint = "/api/fear-greed",
   title = "Fear & Greed Index",
-  subtitle = "US stock market sentiment from CNN — educational only (NFA).",
+  subtitle = "Independent US stock market sentiment (FearGreedChart.com) — educational only (NFA).",
   chartAriaLabel = "Fear and Greed Index history. Hover for daily values. Drag to zoom.",
   chartTitle = "Fear and Greed Index history",
   timeframeAriaLabel = "Fear and Greed timeframe",
-  defaultSource = "CNN Fear & Greed Index (US stocks)",
-  defaultSourceUrl = "https://www.cnn.com/markets/fear-and-greed",
+  defaultSource = "FearGreedChart.com Fear & Greed Index (US stocks, independent)",
+  defaultSourceUrl = "https://feargreedchart.com/",
+  defaultCompareUrl = "https://www.cnn.com/markets/fear-and-greed",
+  defaultCompareLabel = "View CNN Fear & Greed",
 }: FearGreedPanelProps = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -786,17 +792,30 @@ export function FearGreedPanel({
       <p className="mt-4 text-xs text-muted">
         Source:{" "}
         <a
-          href={
-            data?.sourceUrl ??
-            defaultSourceUrl
-          }
+          href={data?.sourceUrl ?? defaultSourceUrl}
           target="_blank"
           rel="noopener noreferrer"
           className="text-accent hover:underline"
         >
           {data?.source ?? defaultSource}
         </a>
-        . {data?.note ?? "Educational only — NFA."}
+        . Documented public feed with attribution — not affiliated with or
+        endorsed by the source.{" "}
+        {(data?.compareUrl ?? defaultCompareUrl) && defaultCompareLabel ? (
+          <>
+            Compare:{" "}
+            <a
+              href={data?.compareUrl ?? defaultCompareUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent hover:underline"
+            >
+              {defaultCompareLabel}
+            </a>{" "}
+            (link-out only — we do not republish that page&apos;s series).{" "}
+          </>
+        ) : null}
+        {data?.note ?? "Educational only — NFA."}
       </p>
     </section>
   );

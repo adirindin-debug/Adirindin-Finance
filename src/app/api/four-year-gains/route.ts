@@ -99,7 +99,7 @@ const SERIES: SeriesMeta[] = [
   {
     // ACWI: longest Yahoo daily among URTH (2012) / ACWI (2008) / VT (2008, slightly shorter).
     id: "msci",
-    label: "MSCI World",
+    label: "iShares ACWI (MSCI)",
     ticker: "ACWI",
     source: "yahoo",
     yahooSymbol: "ACWI",

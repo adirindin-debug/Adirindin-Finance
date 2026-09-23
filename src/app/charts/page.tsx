@@ -28,12 +28,14 @@ export default function ChartsPage() {
       <div className="mt-8 flex flex-col gap-6">
         <FearGreedPanel
           title="Fear & Greed Index"
-          subtitle="CNN US stock market sentiment — educational only (NFA)."
+          subtitle="Independent US stock market sentiment via FearGreedChart.com — educational only (NFA)."
           chartAriaLabel="Fear and Greed Index history. Hover for daily values. Drag to zoom."
           chartTitle="Fear and Greed Index history"
           timeframeAriaLabel="Fear and Greed timeframe"
-          defaultSource="CNN Fear & Greed Index (US stocks)"
-          defaultSourceUrl="https://www.cnn.com/markets/fear-and-greed"
+          defaultSource="FearGreedChart.com Fear & Greed Index (US stocks, independent)"
+          defaultSourceUrl="https://feargreedchart.com/"
+          defaultCompareUrl="https://www.cnn.com/markets/fear-and-greed"
+          defaultCompareLabel="View CNN Fear & Greed"
         />
         <FearGreedPanel
           endpoint="/api/fear-greed-crypto"
@@ -44,15 +46,21 @@ export default function ChartsPage() {
           timeframeAriaLabel="Crypto Fear and Greed timeframe"
           defaultSource="Alternative.me Crypto Fear & Greed Index"
           defaultSourceUrl="https://alternative.me/crypto/fear-and-greed-index/"
+          defaultCompareUrl=""
+          defaultCompareLabel=""
         />
         <MarketVolumePanel />
         <Btc200wMaPanel />
         <WilshireM2Panel />
       </div>
 
-      <p className="mt-8 text-sm text-muted">
-        Educational content only · not financial advice (NFA) · Adirindin Finance /
-        Anthony.
+      <p className="mt-8 max-w-3xl text-sm leading-relaxed text-muted">
+        Sources on this page: FearGreedChart.com independent stock Fear &amp; Greed
+        (documented public API; CNN link-out for comparison only); Alternative.me Crypto
+        Fear &amp; Greed; CoinGecko global volume (with labelled fallbacks); Coinbase
+        Exchange BTC-USD for the 200-week MA; FRED® / Yahoo Finance (delayed third-party
+        quotes) for Wilshire 5000 ÷ US M2. Each panel carries its own source line.
+        Educational content only · not financial advice (NFA) · Adirindin Finance / Anthony.
       </p>
     </div>
   );

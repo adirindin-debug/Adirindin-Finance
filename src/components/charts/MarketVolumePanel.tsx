@@ -445,7 +445,18 @@ export function MarketVolumePanel() {
         )}
         <p>
           {data?.disclaimer ??
-            `CoinGecko total-market volume as a ${maWindow}-day moving average. Compare on The Block for their spot desk series.`}
+            `CoinGecko total-market volume as a ${maWindow}-day moving average. Compare on The Block for their spot desk series.`}{" "}
+          Prefer{" "}
+          <a
+            href="https://www.coingecko.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-accent hover:underline"
+          >
+            CoinGecko
+          </a>{" "}
+          as the labelled market-volume source when the primary feed is up; The Block
+          link is for comparison only (we do not scrape The Block). Educational only — NFA.
         </p>
       </div>
     </section>

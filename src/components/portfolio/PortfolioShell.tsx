@@ -238,17 +238,26 @@ export function PortfolioShell({ seed }: Props) {
       />
 
       <p className="mt-10 text-center text-[11px] leading-relaxed text-zinc-600">
-        NFA: Educational tracker only · Not financial advice. Quotes delayed · AUD via Yahoo.
-        <br />
+        NFA: Educational tracker only · not financial advice · not an AFSL product. Security quotes
+        and AUD FX via Yahoo Finance (may be delayed). Spot-crypto logos via{" "}
+        <a
+          href="https://www.coingecko.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-400"
+        >
+          CoinGecko
+        </a>
+        ; equity/ETF logos via{" "}
         <a
           href="https://logo.dev"
           target="_blank"
           rel="noopener"
           className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-400"
         >
-          Logos provided by Logo.dev
-        </a>{" "}
-        · trademarks remain with their owners · unavailable logos use initials.
+          Logo.dev
+        </a>
+        . Trademarks remain with their owners · unavailable logos use initials.
       </p>
 
       <PortfolioEditor

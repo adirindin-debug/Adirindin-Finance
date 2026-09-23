@@ -3,16 +3,24 @@ import Link from "next/link";
 export function Footer() {
   return (
     <footer className="mt-auto border-t border-border bg-charcoal">
-      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2">
+      <div className="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8 text-sm text-muted sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex max-w-xl items-start gap-2">
           <img
             src="https://unavatar.io/twitter/Dirindin533"
             alt=""
             width={28}
             height={28}
-            className="h-7 w-7 rounded-md object-cover ring-1 ring-border"
+            className="mt-0.5 h-7 w-7 shrink-0 rounded-md object-cover ring-1 ring-border"
           />
-          <p>Adirindin Finance — educational content only.</p>
+          <div className="space-y-1.5">
+            <p>Adirindin Finance — educational content only.</p>
+            <p className="text-xs leading-relaxed">
+              Not personal financial advice (NFA). Not a licensed Australian financial services
+              business; nothing here is an AFSL product, recommendation, or solicitation. Index
+              names, logos and trademarks remain with their owners. Chart data is attributed on
+              each panel.
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap gap-3">
           <Link href="/portfolio" className="hover:text-accent">

@@ -511,7 +511,7 @@ export function PortfolioEditor({
             </div>
             <p className="text-[11px] leading-relaxed text-zinc-600">
               Data stays in this browser (localStorage). Securities: cost in AUD or USD (converted
-              live). Collectables: estimated value, no Yahoo ticker. Portfolio displayed in A$.
+              may be delayed). Collectables: estimated value, no Yahoo ticker. Portfolio displayed in A$.
             </p>
           </div>
         )}

@@ -145,6 +145,11 @@ export function MarketStrip() {
       {state.status === "error" && (
         <p className="mt-2 text-xs text-muted">Could not refresh live feed ({state.error}). Halving day count still shown.</p>
       )}
+      <p className="mt-3 text-xs text-muted">
+        Source: Coinbase Exchange BTC-USD (spot ticker and daily candles). Drawdown uses recent
+        daily closes from that feed, not an all-time exchange ATH. Halving date is fixed (19 Apr
+        2024). Educational only — NFA.
+      </p>
     </section>
   );
 }

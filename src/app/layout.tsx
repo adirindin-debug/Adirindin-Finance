@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Adirindin Finance", template: "%s | Adirindin Finance" },
-  description: "Markets research for Australian investors.",
+  description: "Educational markets research desk — cycles, charts and trackers. Not personal financial advice (NFA).",
   icons: { icon: [{ url: "/favicon.svg", type: "image/svg+xml" }] },
 };
 

@@ -428,8 +428,10 @@ export function PriceChart(props: {
         Solid line is a smoothed area-median path (official sale medians),
         scaled through each sale so it does not kink. History before the
         first print follows that median. Dots are the property’s own prints.
-        Overlay: Off, Australia mean (ABS), Melbourne houses, or suburb
-        medians. Not a valuation.
+        Overlay: Off, Australia mean (ABS 6432.0 Total Value of Dwellings,
+        series A83728647F), Melbourne houses (Valuer-General Victoria /
+        Abelson &amp; Joyeux research prints), or suburb medians. Not a
+        valuation · not Cotality HVI · educational only (NFA).
         {noProxy.length
           ? ` No suburb-proxy for ${noProxy.join(", ")}.`
           : ""}

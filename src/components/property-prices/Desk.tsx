@@ -66,9 +66,11 @@ export function PropertyPricesDesk() {
         <p className="mt-8 max-w-3xl text-xs leading-relaxed text-muted">
           Research tool for Adirindin Finance. Estimates are labelled. The
           chart path is a suburb-indexed proxy, not a valuation of the
-          address. Overlay medians are sale medians. Not financial advice.
-          Source pages stay on realestate.com.au / Domain / Valuer-General
-          Victoria — this desk stores dated public prints.{" "}
+          address. Australia overlay: ABS 6432.0 mean dwelling values (via
+          published table prints). Melbourne overlay: Valuer-General Victoria
+          and cited research medians. Not financial advice. Listing mids stay
+          on realestate.com.au / Domain — this desk stores dated public prints
+          you paste; it does not scrape.{" "}
           <a className="text-accent hover:underline" href="/">
             Adirindin Finance
           </a>

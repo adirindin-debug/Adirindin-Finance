@@ -44,8 +44,12 @@ export default function BtcCyclePage() {
         </div>
       </div>
       <BtcCycleFrame />
-      <p className="mt-4 text-xs text-muted">
-        Map retains its own data sources and disclaimers. @Dirindin533 · educational only.
+      <p className="mt-4 max-w-3xl text-xs leading-relaxed text-muted">
+        Sources (inside the map): Bitcoin and MSTR history primarily via Yahoo Finance
+        chart feeds (Stooq fallback); optional last print aligned to TradingView
+        NASDAQ:MSTR for overlay stamp only. Cycle peaks/troughs are desk markers for
+        study, not exchange-certified events. Map retains its own on-chart disclaimers.
+        @Dirindin533 · educational only — NFA.
       </p>
     </div>
   );

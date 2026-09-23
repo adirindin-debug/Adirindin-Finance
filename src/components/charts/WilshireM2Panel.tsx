@@ -460,7 +460,11 @@ export function WilshireM2Panel() {
           </a>{" "}
           (attribution only — we do not scrape their page).
         </p>
-        <p>{data?.note ?? "Educational only — NFA."}</p>
+        <p>
+          Wilshire 5000® and related marks are trademarks of their owners; FRED® is a
+          registered trademark of the Federal Reserve Bank of St. Louis. No endorsement
+          implied. {data?.note ?? "Educational only — NFA."}
+        </p>
       </div>
     </section>
   );

@@ -1,29 +1,31 @@
 /**
- * US stock market Fear & Greed Index — CNN dataviz (server fetch, ~1h cache).
- * Undocumented CNN production.dataviz endpoint; educational only — NFA.
+ * US stock market Fear & Greed Index — FearGreedChart.com public API (~1h cache).
+ * Documented free JSON feed (no key). Independent methodology — not CNN.
+ * Educational only — NFA.
  */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type CnnHistPoint = {
-  x: number;
-  y: number;
-  rating?: string;
-};
-
+type HistRow = { date?: string; score?: number };
 type FngPoint = {
   t: number;
   value: number;
   classification: string;
 };
 
-const CNN_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-const CNN_URL =
-  "https://production.dataviz.cnn.io/index/fearandgreed/graphdata/2021-02-01";
-const SOURCE = "CNN Fear & Greed Index (US stocks)";
-const SOURCE_URL = "https://www.cnn.com/markets/fear-and-greed";
+const HISTORY_URL = "https://feargreedchart.com/api/?action=history";
+const SOURCE = "FearGreedChart.com Fear & Greed Index (US stocks, independent)";
+const SOURCE_URL = "https://feargreedchart.com/";
+const CNN_COMPARE_URL = "https://www.cnn.com/markets/fear-and-greed";
+
+function classificationFromScore(score: number): string {
+  if (score <= 20) return "Extreme Fear";
+  if (score <= 40) return "Fear";
+  if (score <= 60) return "Neutral";
+  if (score <= 80) return "Greed";
+  return "Extreme Greed";
+}
 
 function classificationColor(c: string): string {
   const s = c.toLowerCase();
@@ -34,55 +36,49 @@ function classificationColor(c: string): string {
   return "#94a3b8";
 }
 
-/** Title-case CNN ratings like "extreme fear" → "Extreme Fear". */
-function titleCaseRating(rating: string): string {
-  return rating
-    .trim()
-    .toLowerCase()
-    .split(/\s+/)
-    .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w))
-    .join(" ");
+/** Parse YYYY-MM-DD to unix seconds (UTC noon — stable daily stamp). */
+function dateToUnix(date: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return null;
+  const ms = Date.UTC(y, mo - 1, d, 12, 0, 0);
+  if (!Number.isFinite(ms)) return null;
+  return Math.floor(ms / 1000);
 }
 
 export async function GET() {
   try {
-    const res = await fetch(CNN_URL, {
-      headers: {
-        Accept: "application/json",
-        "User-Agent": CNN_UA,
-        Origin: "https://www.cnn.com",
-        Referer: "https://www.cnn.com/",
-      },
+    const res = await fetch(HISTORY_URL, {
+      headers: { Accept: "application/json" },
       next: { revalidate: 3600 },
     });
     if (!res.ok) {
       return Response.json(
-        { ok: false, error: `CNN Fear & Greed HTTP ${res.status}` },
+        { ok: false, error: `FearGreedChart history HTTP ${res.status}` },
         { status: 502 },
       );
     }
-    const json = (await res.json()) as {
-      fear_and_greed?: {
-        score?: number;
-        rating?: string;
-        timestamp?: string;
-      };
-      fear_and_greed_historical?: {
-        data?: CnnHistPoint[];
-      };
-    };
 
-    const hist = json.fear_and_greed_historical?.data ?? [];
+    const histJson = (await res.json()) as HistRow[];
+    if (!Array.isArray(histJson) || !histJson.length) {
+      return Response.json(
+        { ok: false, error: "No Fear & Greed history" },
+        { status: 502 },
+      );
+    }
+
     const points: FngPoint[] = [];
-    for (const row of hist) {
-      const value = Number(row.y);
-      const ms = Number(row.x);
-      if (!Number.isFinite(value) || !Number.isFinite(ms)) continue;
-      const classification = titleCaseRating(String(row.rating ?? "neutral"));
+    for (const row of histJson) {
+      const value = Number(row.score);
+      const t = typeof row.date === "string" ? dateToUnix(row.date) : null;
+      if (!Number.isFinite(value) || t == null) continue;
       points.push({
-        t: Math.floor(ms / 1000),
+        t,
         value,
-        classification,
+        classification: classificationFromScore(value),
       });
     }
     points.sort((a, b) => a.t - b.t);
@@ -94,26 +90,12 @@ export async function GET() {
       );
     }
 
-    const fg = json.fear_and_greed;
     const latest = points[points.length - 1];
-    const score =
-      fg?.score != null && Number.isFinite(Number(fg.score))
-        ? Number(fg.score)
-        : latest.value;
-    const classification = titleCaseRating(
-      String(fg?.rating ?? latest.classification),
-    );
-    let t = latest.t;
-    if (fg?.timestamp) {
-      const parsed = Date.parse(fg.timestamp);
-      if (Number.isFinite(parsed)) t = Math.floor(parsed / 1000);
-    }
-
     const current = {
-      value: score,
-      classification,
-      color: classificationColor(classification),
-      t,
+      value: latest.value,
+      classification: latest.classification,
+      color: classificationColor(latest.classification),
+      t: latest.t,
     };
 
     return Response.json(
@@ -124,8 +106,10 @@ export async function GET() {
         points,
         source: SOURCE,
         sourceUrl: SOURCE_URL,
+        compareUrl: CNN_COMPARE_URL,
         asOf: new Date().toISOString(),
-        note: "Educational sentiment gauge only — not financial advice (NFA).",
+        note:
+          "Independent FearGreedChart.com public API (documented, no key) — not CNN’s index and not affiliated with CNN. Educational sentiment gauge only — not financial advice (NFA).",
       },
       {
         headers: {
