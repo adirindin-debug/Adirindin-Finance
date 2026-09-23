@@ -29,7 +29,7 @@ type Payload = {
   errors?: string[];
 };
 
-type TfKey = "7D" | "30D" | "90D" | "1Y" | "ALL";
+type TfKey = "7D" | "30D" | "90D" | "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
 
 type HoverState = {
   svgX: number;
@@ -42,6 +42,9 @@ const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
   { key: "30D", label: "30D", days: 30 },
   { key: "90D", label: "90D", days: 90 },
   { key: "1Y", label: "1Y", days: 365 },
+  { key: "3Y", label: "3Y", days: 1095 },
+  { key: "5Y", label: "5Y", days: 1825 },
+  { key: "10Y", label: "10Y", days: 3650 },
   { key: "ALL", label: "ALL", days: null },
 ];
 
@@ -107,7 +110,7 @@ export function MarketVolumePanel() {
     (async () => {
       try {
         // Fetch full history once; window toggles filter client-side (same pattern as FNG).
-        const res = await fetch("/api/market-volume?days=1825");
+        const res = await fetch("/api/market-volume?days=3700");
         const json = (await res.json()) as Payload;
         if (!cancelled) setData(json);
       } catch (e) {

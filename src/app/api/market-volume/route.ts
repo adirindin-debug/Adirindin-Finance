@@ -404,12 +404,12 @@ function withMaSourceLabel(baseSource: string, isProxy: boolean): string {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const daysRaw = Number(searchParams.get("days") ?? "365");
-  // Requested MA series length (client may ask up to ~5y).
+  // Requested MA series length (client may ask up to ~10y).
   const days = Number.isFinite(daysRaw)
-    ? Math.min(Math.max(Math.floor(daysRaw), 7), 1825)
+    ? Math.min(Math.max(Math.floor(daysRaw), 7), 3700)
     : 365;
   // Extra raw days so the first MA point still lands inside the requested window.
-  const rawDays = Math.min(days + (MA_WINDOW - 1), 1831);
+  const rawDays = Math.min(days + (MA_WINDOW - 1), 3706);
 
   const errors: string[] = [];
 
