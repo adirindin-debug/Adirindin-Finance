@@ -1,11 +1,11 @@
 /**
  * Classic “18.6 Year Real Estate Cycle theory” schematic (educational diagram).
  * Jagged phase line with stacked historical/framework years. Next-cycle
- * theory years (≈2037 / 2039 / 2044 / 2048) sit on the classic columns
+ * theory years (≈2032 / 2037 / 2039 / 2044 / 2046 / 2048) sit on the classic columns
  * (future above older) — a reset/wrap onto the same loop, not a linear
  * runway past 2030. Green Live marker is calendar-dated: classic year vertices
  * through end-2030, then wraps to recovery and walks the same geometric loop
- * on next-lap theory years (2037 / 2039 / 2044 / 2048), parking at the low
+ * on next-lap theory years (2032 / 2037 / 2039 / 2044 / 2046 / 2048), parking at the low
  * after end-2048. Outward pulse — not a decorative tour.
  * Active-cycle years render bold yellow (current lap before end-2030; next-lap
  * theory years after). Research only — not prices, not predictive, not for timing.
@@ -28,8 +28,8 @@ type YearStack = {
 const POINTS = [
   { id: "recovery", x: 88, y: 305 },
   /** Nudged right so mid-cycle sits closer to centre of the upswing (labels/stacks follow) */
-  { id: "midPeak", x: 242, y: 182 },
-  { id: "midSlow", x: 320, y: 228 },
+  { id: "midPeak", x: 262, y: 182 },
+  { id: "midSlow", x: 342, y: 228 },
   /** Land boom — still mid-ascent; leave room for a steeper final leg into the peak */
   { id: "landBoom", x: 430, y: 148 },
   /** Major peak — high so the post-2024 land-boom upswing dominates */
@@ -55,7 +55,8 @@ const LAND_ACCEL = { x: 525, y: 128 };
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   recovery: {
-    years: ["2012", "1994", "1975"],
+    /** Next-lap start above classic recovery years */
+    years: ["2032", "2012", "1994", "1975"],
     placement: "above",
   },
   midPeak: {
@@ -84,7 +85,8 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     dyClear: -4,
   },
   downturn: {
-    years: ["2028", "2009", "1991", "1972"],
+    /** Next-lap drawdown year above classic stack */
+    years: ["2046", "2028", "2009", "1991", "1972"],
     placement: "below",
     dx: -4,
   },
@@ -182,7 +184,7 @@ const CURRENT_CYCLE_YEARS = new Set([
 ]);
 
 /** Next-lap theory timing years — bold yellow only after the ~2030 low. */
-const NEXT_CYCLE_YEARS = new Set(["2037", "2039", "2044", "2048"]);
+const NEXT_CYCLE_YEARS = new Set(["2032", "2037", "2039", "2044", "2046", "2048"]);
 
 /** Bold yellow for the active cycle highlight. */
 const ACTIVE_YEAR_FILL = "#ffe14a";
