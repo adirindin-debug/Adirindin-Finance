@@ -317,6 +317,9 @@ function buildBarLayout(series: SeriesPayload[]) {
     color: string;
   }>;
 
+  // Highest → lowest return for the selected window (bar mode only).
+  values.sort((a, b) => b.pct - a.pct);
+
   if (!values.length) return null;
 
   let minPct = Math.min(0, ...values.map((v) => v.pct));
