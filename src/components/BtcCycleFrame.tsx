@@ -8,18 +8,6 @@ type Props = {
 export function BtcCycleFrame({ compact = false }: Props) {
   return (
     <div className={compact ? "space-y-3" : "mt-6 space-y-3"}>
-      <p className="rounded-lg border border-border bg-card px-4 py-3 text-sm text-muted">
-        If the chart is blank,{" "}
-        <a
-          href="/btc-cycle-map.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="font-medium text-accent hover:underline"
-        >
-          open full page
-        </a>
-        .
-      </p>
       <div className="overflow-hidden rounded-xl border border-border bg-black">
         <iframe
           src="/btc-cycle-map.html?embed=1"

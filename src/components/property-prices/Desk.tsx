@@ -38,10 +38,12 @@ export function PropertyPricesDesk() {
               Property prices
             </h1>
             <p className="mt-3 max-w-3xl text-sm text-muted">
-              Dated public marks and suburb-indexed paths for titles on the
-              watchlist. Paste a mid from realestate.com.au or Domain — this
-              desk does not scrape. Educational framing only; not a valuation
-              or personal financial advice (NFA).
+              Australian property pricing estimates only — educational purposes,
+              not for investment decisions or market timing. Figures are
+              estimates based on averages and dated public marks, not exact
+              valuations of any address. Paste a mid from realestate.com.au or
+              Domain — this desk does not scrape. Not personal financial advice
+              (NFA).
             </p>
           </div>
           <DeskFiles />
@@ -64,13 +66,15 @@ export function PropertyPricesDesk() {
           <SnapshotLog />
         </div>
         <p className="mt-8 max-w-3xl text-xs leading-relaxed text-muted">
-          Research tool for Adirindin Finance. Estimates are labelled. The
-          chart path is a suburb-indexed proxy, not a valuation of the
-          address. Australia overlay: ABS 6432.0 mean dwelling values (via
-          published table prints). Melbourne overlay: Valuer-General Victoria
-          and cited research medians. Not financial advice. Listing mids stay
-          on realestate.com.au / Domain — this desk stores dated public prints
-          you paste; it does not scrape.{" "}
+          Research tool for Adirindin Finance — Australian property pricing
+          estimates only. For educational purposes; not for investment or
+          market timing. Data is estimate-based on averages and labelled
+          public marks, not exact. The chart path is a suburb-indexed proxy,
+          not a valuation of the address. Australia overlay: ABS 6432.0 mean
+          dwelling values (via published table prints). Melbourne overlay:
+          Valuer-General Victoria and cited research medians. Not financial
+          advice (NFA). Listing mids stay on realestate.com.au / Domain — this
+          desk stores dated public prints you paste; it does not scrape.{" "}
           <a className="text-accent hover:underline" href="/">
             Adirindin Finance
           </a>

@@ -63,9 +63,9 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     years: ["2026", "2007", "1989"],
     emphasize: ["2026"],
     placement: "above",
-    /** Sit to the right of the peak so Land Boom label stays clear */
-    dx: 30,
-    dyClear: 10,
+    /** Far right of the peak tip so NOW badge never covers the year stack */
+    dx: 52,
+    dyClear: 18,
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
@@ -308,7 +308,7 @@ export default function RealEstateCycleChart() {
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        Schematic · ~18 / 18.6y framing · stacked years = classic series · not a forecast · NFA
+        {`As of ${nowLabel} · schematic · ~18 / 18.6y framing · stacked years = classic series · not a forecast · NFA`}
       </text>
 
       {/* Shift chart geometry down into the padded canvas; title stays in the top band */}
@@ -403,13 +403,14 @@ export default function RealEstateCycleChart() {
         </text>
       </g>
 
-      {/* NOW marker — schematic date placement on classic 2024→2026 land-boom leg */}
-      <g aria-label={`NOW marker around ${nowLabel} on the classic timeline`}>
+      {/* NOW marker — kept clear of peak year stack; as-of date is live */}
+      <g aria-label={`NOW marker as of ${nowLabel} on the classic timeline`}>
+        {/* Leader up-left so badge sits off the peak stack and off the line */}
         <line
           x1={nowPos.x}
-          y1={nowPos.y - 52}
-          x2={nowPos.x}
-          y2={nowPos.y - 10}
+          y1={nowPos.y - 8}
+          x2={nowPos.x - 36}
+          y2={nowPos.y - 48}
           stroke="#5ec8ff"
           strokeWidth="1.5"
           strokeDasharray="3 3"
@@ -424,8 +425,8 @@ export default function RealEstateCycleChart() {
         />
         <circle cx={nowPos.x} cy={nowPos.y} r="2.25" fill="#5ec8ff" />
         <rect
-          x={nowPos.x - 28}
-          y={nowPos.y - 72}
+          x={nowPos.x - 64}
+          y={nowPos.y - 66}
           width="56"
           height="18"
           rx="4"
@@ -434,8 +435,8 @@ export default function RealEstateCycleChart() {
           strokeWidth="1"
         />
         <text
-          x={nowPos.x}
-          y={nowPos.y - 59}
+          x={nowPos.x - 36}
+          y={nowPos.y - 53}
           textAnchor="middle"
           fill="#5ec8ff"
           fontSize="11"
@@ -444,15 +445,27 @@ export default function RealEstateCycleChart() {
         >
           NOW
         </text>
+        {/* Date caption below the line with clearance — not on the stroke */}
         <text
-          x={nowPos.x}
-          y={nowPos.y + 22}
+          x={nowPos.x - 36}
+          y={nowPos.y + 28}
           textAnchor="middle"
-          fill="#8b9bb4"
-          fontSize="9"
+          fill="#9eb0c8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          {`As of ${nowLabel}`}
+        </text>
+        <text
+          x={nowPos.x - 36}
+          y={nowPos.y + 40}
+          textAnchor="middle"
+          fill="#6b7a90"
+          fontSize="8"
           fontFamily="system-ui, sans-serif"
         >
-          {nowLabel} · schematic
+          live placement · schematic framework
         </text>
       </g>
 
@@ -534,7 +547,7 @@ export default function RealEstateCycleChart() {
         fontFamily="system-ui, sans-serif"
       >
         Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions.
-        NOW is schematic placement on that timeline, not a forecast.
+        NOW is live as-of placement on that schematic timeline, not a forecast.
       </text>
       </g>
     </svg>

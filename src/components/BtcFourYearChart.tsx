@@ -9,10 +9,10 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
-  CHART_TIMEFRAMES,
   DEFAULT_CHART_TIMEFRAME,
+  HOMEPAGE_CHART_TIMEFRAMES,
   chartTimeframeLongLabel,
-  readStoredChartTimeframe,
+  readStoredHomepageChartTimeframe,
   writeStoredChartTimeframe,
   type ChartTimeframeKey,
 } from "@/lib/chartTimeframes";
@@ -420,7 +420,7 @@ export function BtcFourYearChart() {
 
   // Sync timeframe with portfolio chart via shared localStorage key.
   useEffect(() => {
-    const stored = readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME);
+    const stored = readStoredHomepageChartTimeframe(DEFAULT_CHART_TIMEFRAME);
     setWindowKey(stored);
   }, []);
 
@@ -626,7 +626,7 @@ export function BtcFourYearChart() {
             role="group"
             aria-label="Timeframe"
           >
-            {CHART_TIMEFRAMES.map((w) => (
+            {HOMEPAGE_CHART_TIMEFRAMES.map((w) => (
               <button
                 key={w.key}
                 type="button"

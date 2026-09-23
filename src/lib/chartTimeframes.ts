@@ -72,6 +72,14 @@ export const PORTFOLIO_CHART_TIMEFRAMES = [
 
 export type PortfolioChartTimeframe = (typeof PORTFOLIO_CHART_TIMEFRAMES)[number];
 
+/** Homepage compare chips — omit 1d/1w (macro relative returns; short windows don't fit). */
+export const HOMEPAGE_CHART_TIMEFRAMES: readonly ChartTimeframeDef[] = CHART_TIMEFRAMES.filter(
+  (t) => t.key !== "1d" && t.key !== "1w",
+);
+
+export const HOMEPAGE_CHART_TIMEFRAME_KEYS = HOMEPAGE_CHART_TIMEFRAMES.map((t) => t.key);
+
+
 export function isChartTimeframeKey(raw: string | null | undefined): raw is ChartTimeframeKey {
   return typeof raw === "string" && KEY_SET.has(raw.toLowerCase());
 }
@@ -122,6 +130,33 @@ export function writeStoredChartTimeframe(key: ChartTimeframeKey): void {
     // ignore quota / private mode
   }
 }
+
+const HOMEPAGE_KEY_SET = new Set<string>(HOMEPAGE_CHART_TIMEFRAME_KEYS);
+
+/** Parse for homepage: 1d/1w (or other non-homepage keys) fall back to 1y. */
+export function parseHomepageChartTimeframe(
+  raw: string | null | undefined,
+  fallback: ChartTimeframeKey = DEFAULT_CHART_TIMEFRAME,
+): ChartTimeframeKey {
+  const parsed = parseChartTimeframe(raw, fallback);
+  if (HOMEPAGE_KEY_SET.has(parsed)) return parsed;
+  return fallback;
+}
+
+export function readStoredHomepageChartTimeframe(
+  fallback: ChartTimeframeKey = DEFAULT_CHART_TIMEFRAME,
+): ChartTimeframeKey {
+  if (typeof window === "undefined") return fallback;
+  try {
+    return parseHomepageChartTimeframe(
+      window.localStorage.getItem(CHART_TIMEFRAME_STORAGE_KEY),
+      fallback,
+    );
+  } catch {
+    return fallback;
+  }
+}
+
 
 /** Human label for copy (e.g. "1-year", "year-to-date"). */
 export function chartTimeframeLongLabel(key: ChartTimeframeKey): string {

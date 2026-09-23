@@ -4,7 +4,7 @@ import { PropertyPricesDesk } from "@/components/property-prices/Desk";
 export const metadata: Metadata = {
   title: "Property prices",
   description:
-    "Dated public marks and suburb-indexed paths for titles on the watchlist. Educational only; not a valuation or personal financial advice.",
+    "Australian property pricing estimates only. Educational purposes — estimates based on averages, not exact valuations. Not for investment or market timing. Not personal financial advice.",
 };
 
 export default function PropertyPricesPage() {
