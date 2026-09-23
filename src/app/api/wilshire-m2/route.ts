@@ -1,9 +1,14 @@
 /**
  * Wilshire 5000 / US M2 ratio from public FRED (CSV; optional FRED_API_KEY).
  * Wilshire fallback: Yahoo Finance ^W5000 when FRED series blocked.
+ * M2 fallback: GitHub Neo-Solon / eco3min mirrors, then bundled CSV
+ * (same pattern as four-year-gains) when live FRED is unreachable.
  * Concept similar to MacroMicro Wilshire/M2 — we do not scrape MacroMicro.
  * Educational only — NFA.
  */
+
+import { readFileSync } from "fs";
+import { join } from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +16,16 @@ export const dynamic = "force-dynamic";
 type Obs = { t: number; v: number }; // unix sec, value
 type RatioPoint = { t: number; ratio: number; wilshire: number; m2: number };
 
+/** Soft network budget — fail through to mirrors/bundled before Vercel kills the request. */
+const FRED_TIMEOUT_MS = 20_000;
+const MIRROR_TIMEOUT_MS = 15_000;
+
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+function softTimeout(ms: number): AbortSignal {
+  return AbortSignal.timeout(ms);
+}
 
 function parseFredCsv(text: string, seriesId: string): Obs[] {
   const lines = text.trim().split(/\r?\n/);
@@ -29,7 +42,7 @@ function parseFredCsv(text: string, seriesId: string): Obs[] {
     const [dateStr, valStr] = line.split(",");
     if (!dateStr || valStr == null || valStr === "." || valStr === "") continue;
     const v = Number(valStr);
-    if (!Number.isFinite(v)) continue;
+    if (!Number.isFinite(v) || v <= 0) continue;
     const t = Date.parse(`${dateStr.trim()}T00:00:00Z`);
     if (!Number.isFinite(t)) continue;
     out.push({ t: Math.floor(t / 1000), v });
@@ -40,12 +53,40 @@ function parseFredCsv(text: string, seriesId: string): Obs[] {
   return out;
 }
 
+function parseEco3minM2Csv(text: string): Obs[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headerCols = lines[0].split(",").map((c) => c.trim().toLowerCase());
+  const dateIdx = headerCols.indexOf("date");
+  const m2Idx =
+    headerCols.indexOf("m2_billions") >= 0
+      ? headerCols.indexOf("m2_billions")
+      : headerCols.indexOf("m2sl");
+  if (dateIdx < 0 || m2Idx < 0) {
+    throw new Error("eco3min M2 CSV: missing date/m2_billions");
+  }
+  const out: Obs[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const dateStr = cols[dateIdx]?.trim();
+    const valStr = cols[m2Idx]?.trim();
+    if (!dateStr || !valStr || valStr === ".") continue;
+    const v = Number(valStr);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const t = Date.parse(`${dateStr}T00:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    out.push({ t: Math.floor(t / 1000), v });
+  }
+  if (!out.length) throw new Error("eco3min M2 CSV: empty");
+  return out;
+}
+
 async function fetchFredCsv(seriesId: string): Promise<Obs[]> {
   const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(seriesId)}`;
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "text/csv,text/plain,*/*" },
     next: { revalidate: 21600 },
-    signal: AbortSignal.timeout(20000),
+    signal: softTimeout(FRED_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`FRED CSV ${seriesId}: HTTP ${res.status}`);
   const text = await res.text();
@@ -63,7 +104,7 @@ async function fetchFredApi(seriesId: string, apiKey: string): Promise<Obs[]> {
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": UA },
     next: { revalidate: 21600 },
-    signal: AbortSignal.timeout(20000),
+    signal: softTimeout(FRED_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`FRED API ${seriesId}: HTTP ${res.status}`);
   const json = (await res.json()) as {
@@ -73,7 +114,7 @@ async function fetchFredApi(seriesId: string, apiKey: string): Promise<Obs[]> {
   for (const o of json.observations ?? []) {
     if (o.value === "." || o.value === "") continue;
     const v = Number(o.value);
-    if (!Number.isFinite(v)) continue;
+    if (!Number.isFinite(v) || v <= 0) continue;
     const t = Date.parse(`${o.date}T00:00:00Z`);
     if (!Number.isFinite(t)) continue;
     out.push({ t: Math.floor(t / 1000), v });
@@ -82,7 +123,131 @@ async function fetchFredApi(seriesId: string, apiKey: string): Promise<Obs[]> {
   return out;
 }
 
-async function fetchSeries(seriesId: string, apiKey: string | undefined): Promise<Obs[]> {
+async function fetchTextMirror(url: string, label: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Accept: "text/csv,text/plain,*/*" },
+    next: { revalidate: 21600 },
+    signal: softTimeout(MIRROR_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`${label}: HTTP ${res.status}`);
+  const text = await res.text();
+  if (
+    text.trimStart().startsWith("<!DOCTYPE") ||
+    text.trimStart().startsWith("<html")
+  ) {
+    throw new Error(`${label}: HTML challenge page`);
+  }
+  return text;
+}
+
+async function fetchM2LiveMirror(): Promise<{ obs: Obs[]; origin: string }> {
+  try {
+    const text = await fetchTextMirror(
+      "https://eco3min.fr/dataset/us-m2-money-supply.csv",
+      "eco3min M2",
+    );
+    return {
+      obs: parseEco3minM2Csv(text),
+      origin: "mirror:eco3min.us-m2-money-supply",
+    };
+  } catch {
+    const text = await fetchTextMirror(
+      "https://raw.githubusercontent.com/Neo-Solon/economic_data/main/M2SL.csv",
+      "Neo-Solon M2SL",
+    );
+    return {
+      obs: parseFredCsv(text, "M2SL"),
+      origin: "mirror:Neo-Solon/economic_data M2SL",
+    };
+  }
+}
+
+function loadBundledFredFallback(seriesId: string): {
+  obs: Obs[];
+  origin: string;
+} {
+  const filePath = join(
+    process.cwd(),
+    "src/data/fred-fallback",
+    `${seriesId}.csv`,
+  );
+  let text: string;
+  try {
+    text = readFileSync(filePath, "utf8");
+  } catch {
+    throw new Error(`bundled fallback missing: ${seriesId}.csv`);
+  }
+  const obs = parseFredCsv(text, seriesId);
+  const last = obs[obs.length - 1]!;
+  const asOf = new Date(last.t * 1000).toISOString().slice(0, 7);
+  return {
+    obs,
+    origin: `bundled-fallback ${seriesId} through ${asOf}`,
+  };
+}
+
+type SeriesLoad = { obs: Obs[]; origin: string; usedFallback: boolean };
+
+/**
+ * M2SL: FRED API (if key) → FRED CSV → eco3min / Neo-Solon mirrors → bundled CSV.
+ */
+async function fetchM2(apiKey: string | undefined): Promise<SeriesLoad> {
+  const errors: string[] = [];
+
+  if (apiKey) {
+    try {
+      const obs = await fetchFredApi("M2SL", apiKey);
+      return {
+        obs,
+        origin: "FRED API M2SL (monthly, SA, billions USD)",
+        usedFallback: false,
+      };
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : "api failed");
+    }
+  }
+
+  try {
+    const obs = await fetchFredCsv("M2SL");
+    return {
+      obs,
+      origin: "FRED CSV M2SL (monthly, SA, billions USD)",
+      usedFallback: false,
+    };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "csv failed");
+  }
+
+  try {
+    const { obs, origin } = await fetchM2LiveMirror();
+    return {
+      obs,
+      origin: `${origin} (monthly, SA, billions USD)`,
+      usedFallback: true,
+    };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "mirror failed");
+  }
+
+  try {
+    const { obs, origin } = loadBundledFredFallback("M2SL");
+    return {
+      obs,
+      origin: `${origin} (monthly, SA, billions USD)`,
+      usedFallback: true,
+    };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "bundled failed");
+  }
+
+  throw new Error(errors.join("; ") || "M2SL failed");
+}
+
+/** Wilshire on FRED only (no bundled series) — Yahoo is the dedicated fallback. */
+async function fetchFredWilshire(
+  seriesId: string,
+  apiKey: string | undefined,
+): Promise<Obs[]> {
   const errors: string[] = [];
   if (apiKey) {
     try {
@@ -108,7 +273,7 @@ async function fetchYahooWilshireMonthly(): Promise<Obs[]> {
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "application/json" },
     next: { revalidate: 21600 },
-    signal: AbortSignal.timeout(20000),
+    signal: softTimeout(FRED_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Yahoo ^W5000: HTTP ${res.status}`);
   const json = (await res.json()) as {
@@ -126,7 +291,11 @@ async function fetchYahooWilshireMonthly(): Promise<Obs[]> {
   for (let i = 0; i < ts.length; i++) {
     const c = closes[i];
     if (c == null || !Number.isFinite(c) || c <= 0) continue;
-    out.push({ t: ts[i], v: c });
+    // Normalise to UTC month-start so ymKey matches FRED M2 (YYYY-MM-01).
+    // Yahoo monthly bars can sit on the 1st in US time and shift UTC day.
+    const d = new Date(ts[i] * 1000);
+    const monthStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000;
+    out.push({ t: monthStart, v: c });
   }
   if (out.length < 12) throw new Error("Yahoo ^W5000: insufficient history");
   return out;
@@ -179,17 +348,16 @@ export async function GET() {
   let m2Source = "";
 
   try {
-    m2 = await fetchSeries("M2SL", apiKey);
-    m2Source = apiKey
-      ? "FRED API M2SL (monthly, SA, billions USD)"
-      : "FRED CSV M2SL (monthly, SA, billions USD)";
+    const loaded = await fetchM2(apiKey);
+    m2 = loaded.obs;
+    m2Source = loaded.origin;
   } catch (e) {
     errors.push(e instanceof Error ? e.message : "M2SL failed");
   }
 
   for (const id of ["WILL5000PR", "WILL5000IND"] as const) {
     try {
-      wilshire = await fetchSeries(id, apiKey);
+      wilshire = await fetchFredWilshire(id, apiKey);
       wilshireSource = apiKey
         ? `FRED API ${id}`
         : `FRED CSV ${id}`;
@@ -225,7 +393,10 @@ export async function GET() {
       {
         ok: false,
         error: "Insufficient overlapping Wilshire/M2 months",
-        errors,
+        errors: [
+          ...errors,
+          `overlap=${ratio.length} wilshireMonths=${new Set(wilshire.map((o) => ymKey(o.t))).size} m2Months=${m2.length}`,
+        ],
       },
       { status: 502 },
     );

@@ -14,6 +14,7 @@ type Payload = {
   macroMicroUrl?: string;
   note?: string;
   error?: string;
+  errors?: string[];
 };
 
 const W = 720;
@@ -114,9 +115,16 @@ export function WilshireM2Panel() {
           <p className="py-16 text-center text-sm text-muted">Loading Wilshire / M2…</p>
         )}
         {!loading && data && !data.ok && (
-          <p className="py-12 text-center text-sm text-red-400">
-            {data.error ?? "Could not load Wilshire/M2"}
-          </p>
+          <div className="py-12 text-center text-sm text-red-400">
+            <p>{data.error ?? "Could not load Wilshire/M2"}</p>
+            {data.errors && data.errors.length > 0 && (
+              <ul className="mx-auto mt-3 max-w-lg list-disc space-y-1 px-6 text-left text-xs text-muted">
+                {data.errors.map((err) => (
+                  <li key={err}>{err}</li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
         {!loading && chart && (
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[320px]" role="img">
