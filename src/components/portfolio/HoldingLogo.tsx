@@ -64,7 +64,7 @@ export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
         role="img"
         aria-label={`${desc.label ?? ticker} logo`}
       >
-        {/* The browser only sees our local proxy URL; the Logo.dev token stays server-side. */}
+        {/* Browser loads Logo.dev directly with the publishable (pk_) token. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={desc.src}

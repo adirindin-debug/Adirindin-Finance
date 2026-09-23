@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 const TICKER_PATTERN = /^[A-Z0-9.-]+$/;
 const CACHE_CONTROL = "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800";
+const NO_STORE = "no-store";
 
 function errorResponse(status: number): NextResponse {
   return new NextResponse(null, {
     status,
-    headers: { "Cache-Control": CACHE_CONTROL },
+    headers: { "Cache-Control": NO_STORE },
   });
 }
 

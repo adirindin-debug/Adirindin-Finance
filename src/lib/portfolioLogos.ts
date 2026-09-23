@@ -3,6 +3,8 @@
  * their local glyphs; unavailable logos fall back to ticker initials.
  */
 
+import { LOGO_DEV_PUBLISHABLE_KEY } from "@/lib/logoDevToken";
+
 export type LogoKind = "logo-dev" | "bitcoin" | "collectable" | "initials";
 
 export type LogoDescriptor = {
@@ -34,9 +36,9 @@ function initialsFor(input: { kind: string; ticker: string; name?: string }): st
   );
 }
 
-/** Logo.dev's token stays server-side behind the local proxy route. */
+/** Browser-safe Logo.dev URL using the publishable (pk_) token. */
 function logoDevTickerUrl(ticker: string): string {
-  return `/api/holding-logo?ticker=${encodeURIComponent(ticker)}`;
+  return `https://img.logo.dev/ticker/${encodeURIComponent(ticker)}?token=${LOGO_DEV_PUBLISHABLE_KEY}&format=png&size=80&fallback=404`;
 }
 
 export function resolveHoldingLogo(input: {

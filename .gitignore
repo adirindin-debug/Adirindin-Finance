@@ -29,3 +29,4 @@ rebuild_enrich.js
 vercel-deploy-payload.json
 
 *.tsbuildinfo
+.logo_dev_key_once
