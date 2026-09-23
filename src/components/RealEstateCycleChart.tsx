@@ -21,8 +21,8 @@ type YearStack = {
 
 /**
  * Vertex coordinates for the jagged educational cycle line (not price data).
- * Classic silhouette: modest first half → land boom → steepening final leg into a
- * high major peak → clear proportional drawdown → lift into next recovery.
+ * Classic silhouette: modest first half → land-boom ascent → steepening final leg into a
+ * high major peak (Land Boom callouts in the winner’s-curse crest zone) → drawdown → recovery.
  */
 const POINTS = [
   { id: "recovery", x: 88, y: 305 },
@@ -55,37 +55,38 @@ const THEORY_OVERLAY: {
     year: "2037",
     caption: "Theory mid",
     placement: "below",
-    dx: -62,
-    dy: 18,
+    dx: -86,
+    dy: 32,
   },
   {
     id: "midSlow",
     year: "2039",
     caption: "Theory dip",
     placement: "below",
-    dx: 52,
-    dy: 6,
+    dx: 74,
+    dy: 26,
   },
   {
     id: "peak",
     year: "2044",
     caption: "Theory top",
+    /** Park far right of crest — clear of Live, peak years, Land Boom callouts */
     placement: "above",
-    dx: 58,
-    dy: -4,
+    dx: 132,
+    dy: 14,
   },
   {
     id: "next",
     year: "2048",
     caption: "Theory low",
     placement: "below",
-    dx: 48,
-    dy: 4,
+    dx: 62,
+    dy: 18,
   },
 ];
 
 /**
- * Geometry-only inflection after the 2024 Land Boom marker: hold a modest rise,
+ * Geometry-only inflection after the 2024 land-boom vertex: hold a modest rise,
  * then a clearly steeper final upswing into the 2026 major peak — matching the
  * classic diagram silhouette without adding a labeled vertex.
  */
@@ -99,24 +100,28 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   midPeak: {
     years: ["2019", "2000", "1981"],
     placement: "above",
-    dx: -6,
-    dyClear: 4,
+    dx: -10,
+    dyClear: 8,
   },
   midSlow: {
     years: ["2022", "2002", "1982"],
     placement: "below",
+    dx: -8,
+    dyClear: 4,
   },
   landBoom: {
     years: ["2024"],
     placement: "above",
+    dx: -10,
+    dyClear: 6,
   },
   peak: {
     years: ["2026", "2007", "1989"],
     emphasize: ["2026"],
     placement: "above",
-    /** Slight right offset so peak stack clears the tip */
-    dx: 28,
-    dyClear: 14,
+    /** Right + up so stack clears crest, Live badge, Land Boom callouts */
+    dx: 40,
+    dyClear: 20,
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
@@ -342,7 +347,7 @@ function TheoryOverlayLabel({
   const yearY = placement === "above" ? baseY - 18 : baseY + 22;
   const capY = placement === "above" ? baseY - 30 : baseY + 34;
   return (
-    <g opacity="0.92">
+    <g opacity="0.78">
       {Math.abs(dx) >= 14 && (
         <line
           x1={x}
@@ -352,14 +357,15 @@ function TheoryOverlayLabel({
           stroke="#5a6a80"
           strokeWidth="1"
           strokeDasharray="2 3"
+          opacity="0.65"
         />
       )}
       <text
         x={cx}
         y={capY}
         textAnchor="middle"
-        fill="#7a8aa0"
-        fontSize="8"
+        fill="#6b7a90"
+        fontSize="7"
         fontFamily="system-ui, sans-serif"
         fontWeight="600"
       >
@@ -369,10 +375,10 @@ function TheoryOverlayLabel({
         x={cx}
         y={yearY}
         textAnchor="middle"
-        fill="#a8b8cc"
-        fontSize="11"
+        fill="#8fa0b8"
+        fontSize="10"
         fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight="700"
+        fontWeight="600"
       >
         {year}
       </text>
@@ -380,12 +386,12 @@ function TheoryOverlayLabel({
       <circle
         cx={x}
         cy={y}
-        r="9"
+        r="8"
         fill="none"
         stroke="#8fa0b8"
-        strokeWidth="1.25"
+        strokeWidth="1"
         strokeDasharray="3 3"
-        opacity="0.7"
+        opacity="0.45"
       />
     </g>
   );
@@ -441,21 +447,20 @@ export default function RealEstateCycleChart() {
   const recovery = POINTS[0];
   const midPeak = POINTS[1];
   const midSlow = POINTS[2];
-  const landBoom = POINTS[3];
   const peak = POINTS[4];
   const downturn = POINTS[5];
   const next = POINTS[6];
 
   /** Extra top band so title/subtitle sit clear of the high peak */
-  const TOP_PAD = 52;
+  const TOP_PAD = 70;
   /** Extra bottom band for theory disclaimer */
   const BOTTOM_PAD = 36;
   const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
 
   const live = livePositionFromNow();
-  /** Label below-right of dot so peak year stack (above) stays clear */
-  const liveLabelDx = 10;
-  const liveLabelDy = 14;
+  /** Below-left of dot — crest has peak years (above-right) + Land Boom callouts */
+  const liveLabelDx = -42;
+  const liveLabelDy = 20;
 
   return (
     <svg
@@ -592,7 +597,7 @@ export default function RealEstateCycleChart() {
           opacity="0.45"
         />
 
-        {/* Vertex dots (land boom uses gold marker instead) */}
+        {/* Vertex dots — no land-boom marker (geometry vertex stays unlabeled) */}
         {POINTS.filter((p) => p.id !== "landBoom").map((p) => (
           <circle
             key={p.id}
@@ -605,47 +610,13 @@ export default function RealEstateCycleChart() {
           />
         ))}
 
-        {/* Land Boom gold marker — label left of marker so peak stack stays clear */}
-        <g>
-          <circle
-            cx={landBoom.x}
-            cy={landBoom.y}
-            r="9"
-            fill="#d4a017"
-            stroke="#f5d56a"
-            strokeWidth="2"
-          />
-          <circle cx={landBoom.x} cy={landBoom.y} r="3.5" fill="#0a0a0a" />
-          <text
-            x={landBoom.x - 16}
-            y={landBoom.y - 18}
-            textAnchor="end"
-            fill="#d4a017"
-            fontSize="12"
-            fontFamily="system-ui, sans-serif"
-            fontWeight="700"
-          >
-            Land Boom
-          </text>
-          <text
-            x={landBoom.x - 16}
-            y={landBoom.y - 4}
-            textAnchor="end"
-            fill="#f0d78c"
-            fontSize="11"
-            fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-            fontWeight="700"
-          >
-            2024
-          </text>
-        </g>
-
-        {/* Year stacks (land boom year rendered with marker) */}
+        {/* Year stacks (2024 sits at land-boom geometry; wording moved to peak) */}
         {(
           [
             "recovery",
             "midPeak",
             "midSlow",
+            "landBoom",
             "peak",
             "downturn",
             "next",
@@ -656,6 +627,30 @@ export default function RealEstateCycleChart() {
             <YearColumn key={id} x={pt.x} pointY={pt.y} stack={YEAR_STACKS[id]} />
           );
         })}
+
+        {/* Land Boom — classic winner’s-curse zone at peak crest (both shoulders) */}
+        <text
+          x={peak.x - 72}
+          y={peak.y + 12}
+          textAnchor="end"
+          fill="#d4a017"
+          fontSize="11"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="700"
+        >
+          Land Boom
+        </text>
+        <text
+          x={peak.x + 48}
+          y={peak.y + 44}
+          textAnchor="start"
+          fill="#d4a017"
+          fontSize="11"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="700"
+        >
+          Land Boom
+        </text>
 
         {/* Next-lap theory waypoints — same loop verts, muted / dashed */}
         {THEORY_OVERLAY.map((t) => {
@@ -676,8 +671,8 @@ export default function RealEstateCycleChart() {
 
         {/* Mid-cycle peak caption — left of vertex so year stack stays clear */}
         <text
-          x={midPeak.x - 52}
-          y={midPeak.y + 4}
+          x={midPeak.x - 58}
+          y={midPeak.y - 10}
           textAnchor="end"
           fill="#8b9bb4"
           fontSize="9"

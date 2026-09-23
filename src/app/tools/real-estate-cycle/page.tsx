@@ -35,7 +35,7 @@ const PHASES = [
     width: "23%",
     color: "#d4a017",
     summary:
-      "Sharp land-driven acceleration after the mid-cycle dip — speculation, FOMO, and stretched valuations. The gold marker on the chart (~2024 in the current framework series) sits on that ascending leg before the major peak.",
+      "Sharp land-driven acceleration after the mid-cycle dip — speculation, FOMO, and stretched valuations. On the chart, Land Boom callouts sit in the classic winner’s-curse zone near the major peak crest; ~2024 marks the ascending-leg framework year.",
   },
   {
     name: "Downturn",
@@ -130,7 +130,7 @@ export default function RealEstateCyclePage() {
               not to be relied on for market timing
             </strong>
             , and is for <strong className="font-medium text-[#d0d8e4]">research / educational purposes only</strong>.
-            The green Live dot traces the loop for illustration only. Not financial advice (NFA).
+            The green Live marker is calendar-dated on the classic path (not a decorative tour). Not financial advice (NFA).
           </p>
         </aside>
       </div>
