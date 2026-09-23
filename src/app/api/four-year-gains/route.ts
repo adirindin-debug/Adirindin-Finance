@@ -23,9 +23,16 @@
  * Bonds intentionally omitted pending Anthony's pick (Agg TR / long Treasury / yields / skip).
  */
 
+import { readFileSync } from "fs";
+import { join } from "path";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+/** Soft network budget — Vercel hobby often kills ~10–15s; give FRED more room then fall back. */
+const FRED_TIMEOUT_MS = 50_000;
+const MIRROR_TIMEOUT_MS = 20_000;
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -244,12 +251,16 @@ function parseFredCsv(text: string, seriesId: string): FredObs[] {
   return out;
 }
 
+function softTimeout(ms: number): AbortSignal {
+  return AbortSignal.timeout(ms);
+}
+
 async function fetchFredCsv(seriesId: string): Promise<FredObs[]> {
   const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(seriesId)}`;
   const res = await fetch(url, {
     headers: { "User-Agent": UA, Accept: "text/csv,text/plain,*/*" },
     next: { revalidate: 21600 },
-    signal: AbortSignal.timeout(20000),
+    signal: softTimeout(FRED_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`FRED CSV ${seriesId}: HTTP ${res.status}`);
   const text = await res.text();
@@ -273,7 +284,7 @@ async function fetchFredApi(
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": UA },
     next: { revalidate: 21600 },
-    signal: AbortSignal.timeout(20000),
+    signal: softTimeout(FRED_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`FRED API ${seriesId}: HTTP ${res.status}`);
   const json = (await res.json()) as {
@@ -292,26 +303,249 @@ async function fetchFredApi(
   return out;
 }
 
-async function fetchFredSeries(seriesId: string): Promise<ClosePoint[]> {
+/** YYYY-Qn → quarter-start YYYY-MM-01 (Q1=01, Q2=04, Q3=07, Q4=10). */
+function bisQuarterToDate(period: string): string | null {
+  const m = period.trim().match(/^(\d{4})-Q([1-4])$/i);
+  if (!m) return null;
+  const month = ({ "1": "01", "2": "04", "3": "07", "4": "10" } as const)[
+    m[2] as "1" | "2" | "3" | "4"
+  ];
+  return `${m[1]}-${month}-01`;
+}
+
+function parseBisSppCsv(text: string): FredObs[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headerCols = lines[0].split(",").map((c) => c.trim().toUpperCase());
+  const tpIdx = headerCols.indexOf("TIME_PERIOD");
+  const obsIdx = headerCols.indexOf("OBS_VALUE");
+  if (tpIdx < 0 || obsIdx < 0) {
+    throw new Error("BIS CSV: missing TIME_PERIOD/OBS_VALUE columns");
+  }
+  const out: FredObs[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const period = cols[tpIdx]?.trim();
+    const valStr = cols[obsIdx]?.trim();
+    if (!period || !valStr || valStr === ".") continue;
+    const dateStr = bisQuarterToDate(period);
+    if (!dateStr) continue;
+    const v = Number(valStr);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const t = Date.parse(`${dateStr}T00:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    out.push({ t: Math.floor(t / 1000), v });
+  }
+  if (!out.length) throw new Error("BIS CSV: no numeric observations");
+  return out;
+}
+
+function parseHousePricesUsCsv(text: string): FredObs[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headerCols = lines[0].split(",").map((c) => c.trim());
+  const dateIdx = headerCols.findIndex((c) => c.toLowerCase() === "date");
+  const saIdx = headerCols.findIndex(
+    (c) => c.toLowerCase() === "national-us-sa",
+  );
+  if (dateIdx < 0 || saIdx < 0) {
+    throw new Error("house-prices-us CSV: missing Date/National-US-SA");
+  }
+  const out: FredObs[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const dateStr = cols[dateIdx]?.trim();
+    const valStr = cols[saIdx]?.trim();
+    if (!dateStr || !valStr || valStr === ".") continue;
+    const v = Number(valStr);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const t = Date.parse(`${dateStr}T00:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    out.push({ t: Math.floor(t / 1000), v });
+  }
+  if (!out.length) throw new Error("house-prices-us CSV: empty");
+  return out;
+}
+
+function parseEco3minM2Csv(text: string): FredObs[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const headerCols = lines[0].split(",").map((c) => c.trim().toLowerCase());
+  const dateIdx = headerCols.indexOf("date");
+  const m2Idx =
+    headerCols.indexOf("m2_billions") >= 0
+      ? headerCols.indexOf("m2_billions")
+      : headerCols.indexOf("m2sl");
+  if (dateIdx < 0 || m2Idx < 0) {
+    throw new Error("eco3min M2 CSV: missing date/m2_billions");
+  }
+  const out: FredObs[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(",");
+    const dateStr = cols[dateIdx]?.trim();
+    const valStr = cols[m2Idx]?.trim();
+    if (!dateStr || !valStr || valStr === ".") continue;
+    const v = Number(valStr);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const t = Date.parse(`${dateStr}T00:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    out.push({ t: Math.floor(t / 1000), v });
+  }
+  if (!out.length) throw new Error("eco3min M2 CSV: empty");
+  return out;
+}
+
+async function fetchTextMirror(
+  url: string,
+  label: string,
+): Promise<string> {
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Accept: "text/csv,text/plain,*/*" },
+    next: { revalidate: 21600 },
+    signal: softTimeout(MIRROR_TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`${label}: HTTP ${res.status}`);
+  const text = await res.text();
+  if (
+    text.trimStart().startsWith("<!DOCTYPE") ||
+    text.trimStart().startsWith("<html")
+  ) {
+    throw new Error(`${label}: HTML challenge page`);
+  }
+  return text;
+}
+
+async function fetchLiveMirror(seriesId: string): Promise<{
+  obs: FredObs[];
+  origin: string;
+}> {
+  if (seriesId === "CSUSHPISA") {
+    const text = await fetchTextMirror(
+      "https://raw.githubusercontent.com/datasets/house-prices-us/main/data/national-month.csv",
+      "house-prices-us",
+    );
+    return {
+      obs: parseHousePricesUsCsv(text),
+      origin: "mirror:datasets/house-prices-us National-US-SA",
+    };
+  }
+  if (seriesId === "QAUN628BIS") {
+    const text = await fetchTextMirror(
+      "https://stats.bis.org/api/v2/data/dataflow/BIS/WS_SPP/1.0/Q.AU.N.628?format=csvfile",
+      "BIS WS_SPP Q.AU.N.628",
+    );
+    return {
+      obs: parseBisSppCsv(text),
+      origin: "mirror:BIS WS_SPP Q.AU.N.628",
+    };
+  }
+  if (seriesId === "M2SL") {
+    try {
+      const text = await fetchTextMirror(
+        "https://eco3min.fr/dataset/us-m2-money-supply.csv",
+        "eco3min M2",
+      );
+      return {
+        obs: parseEco3minM2Csv(text),
+        origin: "mirror:eco3min.us-m2-money-supply",
+      };
+    } catch {
+      const text = await fetchTextMirror(
+        "https://raw.githubusercontent.com/Neo-Solon/economic_data/main/M2SL.csv",
+        "Neo-Solon M2SL",
+      );
+      return {
+        obs: parseFredCsv(text, seriesId),
+        origin: "mirror:Neo-Solon/economic_data M2SL",
+      };
+    }
+  }
+  throw new Error(`No live mirror for ${seriesId}`);
+}
+
+function loadBundledFredFallback(seriesId: string): {
+  obs: FredObs[];
+  origin: string;
+} {
+  const filePath = join(
+    process.cwd(),
+    "src/data/fred-fallback",
+    `${seriesId}.csv`,
+  );
+  let text: string;
+  try {
+    text = readFileSync(filePath, "utf8");
+  } catch {
+    throw new Error(`bundled fallback missing: ${seriesId}.csv`);
+  }
+  const obs = parseFredCsv(text, seriesId);
+  const last = obs[obs.length - 1]!;
+  const asOf = new Date(last.t * 1000).toISOString().slice(0, 7);
+  return {
+    obs,
+    origin: `bundled-fallback ${seriesId} through ${asOf}`,
+  };
+}
+
+type FredLoadResult = {
+  closes: ClosePoint[];
+  /** Provenance for response source / coverage notes. */
+  origin: string;
+  /** True when not live FRED API/CSV (mirror or on-disk bundle). */
+  usedFallback: boolean;
+};
+
+async function fetchFredSeries(seriesId: string): Promise<FredLoadResult> {
   const apiKey = process.env.FRED_API_KEY?.trim() || undefined;
   const errors: string[] = [];
-  let obs: FredObs[] | null = null;
+
   if (apiKey) {
     try {
-      obs = await fetchFredApi(seriesId, apiKey);
+      const obs = await fetchFredApi(seriesId, apiKey);
+      return {
+        closes: obs.map((o) => ({ t: o.t, c: o.v })),
+        origin: "fred-api",
+        usedFallback: false,
+      };
     } catch (e) {
       errors.push(e instanceof Error ? e.message : "api failed");
     }
   }
-  if (!obs) {
-    try {
-      obs = await fetchFredCsv(seriesId);
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : "csv failed");
-      throw new Error(errors.join("; ") || `FRED ${seriesId} failed`);
-    }
+
+  try {
+    const obs = await fetchFredCsv(seriesId);
+    return {
+      closes: obs.map((o) => ({ t: o.t, c: o.v })),
+      origin: "fred-csv",
+      usedFallback: false,
+    };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "csv failed");
   }
-  return obs.map((o) => ({ t: o.t, c: o.v }));
+
+  try {
+    const { obs, origin } = await fetchLiveMirror(seriesId);
+    return {
+      closes: obs.map((o) => ({ t: o.t, c: o.v })),
+      origin,
+      usedFallback: true,
+    };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "mirror failed");
+  }
+
+  try {
+    const { obs, origin } = loadBundledFredFallback(seriesId);
+    return {
+      closes: obs.map((o) => ({ t: o.t, c: o.v })),
+      origin,
+      usedFallback: true,
+    };
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : "bundled failed");
+  }
+
+  throw new Error(errors.join("; ") || `FRED ${seriesId} failed`);
 }
 
 /**
@@ -427,17 +661,28 @@ function windowMeta(key: WindowKey) {
   };
 }
 
-async function loadSeriesCloses(
-  meta: SeriesMeta,
-): Promise<ClosePoint[]> {
+type LoadedSeries = {
+  closes: ClosePoint[];
+  origin: string;
+  usedFallback: boolean;
+};
+
+async function loadSeriesCloses(meta: SeriesMeta): Promise<LoadedSeries> {
   if (meta.source === "yahoo") {
     if (!meta.yahooSymbol) throw new Error(`${meta.id}: missing yahooSymbol`);
-    return fetchYahooDaily(meta.yahooSymbol);
+    const closes = await fetchYahooDaily(meta.yahooSymbol);
+    return { closes, origin: "yahoo", usedFallback: false };
   }
   if (!meta.fredId) throw new Error(`${meta.id}: missing fredId`);
-  const sparse = await fetchFredSeries(meta.fredId);
+  const { closes: sparse, origin, usedFallback } = await fetchFredSeries(
+    meta.fredId,
+  );
   // Monthly/quarterly → daily step so the shared axis can plot them.
-  return expandSparseToDaily(sparse);
+  return {
+    closes: expandSparseToDaily(sparse),
+    origin,
+    usedFallback,
+  };
 }
 
 export async function GET(request: Request) {
@@ -447,11 +692,16 @@ export async function GET(request: Request) {
 
   const errors: Record<string, string> = {};
   const closesById: Partial<Record<SeriesId, ClosePoint[]>> = {};
+  const originById: Partial<Record<SeriesId, string>> = {};
+  const fallbackById: Partial<Record<SeriesId, boolean>> = {};
 
   await Promise.all(
     SERIES.map(async (sMeta) => {
       try {
-        closesById[sMeta.id] = await loadSeriesCloses(sMeta);
+        const loaded = await loadSeriesCloses(sMeta);
+        closesById[sMeta.id] = loaded.closes;
+        originById[sMeta.id] = loaded.origin;
+        fallbackById[sMeta.id] = loaded.usedFallback;
       } catch (e) {
         errors[sMeta.id] = e instanceof Error ? e.message : "fetch failed";
       }
@@ -499,7 +749,8 @@ export async function GET(request: Request) {
     latestPct: number | null;
     startDate?: string;
     coverage: "full" | "partial";
-    source: "yahoo" | "fred";
+    /** yahoo | fred, or fred with mirror/bundled note when live FRED timed out. */
+    source: string;
     frequency: "daily" | "monthly" | "quarterly";
   }> = [];
 
@@ -525,9 +776,19 @@ export async function GET(request: Request) {
       seriesStarts[sMeta.id] = startDate;
 
       // Honest coverage: partial if the series has no observation at/before window
-      // start (shorter history than the shared domain). Coarser FRED cadences are
+      // start (shorter history than the shared domain), OR when serving
+      // mirror/bundled FRED data (may lag live FRED). Coarser FRED cadences are
       // still "full" when they span the window — the step fill is documented in footer.
-      const coverage: "full" | "partial" = usedFallbackBase ? "partial" : "full";
+      const usedDataFallback = Boolean(fallbackById[sMeta.id]);
+      const coverage: "full" | "partial" =
+        usedFallbackBase || usedDataFallback ? "partial" : "full";
+      const origin = originById[sMeta.id] ?? sMeta.source;
+      const sourceLabel =
+        sMeta.source === "yahoo"
+          ? "yahoo"
+          : usedDataFallback
+            ? `fred (${origin})`
+            : "fred";
 
       series.push({
         id: sMeta.id,
@@ -537,7 +798,7 @@ export async function GET(request: Request) {
         latestPct,
         coverage,
         startDate,
-        source: sMeta.source,
+        source: sourceLabel,
         frequency: sMeta.frequency,
       });
     } catch (e) {
@@ -579,7 +840,8 @@ export async function GET(request: Request) {
       seriesStarts: Object.keys(seriesStarts).length ? seriesStarts : undefined,
       availableWindows: ["1y", "3y", "4y", "5y", "10y", "all"],
       source:
-        "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL)",
+        "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL); mirrors/bundled CSV if FRED times out",
+      seriesOrigins: Object.keys(originById).length ? originById : undefined,
       tickers: SERIES.map((s) => ({
         id: s.id,
         ticker: s.ticker,

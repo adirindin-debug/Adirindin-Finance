@@ -23,7 +23,7 @@ type SeriesPayload = {
   latestPct: number | null;
   startDate?: string;
   coverage?: "full" | "partial";
-  source?: "yahoo" | "fred";
+  source?: string;
   frequency?: "daily" | "monthly" | "quarterly";
 };
 
