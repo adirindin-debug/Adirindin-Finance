@@ -37,7 +37,7 @@ type Props = {
   /** Shared timeframe owned by PortfolioShell (localStorage-backed). When vs-cost is on, parent forces 1Y. */
   tf: PortfolioTimeframe;
   onTfChange: (tf: PortfolioTimeframe) => void;
-  /** Pin summary/holdings to ALL vs cost; chart stays on this component's tf (1Y). */
+  /** Pin summary/holdings to cost basis; chart stays on this component's tf (1Y). */
   returnsVsCost?: boolean;
   onReturnsVsCostChange?: (on: boolean) => void;
   /** When true, chips show tf selected but other chips are disabled. */

@@ -78,12 +78,13 @@ export type PortfolioTimeframe = PortfolioChartTimeframe;
 /**
  * Shared return window for portfolio summary + per-position gains.
  * Same set as Performance chart / homepage compare (see chartTimeframes).
- * ALL = vs cost basis. Other windows = price change over the period.
+ * ALL = asset all-time market return (earliest available daily close → latest).
+ * Personal vs-cost gains use the separate Vs cost toggle (not this chip alone).
  */
 export type PositionReturnWindow = PortfolioTimeframe;
 
 export const POSITION_RETURN_CAPTION =
-  "1D: vs prior trading-day close · 1W: ~7 calendar days · 1M: ~30 days · YTD: calendar year-to-date vs start-of-year AUD price · 1Y–20Y: calendar lookbacks · ALL: vs cost basis (AUD). Synced with Performance chart. Collectables have no market history — shown as — outside ALL. NFA.";
+  "1D: vs prior trading-day close · 1W: ~7 calendar days · 1M: ~30 days · YTD: calendar year-to-date vs start-of-year AUD price · 1Y–20Y: calendar lookbacks · ALL: asset all-time (earliest available daily close → latest, AUD). Vs cost toggle: personal cost-basis gains. Synced with Performance chart. Collectables have no market history — shown as — on market windows (including ALL); cost gains only when Vs cost is on. NFA.";
 
 export const PORTFOLIO_STORAGE_KEY = "adirindin-portfolio-v1";
 

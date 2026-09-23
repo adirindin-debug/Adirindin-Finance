@@ -199,16 +199,16 @@ export type PeriodTickerReturn = {
 };
 
 /**
- * Overlay period price returns onto live holdings.
- * ALL → keep cost-basis gains. Other windows → AUD P&L from start→end unit price × qty.
+ * Overlay period price returns onto live holdings (including ALL = asset all-time).
+ * Cost-basis mode is handled by the caller (skip overlay when Vs cost is on).
  * Collectables / missing history → gainAud/gainPct null (UI shows —).
  */
 export function applyPeriodReturns(
   holdings: HoldingLive[],
   periodReturns: PeriodTickerReturn[] | null,
-  window: PositionReturnWindow,
+  _window: PositionReturnWindow,
 ): HoldingLive[] {
-  if (window === "ALL" || !periodReturns) return holdings;
+  if (!periodReturns) return holdings;
   const map = new Map(
     periodReturns.map((r) => [r.ticker.toUpperCase(), r]),
   );
@@ -243,22 +243,17 @@ export type PeriodSummary = {
 };
 
 /**
- * Portfolio-level period P&L from current quantities × start/end AUD unit prices.
+ * Portfolio-level period P&L from current quantities × start/end AUD unit prices
+ * (including ALL = asset all-time). Cost-basis summary is supplied by the caller
+ * when Vs cost is on — do not branch on window === "ALL" here.
  * Cash and collectables are flat (0 contribution). Missing history skipped.
  */
 export function computePeriodSummary(
   holdings: HoldingLive[],
   periodReturns: PeriodTickerReturn[] | null,
-  window: PositionReturnWindow,
-  costSummary: PortfolioLiveSummary,
+  _window: PositionReturnWindow,
+  _costSummary: PortfolioLiveSummary,
 ): PeriodSummary {
-  if (window === "ALL") {
-    return {
-      totalGainAud: costSummary.totalGainAud,
-      totalGainPct: costSummary.totalGainPct,
-      available: costSummary.totalGainPct != null,
-    };
-  }
   if (!periodReturns) {
     return { totalGainAud: null, totalGainPct: null, available: false };
   }
@@ -314,6 +309,11 @@ export function returnWindowHint(window: PositionReturnWindow): string {
     case "20Y":
       return "20Y · price change";
     case "ALL":
-      return "ALL · vs cost";
+      return "ALL · asset price";
   }
+}
+
+/** Hint when the Vs cost toggle is on (personal cost-basis gains). */
+export function returnWindowHintVsCost(): string {
+  return "ALL · vs cost";
 }

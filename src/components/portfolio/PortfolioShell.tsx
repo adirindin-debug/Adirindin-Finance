@@ -57,7 +57,7 @@ export function PortfolioShell({ seed }: Props) {
     toPortfolioTf(DEFAULT_CHART_TIMEFRAME),
   );
   const [tfReady, setTfReady] = useState(false);
-  /** Pin summary/holdings to ALL vs cost; lock Performance chart to 1Y. Portfolio-only. */
+  /** Pin summary/holdings to cost basis; lock Performance chart to 1Y. Portfolio-only. */
   const [returnsVsCost, setReturnsVsCost] = useState(true);
   /** Display-only AUD|USD toggle (bookkeeping stays AUD). */
   const [displayCurrency, setDisplayCurrency] = useState<PortfolioDisplayCurrency>("AUD");
@@ -97,8 +97,8 @@ export function PortfolioShell({ seed }: Props) {
 
   /** Chart timeframe: locked to 1Y while vs-cost is on. */
   const chartTf: PortfolioTimeframe = returnsVsCost ? "1Y" : tf;
-  /** Summary + holdings: ALL vs cost while toggle on; else shared chip. */
-  const returnsTf: PortfolioTimeframe = returnsVsCost ? "ALL" : tf;
+  /** Summary + holdings market window: follow chip (including ALL). Vs cost skips fetch. */
+  const returnsTf: PortfolioTimeframe = tf;
 
   // Persist
   useEffect(() => {
@@ -173,7 +173,8 @@ export function PortfolioShell({ seed }: Props) {
   }, [hydrated, fetchQuotes]);
 
   const fetchPeriodReturns = useCallback(async () => {
-    if (returnsTf === "ALL") {
+    // Vs cost: personal cost-basis gains already on live holdings — skip API.
+    if (returnsVsCost) {
       setPeriodReturns(null);
       setReturnsError(null);
       setReturnsLoading(false);
@@ -208,7 +209,7 @@ export function PortfolioShell({ seed }: Props) {
     } finally {
       setReturnsLoading(false);
     }
-  }, [returnsTf, securityTickersKey]);
+  }, [returnsVsCost, returnsTf, securityTickersKey]);
 
   useEffect(() => {
     if (!hydrated || !tfReady) return;
@@ -220,15 +221,21 @@ export function PortfolioShell({ seed }: Props) {
     [portfolio, quotes, audPerUsd],
   );
 
-  const liveHoldings = useMemo(
-    () => applyPeriodReturns(baseLiveHoldings, periodReturns, returnsTf),
-    [baseLiveHoldings, periodReturns, returnsTf],
-  );
+  const liveHoldings = useMemo(() => {
+    if (returnsVsCost) return baseLiveHoldings; // cost gains already present
+    return applyPeriodReturns(baseLiveHoldings, periodReturns, returnsTf);
+  }, [returnsVsCost, baseLiveHoldings, periodReturns, returnsTf]);
 
-  const periodSummary = useMemo(
-    () => computePeriodSummary(baseLiveHoldings, periodReturns, returnsTf, summary),
-    [baseLiveHoldings, periodReturns, returnsTf, summary],
-  );
+  const periodSummary = useMemo(() => {
+    if (returnsVsCost) {
+      return {
+        totalGainAud: summary.totalGainAud,
+        totalGainPct: summary.totalGainPct,
+        available: summary.totalGainPct != null,
+      };
+    }
+    return computePeriodSummary(baseLiveHoldings, periodReturns, returnsTf, summary);
+  }, [returnsVsCost, baseLiveHoldings, periodReturns, returnsTf, summary]);
 
   const editing = useMemo(
     () => (editingId ? portfolio.holdings.find((h) => h.id === editingId) ?? null : null),
@@ -359,6 +366,7 @@ export function PortfolioShell({ seed }: Props) {
         periodGainPct={periodSummary.totalGainPct}
         periodAvailable={periodSummary.available}
         returnWindow={returnsTf}
+        useCostBasis={returnsVsCost}
         returnsLoading={returnsLoading}
         quotesLoading={quotesLoading}
         quotesError={quotesError}
@@ -390,6 +398,7 @@ export function PortfolioShell({ seed }: Props) {
         holdings={liveHoldings}
         availableCashAud={portfolio.availableCashAud}
         returnWindow={returnsTf}
+        useCostBasis={returnsVsCost}
         returnsLoading={returnsLoading}
         highlightId={justAddedId}
         displayCurrency={effectiveDisplay}

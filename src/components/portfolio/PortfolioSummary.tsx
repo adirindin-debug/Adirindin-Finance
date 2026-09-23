@@ -10,6 +10,7 @@ import {
   formatGain,
   formatMoney,
   returnWindowHint,
+  returnWindowHintVsCost,
 } from "@/lib/portfolioCompute";
 
 type Props = {
@@ -22,6 +23,8 @@ type Props = {
   periodAvailable: boolean;
   /** Shared with Performance chart chips (drives gain line hint). */
   returnWindow: PositionReturnWindow;
+  /** When true, show personal cost-basis gains (Vs cost toggle). */
+  useCostBasis: boolean;
   returnsLoading: boolean;
   quotesLoading: boolean;
   quotesError: string | null;
@@ -45,6 +48,7 @@ export function PortfolioSummary({
   periodGainPct,
   periodAvailable,
   returnWindow,
+  useCostBasis,
   returnsLoading,
   quotesLoading,
   quotesError,
@@ -57,12 +61,12 @@ export function PortfolioSummary({
   onEditName,
   onAdd,
 }: Props) {
-  const gainAud = returnWindow === "ALL" ? (summary?.totalGainAud ?? null) : periodGainAud;
-  const gainPct = returnWindow === "ALL" ? (summary?.totalGainPct ?? null) : periodGainPct;
+  const gainAud = useCostBasis ? (summary?.totalGainAud ?? null) : periodGainAud;
+  const gainPct = useCostBasis ? (summary?.totalGainPct ?? null) : periodGainPct;
   const showGain =
     hasHoldings &&
     summary &&
-    (returnWindow === "ALL" ? true : periodAvailable) &&
+    (useCostBasis ? true : periodAvailable) &&
     gainAud != null &&
     gainPct != null;
   const positive = gainAud != null && gainAud >= 0;
@@ -79,10 +83,11 @@ export function PortfolioSummary({
 
   const statusHint = (() => {
     if (quotesLoading) return "updating quotes…";
-    if (returnWindow !== "ALL" && returnsLoading) return "updating returns…";
+    if (!useCostBasis && returnsLoading) return "updating returns…";
     if (quotesError) return "quotes unavailable";
-    if (returnWindow !== "ALL" && returnsError) return "returns unavailable";
+    if (!useCostBasis && returnsError) return "returns unavailable";
     if (!hasHoldings) return "empty";
+    if (useCostBasis) return returnWindowHintVsCost();
     return returnWindowHint(returnWindow);
   })();
 

@@ -1,8 +1,9 @@
 /**
  * Period returns for portfolio securities (AUD).
  * Windows: 1D (prior trading-day close), 1W (~7d), 1M (~30d), YTD (UTC 1 January),
- * 1Y / 3Y / 4Y / 5Y / 10Y / 20Y (calendar lookbacks ~N*365d).
- * All-time (vs cost) is computed client-side — not served here.
+ * 1Y / 3Y / 4Y / 5Y / 10Y / 20Y (calendar lookbacks ~N*365d),
+ * ALL = asset all-time (earliest available daily close → latest).
+ * Personal vs-cost gains remain client-side (Vs cost toggle) — not served here.
  * Educational — NFA.
  */
 
@@ -15,7 +16,7 @@ export const revalidate = 0;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-type Tf = "1D" | "1W" | "1M" | "YTD" | "1Y" | "3Y" | "4Y" | "5Y" | "10Y" | "20Y";
+type Tf = "1D" | "1W" | "1M" | "YTD" | "1Y" | "3Y" | "4Y" | "5Y" | "10Y" | "20Y" | "ALL";
 type ClosePoint = { t: number; c: number };
 
 type TickerReturn = {
@@ -27,7 +28,7 @@ type TickerReturn = {
   endSec: number | null;
 };
 
-const TF_SET = new Set<Tf>(["1D", "1W", "1M", "YTD", "1Y", "3Y", "4Y", "5Y", "10Y", "20Y"]);
+const TF_SET = new Set<Tf>(["1D", "1W", "1M", "YTD", "1Y", "3Y", "4Y", "5Y", "10Y", "20Y", "ALL"]);
 
 function parseTf(raw: string | null): Tf {
   if (raw && TF_SET.has(raw as Tf)) return raw as Tf;
@@ -60,6 +61,7 @@ function ytdStartSec(nowSec: number): number {
 }
 
 function windowLookbackSec(tf: Tf, nowSec: number): number {
+  if (tf === "ALL") return nowSec; // fetchFrom = 0 (same idea as portfolio-history)
   if (tf === "1D") return 14 * 86400; // enough bars to find prior close
   if (tf === "1W") return 21 * 86400;
   if (tf === "1M") return 60 * 86400;
@@ -184,7 +186,10 @@ function computeReturn(
   const end = points[points.length - 1]!;
   let start: ClosePoint | null;
 
-  if (tf === "1D") {
+  if (tf === "ALL") {
+    // Asset all-time: earliest available daily close → latest (no calendar target).
+    start = points[0]!;
+  } else if (tf === "1D") {
     // Prior trading-day close = second-to-last distinct daily bar
     start = points.length >= 2 ? points[points.length - 2]! : null;
     // Guard: if last two stamps are same calendar day (intraday dup), walk back
@@ -259,7 +264,7 @@ export async function GET(req: NextRequest) {
   }
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const fetchFrom = Math.max(0, nowSec - windowLookbackSec(tf, nowSec));
+  const fetchFrom = tf === "ALL" ? 0 : Math.max(0, nowSec - windowLookbackSec(tf, nowSec));
 
   try {
     const errors: Record<string, string> = {};
@@ -310,6 +315,7 @@ export async function GET(req: NextRequest) {
       "5Y": "~5 × 365 calendar days",
       "10Y": "~10 × 365 calendar days",
       "20Y": "~20 × 365 calendar days",
+      ALL: "earliest available daily close → latest (asset all-time)",
     };
 
     return NextResponse.json({

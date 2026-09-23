@@ -11,6 +11,7 @@ import {
   formatMoney,
   formatPrice,
   returnWindowHint,
+  returnWindowHintVsCost,
 } from "@/lib/portfolioCompute";
 import { HoldingLogo } from "./HoldingLogo";
 
@@ -18,6 +19,8 @@ type Props = {
   holdings: HoldingLive[];
   availableCashAud: number | null;
   returnWindow: PositionReturnWindow;
+  /** When true, show personal cost-basis gains (Vs cost toggle). */
+  useCostBasis: boolean;
   returnsLoading: boolean;
   /** Briefly highlight a newly added holding */
   highlightId?: string | null;
@@ -48,6 +51,7 @@ export function HoldingsListEmpty({
   holdings,
   availableCashAud,
   returnWindow,
+  useCostBasis,
   returnsLoading,
   highlightId = null,
   displayCurrency = "AUD",
@@ -80,9 +84,9 @@ export function HoldingsListEmpty({
           Add
         </button>
         <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs text-zinc-400">
-          {returnsLoading && returnWindow !== "ALL"
+          {!useCostBasis && returnsLoading
             ? "Updating returns…"
-            : `Returns · ${returnWindowHint(returnWindow)}`}
+            : `Returns · ${useCostBasis ? returnWindowHintVsCost() : returnWindowHint(returnWindow)}`}
         </span>
       </div>
 
@@ -122,7 +126,8 @@ export function HoldingsListEmpty({
 
             const gainLabel = (() => {
               if (isCollectable) {
-                if (returnWindow !== "ALL") return "—";
+                // Cost gains only when Vs cost is on; market windows (incl. ALL) have no history.
+                if (!useCostBasis) return "—";
                 if (h.costBasis <= 0) return "est. value";
               }
               const gainDisp = audToDisplay(h.gainAud, displayCurrency, audPerUsd);
