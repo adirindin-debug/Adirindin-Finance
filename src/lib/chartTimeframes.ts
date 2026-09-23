@@ -154,7 +154,7 @@ export function chartTimeframeLongLabel(key: ChartTimeframeKey): string {
 /** Portfolio-only: pin summary/holdings to ALL-time vs cost; lock Performance chart to 1Y. */
 export const PORTFOLIO_RETURNS_VS_COST_KEY = "adirindin.portfolioReturnsVsCost";
 
-export function readStoredReturnsVsCost(fallback = false): boolean {
+export function readStoredReturnsVsCost(fallback = true): boolean {
   if (typeof window === "undefined") return fallback;
   try {
     const raw = window.localStorage.getItem(PORTFOLIO_RETURNS_VS_COST_KEY);

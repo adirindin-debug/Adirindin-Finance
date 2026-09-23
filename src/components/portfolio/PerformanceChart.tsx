@@ -100,7 +100,7 @@ export function PerformanceChart({
   hasHoldings,
   tf,
   onTfChange,
-  returnsVsCost = false,
+  returnsVsCost = true,
   onReturnsVsCostChange,
   chipsLocked = false,
 }: Props) {

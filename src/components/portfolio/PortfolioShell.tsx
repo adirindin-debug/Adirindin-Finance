@@ -58,7 +58,7 @@ export function PortfolioShell({ seed }: Props) {
   );
   const [tfReady, setTfReady] = useState(false);
   /** Pin summary/holdings to ALL vs cost; lock Performance chart to 1Y. Portfolio-only. */
-  const [returnsVsCost, setReturnsVsCost] = useState(false);
+  const [returnsVsCost, setReturnsVsCost] = useState(true);
   /** Display-only AUD|USD toggle (bookkeeping stays AUD). */
   const [displayCurrency, setDisplayCurrency] = useState<PortfolioDisplayCurrency>("AUD");
   const [periodReturns, setPeriodReturns] = useState<PeriodTickerReturn[] | null>(null);
@@ -75,7 +75,7 @@ export function PortfolioShell({ seed }: Props) {
   // Shared chart timeframe (homepage + Performance chips)
   useEffect(() => {
     setTf(toPortfolioTf(readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME)));
-    setReturnsVsCost(readStoredReturnsVsCost(false));
+    setReturnsVsCost(readStoredReturnsVsCost(true));
     setDisplayCurrency(readStoredDisplayCurrency("AUD"));
     setTfReady(true);
   }, []);

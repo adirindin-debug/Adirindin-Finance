@@ -75,9 +75,7 @@ const SERIES_STYLE: Record<
   },
 };
 
-/** Default-on series on first load (others off until toggled). */
-const DEFAULT_SELECTED: SeriesId[] = ["spx", "btc", "case"];
-
+/** Default-on series on first load (all chips on when unset). */
 const ALL_SERIES_IDS: SeriesId[] = [
   "btc",
   "spx",
@@ -88,6 +86,8 @@ const ALL_SERIES_IDS: SeriesId[] = [
   "auhouses",
   "m2",
 ];
+
+const DEFAULT_SELECTED: SeriesId[] = [...ALL_SERIES_IDS];
 
 const W = 920;
 const H = 420;
