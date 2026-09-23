@@ -454,6 +454,17 @@ export default function RealEstateCycleChart() {
   const liveLabelDx = -42;
   const liveLabelDy = 20;
 
+  /** Midpoint of final run-up (LAND_ACCEL → peak) — Winner’s Curse phase aim */
+  const winnersCurseAim = {
+    x: (LAND_ACCEL.x + peak.x) / 2,
+    y: (LAND_ACCEL.y + peak.y) / 2,
+  };
+  /** Callout sits left of that phase; dotted leader aims into the run-up (may pass under Live) */
+  const winnersCurseLabel = {
+    x: winnersCurseAim.x - 92,
+    y: winnersCurseAim.y + 6,
+  };
+
   return (
     <svg
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
@@ -627,11 +638,11 @@ export default function RealEstateCycleChart() {
           );
         })}
 
-        {/* Winner’s Curse — left callout only; dotted leader toward crest / peak */}
+        {/* Winner’s Curse — left callout; dotted leader into mid final run-up (under Live OK) */}
         <g>
           <text
-            x={peak.x - 78}
-            y={peak.y + 18}
+            x={winnersCurseLabel.x}
+            y={winnersCurseLabel.y}
             textAnchor="end"
             fill="#d4a017"
             fontSize="11"
@@ -641,10 +652,10 @@ export default function RealEstateCycleChart() {
             Winner's Curse
           </text>
           <line
-            x1={peak.x - 74}
-            y1={peak.y + 14}
-            x2={peak.x - 10}
-            y2={peak.y + 2}
+            x1={winnersCurseLabel.x + 4}
+            y1={winnersCurseLabel.y - 4}
+            x2={winnersCurseAim.x}
+            y2={winnersCurseAim.y}
             stroke="#d4a017"
             strokeWidth="1.25"
             strokeDasharray="2 3"
