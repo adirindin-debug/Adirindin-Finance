@@ -27,11 +27,8 @@ export function Footer() {
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/portfolio" className="hover:text-accent">
-            Portfolio
-          </Link>
-          <Link href="/property-prices" className="hover:text-accent">
-            Property prices
+          <Link href="/tools" className="hover:text-accent">
+            Tools
           </Link>
           <Link href="/charts" className="hover:text-accent">
             Charts

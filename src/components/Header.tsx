@@ -4,13 +4,21 @@ import { usePathname } from "next/navigation";
 
 const nav = [
   { href: "/", label: "Home" },
-  { href: "/portfolio", label: "Portfolio" },
-  { href: "/property-prices", label: "Property prices" },
+  { href: "/tools", label: "Tools" },
   { href: "/charts", label: "Charts" },
   { href: "/dashboard/btc-cycle", label: "BTC cycle" },
   { href: "/tools/real-estate-cycle", label: "RE cycle" },
   { href: "/contact", label: "Contact" },
 ];
+
+function isCurrent(path: string, href: string): boolean {
+  if (href === "/") return path === "/";
+  // Tools family: hub + portfolio + property prices — not RE cycle (own top tab)
+  if (href === "/tools") {
+    return path === "/tools" || path === "/portfolio" || path === "/property-prices";
+  }
+  return path === href || path.startsWith(`${href}/`);
+}
 
 export function Header() {
   const path = usePathname();
@@ -30,10 +38,7 @@ export function Header() {
         </Link>
         <nav className="flex flex-wrap justify-end gap-1 text-sm">
           {nav.map((n) => {
-            const current =
-              n.href === "/"
-                ? path === "/"
-                : path === n.href || path.startsWith(`${n.href}/`);
+            const current = isCurrent(path, n.href);
             return (
               <Link
                 key={n.href}
