@@ -57,8 +57,8 @@ export default function ChartsPage() {
       <p className="mt-8 max-w-3xl text-sm leading-relaxed text-muted">
         Sources on this page: FearGreedChart.com independent stock Fear &amp; Greed
         (documented public API; CNN link-out for comparison only); Alternative.me Crypto
-        Fear &amp; Greed; CoinGecko global volume (with labelled fallbacks); Coinbase
-        Exchange BTC-USD for the 200-week MA; FRED® / Yahoo Finance (delayed third-party
+        Fear &amp; Greed; CoinGecko global volume (with labelled fallbacks); Yahoo Finance / Coinbase
+        BTC-USD for the 200-week MA; FRED® / Yahoo Finance (delayed third-party
         quotes) for Wilshire 5000 ÷ US M2. Each panel carries its own source line.
         Educational content only · not financial advice (NFA) · Adirindin Finance / Anthony.
       </p>

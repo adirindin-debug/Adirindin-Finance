@@ -44,6 +44,7 @@ export function PortfolioShell({ seed }: Props) {
   const [periodReturns, setPeriodReturns] = useState<PeriodTickerReturn[] | null>(null);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
+  const [justAddedId, setJustAddedId] = useState<string | null>(null);
 
   // Seed from JSON, then overlay localStorage on the client
   useEffect(() => {
@@ -200,12 +201,14 @@ export function PortfolioShell({ seed }: Props) {
   }
 
   function saveHolding(holding: PortfolioHolding) {
+    let addedId: string | null = null;
+
     setPortfolio((prev) => {
       const idx = prev.holdings.findIndex((h) => h.id === holding.id);
       const color =
         holding.color ??
         (idx >= 0
-          ? prev.holdings[idx].color
+          ? prev.holdings[idx]!.color
           : HOLDING_COLORS[prev.holdings.length % HOLDING_COLORS.length]);
       const nextHolding = { ...holding, color };
       if (idx >= 0) {
@@ -223,16 +226,24 @@ export function PortfolioShell({ seed }: Props) {
         );
         if (byTicker >= 0) {
           const holdings = [...prev.holdings];
+          const keptId = holdings[byTicker]!.id;
           holdings[byTicker] = {
             ...nextHolding,
-            id: holdings[byTicker].id,
-            color: holdings[byTicker].color,
+            id: keptId,
+            color: holdings[byTicker]!.color,
           };
+          addedId = keptId;
           return { ...prev, holdings };
         }
       }
+      addedId = nextHolding.id;
       return { ...prev, holdings: [...prev.holdings, nextHolding] };
     });
+
+    if (addedId) {
+      setJustAddedId(addedId);
+      window.setTimeout(() => setJustAddedId(null), 3200);
+    }
   }
 
   function deleteHolding(id: string) {
@@ -304,10 +315,12 @@ export function PortfolioShell({ seed }: Props) {
         availableCashAud={portfolio.availableCashAud}
         returnWindow={returnWindow}
         returnsLoading={returnsLoading}
+        highlightId={justAddedId}
         onEdit={openEdit}
         onAdd={openAdd}
         onEditCash={openMeta}
       />
+
 
       <p className="mt-10 text-center text-[11px] leading-relaxed text-zinc-600">
         NFA: Educational tracker only · not financial advice · not an AFSL product. Security quotes

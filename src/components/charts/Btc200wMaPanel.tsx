@@ -31,13 +31,18 @@ type Payload = {
   maWindowWeeks?: number;
   firstMaDate?: string | null;
   historyStart?: string | null;
+  historyEnd?: string | null;
+  historyYears?: number;
+  maPointCount?: number;
+  weeklyCount?: number;
+  historySource?: string;
   source?: string;
   sourceUrl?: string;
   note?: string;
   error?: string;
 };
 
-type TfKey = "1Y" | "3Y" | "5Y" | "ALL";
+type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
 
 type HoverState = {
   svgX: number;
@@ -50,6 +55,7 @@ const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
   { key: "1Y", label: "1Y", days: 365 },
   { key: "3Y", label: "3Y", days: 365 * 3 },
   { key: "5Y", label: "5Y", days: 365 * 5 },
+  { key: "10Y", label: "10Y", days: 365 * 10 },
   { key: "ALL", label: "ALL", days: null },
 ];
 
@@ -579,6 +585,9 @@ export function Btc200wMaPanel() {
               week
               {data?.firstMaDate
                 ? ` · MA series from ${data.firstMaDate}`
+                : ""}
+              {data?.historyStart && data?.historyYears
+                ? ` · weekly history ~${data.historyYears}y (${data.historyStart}${data.historyEnd ? ` → ${data.historyEnd}` : ""})`
                 : ""}
             </p>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   AssetKind,
   CostCurrency,
@@ -8,6 +8,13 @@ import type {
   PortfolioHolding,
 } from "@/lib/portfolioTypes";
 import { createHoldingId, collectableTickerFromName } from "@/lib/portfolioStorage";
+
+type TickerSuggestion = {
+  symbol: string;
+  name: string;
+  exchange?: string;
+  type?: string;
+};
 
 type Props = {
   portfolio: PortfolioConfig;
@@ -49,7 +56,15 @@ export function PortfolioEditor({
     portfolio.availableCashAud == null ? "" : String(portfolio.availableCashAud),
   );
   const [error, setError] = useState<string | null>(null);
+  const [addedFlash, setAddedFlash] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<TickerSuggestion[]>([]);
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [activeSuggest, setActiveSuggest] = useState(-1);
   const fileRef = useRef<HTMLInputElement>(null);
+  const suggestAbort = useRef<AbortController | null>(null);
+  const skipSearchFor = useRef<string | null>(null);
+  const suggestListId = useId();
 
   useEffect(() => {
     if (!open) return;
@@ -81,7 +96,77 @@ export function PortfolioEditor({
       setAcquiredAt("");
     }
     setError(null);
+    setAddedFlash(null);
+    setSuggestions([]);
+    setSuggestOpen(false);
+    setSuggestLoading(false);
+    setActiveSuggest(-1);
   }, [open, editing, portfolio.name, portfolio.availableCashAud]);
+
+  // Debounced Yahoo ticker / name search for securities
+  useEffect(() => {
+    if (!open || kind !== "security" || editing) {
+      setSuggestions([]);
+      setSuggestOpen(false);
+      return;
+    }
+    const q = ticker.trim();
+    if (q.length < 1) {
+      setSuggestions([]);
+      setSuggestOpen(false);
+      setSuggestLoading(false);
+      return;
+    }
+    if (
+      skipSearchFor.current &&
+      q.toUpperCase() === skipSearchFor.current.toUpperCase()
+    ) {
+      skipSearchFor.current = null;
+      setSuggestions([]);
+      setSuggestOpen(false);
+      setSuggestLoading(false);
+      return;
+    }
+    const handle = window.setTimeout(async () => {
+      suggestAbort.current?.abort();
+      const ac = new AbortController();
+      suggestAbort.current = ac;
+      setSuggestLoading(true);
+      try {
+        const res = await fetch(
+          `/api/ticker-search?q=${encodeURIComponent(q)}`,
+          { signal: ac.signal },
+        );
+        const data = (await res.json()) as {
+          suggestions?: TickerSuggestion[];
+        };
+        if (ac.signal.aborted) return;
+        const list = data.suggestions ?? [];
+        setSuggestions(list);
+        setSuggestOpen(true);
+        setActiveSuggest(list.length ? 0 : -1);
+      } catch (e) {
+        if ((e as Error)?.name === "AbortError") return;
+        setSuggestions([]);
+        setSuggestOpen(false);
+      } finally {
+        if (!ac.signal.aborted) setSuggestLoading(false);
+      }
+    }, 280);
+    return () => {
+      window.clearTimeout(handle);
+      suggestAbort.current?.abort();
+    };
+  }, [ticker, open, kind, editing]);
+
+  const applySuggestion = useCallback((s: TickerSuggestion) => {
+    skipSearchFor.current = s.symbol;
+    setTicker(s.symbol);
+    if (s.name) setName(s.name);
+    setSuggestions([]);
+    setSuggestOpen(false);
+    setActiveSuggest(-1);
+  }, []);
 
   if (!open) return null;
 
@@ -120,6 +205,8 @@ export function PortfolioEditor({
       });
       setError(null);
       if (!editing) {
+        setAddedFlash(`Added ${label}`);
+        window.setTimeout(() => setAddedFlash(null), 2400);
         setName("");
         setEstimatedValue("");
         setCostBasis("");
@@ -160,11 +247,15 @@ export function PortfolioEditor({
     });
     setError(null);
     if (!editing) {
+      setAddedFlash(`Added ${t}`);
+      window.setTimeout(() => setAddedFlash(null), 2400);
       setTicker("");
       setName("");
       setQuantity("");
       setCostBasis("");
       setAcquiredAt("");
+      setSuggestions([]);
+      setSuggestOpen(false);
     } else {
       onClose();
     }
@@ -279,16 +370,111 @@ export function PortfolioEditor({
 
           {kind === "security" ? (
             <>
-              <label className="block text-xs text-zinc-500">
-                Ticker
+              <div className="relative block text-xs text-zinc-500">
+                <label htmlFor="holding-ticker" className="block">
+                  Ticker
+                </label>
                 <input
+                  id="holding-ticker"
                   value={ticker}
-                  onChange={(e) => setTicker(e.target.value)}
+                  onChange={(e) => {
+                    setTicker(e.target.value);
+                    setSuggestOpen(true);
+                  }}
+                  onFocus={() => {
+                    if (suggestions.length) setSuggestOpen(true);
+                  }}
+                  onBlur={() => {
+                    // Delay so click/keyboard select can fire
+                    window.setTimeout(() => setSuggestOpen(false), 150);
+                  }}
+                  onKeyDown={(e) => {
+                    if (!suggestOpen || suggestions.length === 0) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setActiveSuggest((i) =>
+                        i < suggestions.length - 1 ? i + 1 : 0,
+                      );
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setActiveSuggest((i) =>
+                        i <= 0 ? suggestions.length - 1 : i - 1,
+                      );
+                    } else if (e.key === "Enter" && activeSuggest >= 0) {
+                      e.preventDefault();
+                      const s = suggestions[activeSuggest];
+                      if (s) applySuggestion(s);
+                    } else if (e.key === "Escape") {
+                      setSuggestOpen(false);
+                    }
+                  }}
                   placeholder="CBA.AX / MSTR / BTC-USD"
+                  autoComplete="off"
+                  role="combobox"
+                  aria-expanded={suggestOpen && suggestions.length > 0}
+                  aria-controls={suggestListId}
+                  aria-autocomplete="list"
+                  aria-activedescendant={
+                    activeSuggest >= 0
+                      ? `${suggestListId}-opt-${activeSuggest}`
+                      : undefined
+                  }
                   className="mt-1 w-full rounded-lg border border-zinc-800 bg-black px-3 py-2 text-sm uppercase text-white outline-none focus:border-zinc-600"
                   required
                 />
-              </label>
+                {suggestLoading && (
+                  <p className="mt-1 text-[10px] text-zinc-600">Searching…</p>
+                )}
+                {suggestOpen && suggestions.length > 0 && (
+                  <ul
+                    id={suggestListId}
+                    role="listbox"
+                    className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-950 py-1 shadow-xl"
+                  >
+                    {suggestions.map((s, i) => (
+                      <li key={s.symbol} role="presentation">
+                        <button
+                          type="button"
+                          id={`${suggestListId}-opt-${i}`}
+                          role="option"
+                          aria-selected={i === activeSuggest}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => applySuggestion(s)}
+                          onMouseEnter={() => setActiveSuggest(i)}
+                          className={`flex w-full flex-col gap-0.5 px-3 py-2 text-left ${
+                            i === activeSuggest
+                              ? "bg-zinc-800 text-white"
+                              : "text-zinc-300 hover:bg-zinc-900"
+                          }`}
+                        >
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="font-mono text-sm font-semibold uppercase">
+                              {s.symbol}
+                            </span>
+                            {s.exchange && (
+                              <span className="truncate text-[10px] text-zinc-500">
+                                {s.exchange}
+                              </span>
+                            )}
+                          </span>
+                          <span className="truncate text-[11px] text-zinc-500">
+                            {s.name}
+                            {s.type ? ` · ${s.type}` : ""}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {suggestOpen &&
+                  !suggestLoading &&
+                  ticker.trim().length > 0 &&
+                  suggestions.length === 0 && (
+                    <p className="mt-1 text-[10px] text-zinc-600">
+                      No matches — try another ticker or company name
+                    </p>
+                  )}
+              </div>
               <label className="block text-xs text-zinc-500">
                 Name (optional)
                 <input
@@ -444,6 +630,15 @@ export function PortfolioEditor({
           </label>
 
           {error && <p className="text-xs text-rose-400">{error}</p>}
+          {addedFlash && (
+            <p
+              role="status"
+              className="flex items-center gap-2 rounded-lg border border-emerald-800/60 bg-emerald-950/40 px-3 py-2 text-xs font-medium text-emerald-400"
+            >
+              <span aria-hidden className="text-sm">✓</span>
+              {addedFlash}
+            </p>
+          )}
 
           <button
             type="submit"

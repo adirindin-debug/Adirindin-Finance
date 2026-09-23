@@ -13,6 +13,8 @@ type Props = {
   availableCashAud: number | null;
   returnWindow: PositionReturnWindow;
   returnsLoading: boolean;
+  /** Briefly highlight a newly added holding */
+  highlightId?: string | null;
   onEdit: (id: string) => void;
   onAdd: () => void;
   onEditCash: () => void;
@@ -34,6 +36,7 @@ export function HoldingsListEmpty({
   availableCashAud,
   returnWindow,
   returnsLoading,
+  highlightId = null,
   onEdit,
   onAdd,
   onEditCash,
@@ -108,8 +111,17 @@ export function HoldingsListEmpty({
               return formatRowGain(h.gainAud, h.gainPct);
             })();
 
+            const isNew = highlightId === h.id;
+
             return (
-              <li key={h.id}>
+              <li
+                key={h.id}
+                className={
+                  isNew
+                    ? "rounded-lg bg-emerald-950/35 ring-1 ring-emerald-700/50 transition-colors duration-700"
+                    : undefined
+                }
+              >
                 <button
                   type="button"
                   onClick={() => onEdit(h.id)}
@@ -122,7 +134,18 @@ export function HoldingsListEmpty({
                     color={h.color}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-white">{title}</p>
+                    <p className="flex items-center gap-2 font-semibold text-white">
+                      {title}
+                      {isNew && (
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full bg-emerald-900/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-400"
+                          aria-label="Just added"
+                        >
+                          <span aria-hidden>✓</span>
+                          Added
+                        </span>
+                      )}
+                    </p>
                     <p className="truncate text-xs text-zinc-500">{subtitle}</p>
                   </div>
                   <div className="text-right">

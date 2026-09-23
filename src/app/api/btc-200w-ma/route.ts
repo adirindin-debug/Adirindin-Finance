@@ -1,26 +1,32 @@
 /**
- * Bitcoin price vs 200-week simple moving average from Coinbase BTC-USD.
- * Daily candles are chunked (Coinbase ~300/call), aggregated to weekly closes,
- * then SMA(200). Soft-fails with a clear error if the feed is unavailable.
- * Educational only — NFA.
+ * Bitcoin price vs 200-week simple moving average.
+ * Primary history: Yahoo Finance BTC-USD weekly closes (from Sep 2014 — same stack
+ * as portfolio quotes; one request spans multi-cycle ~12y). Fallback: Coinbase
+ * Exchange BTC-USD daily candles → weekly closes when Yahoo is unavailable.
+ * Live spot prefers Coinbase ticker. Soft-fails with a clear error. Educational — NFA.
  */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** Allow coinbase fallback chunking on slower hosts. */
+export const maxDuration = 60;
 
 const CB = "https://api.exchange.coinbase.com";
+const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD";
+const YAHOO_CHART_2 = "https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD";
 const UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindin.finance)";
 
-/** Days of daily history (~11y covers 200W warmup + long chart). */
-const DAYS_BACK = 4100;
+/** Coinbase BTC-USD daily history starts ~2015-07-20; pad slightly earlier. */
+const COINBASE_START_MS = Date.UTC(2015, 6, 1);
+/** Yahoo BTC-USD weekly reliably from mid-Sep 2014. */
+const YAHOO_PERIOD1 = Math.floor(Date.UTC(2014, 8, 1) / 1000);
 /** Coinbase candles max ~300 per request; stay under. */
 const CHUNK_DAYS = 280;
-/** Pause between chunks to ease rate limits. */
-const CHUNK_PAUSE_MS = 280;
+const CHUNK_PAUSE_MS = 320;
 const MA_WEEKS = 200;
-const TIMEOUT_MS = 25_000;
-const MAX_RETRIES = 4;
+const TIMEOUT_MS = 20_000;
+const MAX_RETRIES = 3;
 
 type DailyClose = { t: number; c: number };
 type WeeklyClose = { t: number; price: number };
@@ -48,8 +54,8 @@ async function fetchCandlesChunk(url: string): Promise<number[][]> {
       if (res.status === 429) {
         const retryAfter = Number(res.headers.get("retry-after"));
         const waitMs = Number.isFinite(retryAfter)
-          ? Math.min(Math.max(retryAfter * 1000, 500), 8000)
-          : 500 * 2 ** attempt;
+          ? Math.min(Math.max(retryAfter * 1000, 800), 10_000)
+          : 600 * 2 ** attempt;
         lastErr = new Error("Coinbase HTTP 429");
         await sleep(waitMs);
         continue;
@@ -65,7 +71,7 @@ async function fetchCandlesChunk(url: string): Promise<number[][]> {
     } catch (err) {
       lastErr = err instanceof Error ? err : new Error(String(err));
       if (attempt < MAX_RETRIES) {
-        await sleep(400 * 2 ** attempt);
+        await sleep(500 * 2 ** attempt);
         continue;
       }
     }
@@ -75,20 +81,21 @@ async function fetchCandlesChunk(url: string): Promise<number[][]> {
 
 /**
  * Coinbase candles: [time, low, high, open, close, volume]; max ~300 per call.
- * Chunked like MarketStrip.tsx, with 429 retries.
+ * Fetches newest→oldest so partial runs still cover recent cycles.
  */
-async function fetchDailyCloses(daysBack: number): Promise<{
+async function fetchCoinbaseDailyCloses(): Promise<{
   dailies: DailyClose[];
   chunkErrors: string[];
 }> {
   const end = Math.floor(Date.now() / 1000);
-  const start = end - daysBack * 86400;
+  const start = Math.floor(COINBASE_START_MS / 1000);
   const out: DailyClose[] = [];
   const chunkErrors: string[] = [];
   let chunks = 0;
 
-  for (let s = start; s < end; s += CHUNK_DAYS * 86400) {
-    const e = Math.min(s + CHUNK_DAYS * 86400, end);
+  // Walk backwards from now so rate-limit cuts still leave multi-year history.
+  for (let e = end; e > start; e -= CHUNK_DAYS * 86400) {
+    const s = Math.max(e - CHUNK_DAYS * 86400, start);
     const url =
       `${CB}/products/BTC-USD/candles?granularity=86400` +
       `&start=${new Date(s * 1000).toISOString()}` +
@@ -130,14 +137,6 @@ async function fetchDailyCloses(daysBack: number): Promise<{
     }
   }
 
-  if (deduped.length < MA_WEEKS * 7 * 0.5) {
-    throw new Error(
-      chunkErrors.length
-        ? `Insufficient Coinbase daily history (${deduped.length} days). ${chunkErrors.slice(-3).join("; ")}`
-        : `Insufficient Coinbase daily history (${deduped.length} days)`,
-    );
-  }
-
   return { dailies: deduped, chunkErrors };
 }
 
@@ -174,6 +173,75 @@ function isoWeekKey(tSec: number): string {
   return `${thu.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
+/** Yahoo chart weekly closes (period1/period2 — range=max undersamples). */
+async function fetchYahooWeeklyCloses(): Promise<WeeklyClose[]> {
+  const period2 = Math.floor(Date.now() / 1000);
+  const urls = [YAHOO_CHART, YAHOO_CHART_2].map(
+    (base) =>
+      `${base}?interval=1wk&period1=${YAHOO_PERIOD1}&period2=${period2}`,
+  );
+  let lastErr: Error | null = null;
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: "application/json", "User-Agent": UA },
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        lastErr = new Error(`Yahoo BTC-USD HTTP ${res.status}`);
+        continue;
+      }
+      const data = (await res.json()) as {
+        chart?: {
+          result?: Array<{
+            timestamp?: number[];
+            indicators?: { quote?: Array<{ close?: Array<number | null> }> };
+          }>;
+          error?: { description?: string };
+        };
+      };
+      const result = data.chart?.result?.[0];
+      const ts = result?.timestamp ?? [];
+      const closes = result?.indicators?.quote?.[0]?.close ?? [];
+      const weeks: WeeklyClose[] = [];
+      for (let i = 0; i < ts.length; i++) {
+        const t = ts[i];
+        const c = closes[i];
+        if (
+          typeof t !== "number" ||
+          typeof c !== "number" ||
+          !Number.isFinite(t) ||
+          !Number.isFinite(c) ||
+          c <= 0
+        ) {
+          continue;
+        }
+        weeks.push({ t, price: c });
+      }
+      weeks.sort((a, b) => a.t - b.t);
+      // Dedupe same-week stamps if any
+      const deduped: WeeklyClose[] = [];
+      for (const w of weeks) {
+        const prev = deduped[deduped.length - 1];
+        if (prev && isoWeekKey(prev.t) === isoWeekKey(w.t)) {
+          deduped[deduped.length - 1] = w;
+        } else {
+          deduped.push(w);
+        }
+      }
+      if (deduped.length >= MA_WEEKS) return deduped;
+      lastErr = new Error(
+        `Yahoo BTC-USD: insufficient weekly history (${deduped.length})`,
+      );
+    } catch (err) {
+      lastErr = err instanceof Error ? err : new Error(String(err));
+    }
+  }
+  throw lastErr ?? new Error("Yahoo BTC-USD weekly feed unavailable");
+}
+
 function buildMaSeries(weeks: WeeklyClose[]): {
   points: MaPoint[];
   firstMaT: number | null;
@@ -208,7 +276,7 @@ function buildMaSeries(weeks: WeeklyClose[]): {
   return { points, firstMaT };
 }
 
-async function fetchSpot(): Promise<number | null> {
+async function fetchCoinbaseSpot(): Promise<number | null> {
   try {
     const res = await fetch(`${CB}/products/BTC-USD/ticker`, {
       headers: { Accept: "application/json", "User-Agent": UA },
@@ -225,15 +293,43 @@ async function fetchSpot(): Promise<number | null> {
 }
 
 export async function GET() {
+  const warnings: string[] = [];
+  let weeks: WeeklyClose[] = [];
+  let dailyCount = 0;
+  let historySource:
+    | "yahoo-weekly"
+    | "coinbase-daily"
+    | null = null;
+
   try {
-    const { dailies, chunkErrors } = await fetchDailyCloses(DAYS_BACK);
-    const weeks = dailyToWeekly(dailies);
+    weeks = await fetchYahooWeeklyCloses();
+    historySource = "yahoo-weekly";
+  } catch (e) {
+    warnings.push(
+      e instanceof Error ? `Yahoo weekly: ${e.message}` : "Yahoo weekly failed",
+    );
+    try {
+      const { dailies, chunkErrors } = await fetchCoinbaseDailyCloses();
+      dailyCount = dailies.length;
+      if (chunkErrors.length) warnings.push(...chunkErrors);
+      weeks = dailyToWeekly(dailies);
+      historySource = "coinbase-daily";
+    } catch (e2) {
+      warnings.push(
+        e2 instanceof Error
+          ? `Coinbase daily: ${e2.message}`
+          : "Coinbase daily failed",
+      );
+    }
+  }
+
+  try {
     if (weeks.length < MA_WEEKS) {
       return Response.json(
         {
           ok: false,
           error: `Need at least ${MA_WEEKS} weekly closes for the 200-week MA (got ${weeks.length})`,
-          errors: chunkErrors.length ? chunkErrors : undefined,
+          errors: warnings.length ? warnings : undefined,
         },
         { status: 502 },
       );
@@ -250,12 +346,32 @@ export async function GET() {
       );
     }
 
-    const spot = await fetchSpot();
+    const spot = await fetchCoinbaseSpot();
     const latest = points[points.length - 1]!;
     const price = spot ?? latest.price;
     const ma200w = latest.ma200w;
     const pctFromMa = ((price - ma200w) / ma200w) * 100;
     const absFromMa = price - ma200w;
+
+    const historyStart = weeks[0]
+      ? new Date(weeks[0].t * 1000).toISOString().slice(0, 10)
+      : null;
+    const historyEnd = weeks[weeks.length - 1]
+      ? new Date(weeks[weeks.length - 1]!.t * 1000).toISOString().slice(0, 10)
+      : null;
+    const historyYears =
+      weeks.length >= 2
+        ? (weeks[weeks.length - 1]!.t - weeks[0]!.t) / (86400 * 365.25)
+        : 0;
+
+    const source =
+      historySource === "yahoo-weekly"
+        ? "Yahoo Finance BTC-USD (weekly closes → SMA 200); live spot via Coinbase when available"
+        : "Coinbase Exchange BTC-USD (daily candles → weekly closes → SMA 200)";
+    const sourceUrl =
+      historySource === "yahoo-weekly"
+        ? "https://finance.yahoo.com/quote/BTC-USD"
+        : "https://www.coinbase.com/price/bitcoin";
 
     return Response.json(
       {
@@ -273,17 +389,18 @@ export async function GET() {
         firstMaDate: firstMaT
           ? new Date(firstMaT * 1000).toISOString().slice(0, 10)
           : null,
-        historyStart: weeks[0]
-          ? new Date(weeks[0].t * 1000).toISOString().slice(0, 10)
-          : null,
+        historyStart,
+        historyEnd,
+        historyYears: Math.round(historyYears * 10) / 10,
+        maPointCount: points.length,
         weeklyCount: weeks.length,
-        dailyCount: dailies.length,
-        source:
-          "Coinbase Exchange BTC-USD (daily candles → weekly closes → SMA 200)",
-        sourceUrl: "https://www.coinbase.com/price/bitcoin",
+        dailyCount: dailyCount || undefined,
+        historySource,
+        source,
+        sourceUrl,
         note: "200-week simple moving average of weekly closes. Educational cycle framing only — not financial advice (NFA).",
         asOf: new Date().toISOString(),
-        warnings: chunkErrors.length ? chunkErrors : undefined,
+        warnings: warnings.length ? warnings : undefined,
       },
       {
         headers: {
@@ -299,7 +416,8 @@ export async function GET() {
         error:
           e instanceof Error
             ? e.message
-            : "Coinbase BTC-USD feed unavailable",
+            : "BTC-USD 200-week MA feed unavailable",
+        errors: warnings.length ? warnings : undefined,
       },
       {
         status: 502,
