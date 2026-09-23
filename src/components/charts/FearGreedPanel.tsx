@@ -115,7 +115,27 @@ function clientXToT(
   return t0 + ratio * (t1 - t0);
 }
 
-export function FearGreedPanel() {
+type FearGreedPanelProps = {
+  endpoint?: string;
+  title?: string;
+  subtitle?: string;
+  chartAriaLabel?: string;
+  chartTitle?: string;
+  timeframeAriaLabel?: string;
+  defaultSource?: string;
+  defaultSourceUrl?: string;
+};
+
+export function FearGreedPanel({
+  endpoint = "/api/fear-greed",
+  title = "Fear & Greed Index",
+  subtitle = "US stock market sentiment from CNN — educational only (NFA).",
+  chartAriaLabel = "US stock market Fear and Greed Index history. Hover for daily values. Drag to zoom.",
+  chartTitle = "US stock market Fear and Greed Index history",
+  timeframeAriaLabel = "Fear and Greed timeframe",
+  defaultSource = "CNN Fear & Greed Index (US stocks)",
+  defaultSourceUrl = "https://www.cnn.com/markets/fear-and-greed",
+}: FearGreedPanelProps = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tf, setTf] = useState<TfKey>("1Y");
@@ -134,9 +154,10 @@ export function FearGreedPanel() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
-        const res = await fetch("/api/fear-greed");
+        const res = await fetch(endpoint);
         const json = (await res.json()) as Payload;
         if (!cancelled) setData(json);
       } catch (e) {
@@ -153,7 +174,7 @@ export function FearGreedPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [endpoint]);
 
   const allPoints = data?.points ?? [];
 
@@ -465,10 +486,10 @@ export function FearGreedPanel() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Fear &amp; Greed Index
+            {title}
           </h2>
           <p className="mt-1 text-sm text-muted">
-            US stock market sentiment from CNN — educational only (NFA).
+            {subtitle}
           </p>
         </div>
         {current && (
@@ -500,7 +521,7 @@ export function FearGreedPanel() {
           <div
             className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
             role="group"
-            aria-label="Fear and Greed timeframe"
+            aria-label={timeframeAriaLabel}
           >
             {TIMEFRAMES.map((w) => (
               <button
@@ -550,7 +571,7 @@ export function FearGreedPanel() {
               viewBox={`0 0 ${W} ${H}`}
               className="w-full cursor-crosshair touch-none"
               role="img"
-              aria-label="US stock market Fear and Greed Index history. Hover for daily values. Drag to zoom."
+              aria-label={chartAriaLabel}
               onPointerDown={onMainPointerDown}
               onPointerMove={onMainPointerMove}
               onPointerUp={onMainPointerUp}
@@ -563,7 +584,7 @@ export function FearGreedPanel() {
                 setHover(null);
               }}
             >
-              <title>US stock market Fear and Greed Index history</title>
+              <title>{chartTitle}</title>
               {chart.zones.map((z) => (
                 <rect
                   key={z.y0}
@@ -767,13 +788,13 @@ export function FearGreedPanel() {
         <a
           href={
             data?.sourceUrl ??
-            "https://www.cnn.com/markets/fear-and-greed"
+            defaultSourceUrl
           }
           target="_blank"
           rel="noopener noreferrer"
           className="text-accent hover:underline"
         >
-          {data?.source ?? "CNN Fear & Greed Index (US stocks)"}
+          {data?.source ?? defaultSource}
         </a>
         . {data?.note ?? "Educational only — NFA."}
       </p>
