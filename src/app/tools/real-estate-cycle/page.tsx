@@ -35,7 +35,7 @@ const PHASES = [
     width: "23%",
     color: "#d4a017",
     summary:
-      "Sharp land-driven acceleration after the mid-cycle dip — speculation, FOMO, and stretched valuations. On the chart, Land Boom callouts sit in the classic winner’s-curse zone near the major peak crest; ~2024 marks the ascending-leg framework year.",
+      "Sharp land-driven acceleration after the mid-cycle dip — speculation, FOMO, and stretched valuations. On the chart, Winner’s Curse callouts sit in the classic crest zone near the major peak; ~2024 marks the ascending-leg framework year.",
   },
   {
     name: "Downturn",

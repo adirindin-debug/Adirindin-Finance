@@ -21,7 +21,7 @@ type YearStack = {
 /**
  * Vertex coordinates for the jagged educational cycle line (not price data).
  * Classic silhouette: modest first half → land-boom ascent → steepening final leg into a
- * high major peak (Land Boom callouts in the winner’s-curse crest zone) → drawdown → recovery.
+ * high major peak (Winner’s Curse callouts in the classic crest zone) → drawdown → recovery.
  */
 const POINTS = [
   { id: "recovery", x: 88, y: 305 },
@@ -66,15 +66,6 @@ const THEORY_OVERLAY: {
     dy: 26,
   },
   {
-    id: "peak",
-    year: "2044",
-    caption: "Theory top",
-    /** Park far right of crest — clear of Live, peak years, Land Boom callouts */
-    placement: "above",
-    dx: 132,
-    dy: 14,
-  },
-  {
     id: "next",
     year: "2048",
     caption: "Theory low",
@@ -115,11 +106,11 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     dyClear: 6,
   },
   peak: {
-    years: ["2026", "2007", "1989"],
+    years: ["2026", "2007", "1989", "2044"],
     placement: "above",
-    /** Right + up so stack clears crest, Live badge, Land Boom callouts */
+    /** Right of crest; lower dyClear so stack clears Winner’s Curse labels */
     dx: 40,
-    dyClear: 20,
+    dyClear: 6,
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
@@ -342,7 +333,9 @@ function YearColumn({
       {stack.years.map((yr, i) => {
         const y = startY + i * (lineH + gap);
         const isCurrentLap = CURRENT_CYCLE_YEARS.has(yr);
-        // Before end-2030: current-lap years bold yellow. After: 2030 goes white; others stay muted.
+        const isNextLap = NEXT_CYCLE_YEARS.has(yr);
+        // Before end-2030: current-lap years bold yellow; next-lap (e.g. 2044) muted.
+        // After: next-lap theory years bold yellow; 2030 goes white; other classic years muted.
         let fill = MUTED_YEAR_FILL;
         let bold = false;
         if (isCurrentLap) {
@@ -355,6 +348,9 @@ function YearColumn({
           } else {
             fill = MUTED_YEAR_FILL;
           }
+        } else if (isNextLap && past2030) {
+          fill = ACTIVE_YEAR_FILL;
+          bold = true;
         }
         return (
           <text
@@ -517,7 +513,7 @@ export default function RealEstateCycleChart() {
 
   const live = livePositionFromNow();
   const past2030 = isPast2030Low();
-  /** Below-left of dot — crest has peak years (above-right) + Land Boom callouts */
+  /** Below-left of dot — crest has peak years (above-right) + Winner’s Curse callouts */
   const liveLabelDx = -42;
   const liveLabelDy = 20;
 
@@ -693,7 +689,7 @@ export default function RealEstateCycleChart() {
           );
         })}
 
-        {/* Land Boom — classic winner’s-curse zone at peak crest (both shoulders) */}
+        {/* Winner’s Curse — classic crest zone at peak (both shoulders) */}
         <text
           x={peak.x - 72}
           y={peak.y + 12}
@@ -703,7 +699,7 @@ export default function RealEstateCycleChart() {
           fontFamily="system-ui, sans-serif"
           fontWeight="700"
         >
-          Land Boom
+          Winner's Curse
         </text>
         <text
           x={peak.x + 48}
@@ -714,7 +710,7 @@ export default function RealEstateCycleChart() {
           fontFamily="system-ui, sans-serif"
           fontWeight="700"
         >
-          Land Boom
+          Winner's Curse
         </text>
 
         {/* Next-lap theory waypoints — same loop verts, muted / dashed */}
