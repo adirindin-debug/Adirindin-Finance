@@ -28,8 +28,8 @@ type YearStack = {
 const POINTS = [
   { id: "recovery", x: 88, y: 305 },
   /** Nudged right so mid-cycle sits closer to centre of the upswing (labels/stacks follow) */
-  { id: "midPeak", x: 280, y: 182 },
-  { id: "midSlow", x: 360, y: 228 },
+  { id: "midPeak", x: 290, y: 182 },
+  { id: "midSlow", x: 370, y: 228 },
   /** Land boom — still mid-ascent; leave room for a steeper final leg into the peak */
   { id: "landBoom", x: 430, y: 148 },
   /** Major peak — high so the post-2024 land-boom upswing dominates */
