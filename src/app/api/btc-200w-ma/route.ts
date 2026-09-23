@@ -1,9 +1,11 @@
 /**
  * Bitcoin price vs 200-week simple moving average.
- * Primary history: Yahoo Finance BTC-USD weekly closes (from Sep 2014 — same stack
- * as portfolio quotes; one request spans multi-cycle ~12y). Fallback: Coinbase
- * Exchange BTC-USD daily candles → weekly closes when Yahoo is unavailable.
- * Live spot prefers Coinbase ticker. Soft-fails with a clear error. Educational — NFA.
+ * Modern history: Yahoo Finance BTC-USD weekly closes (from ~Sep 2014). Fallback:
+ * Coinbase Exchange BTC-USD daily candles → weekly closes when Yahoo is unavailable.
+ * Pre-2014 extension: Blockchain.com Charts `market-price` (daily average USD across
+ * major exchanges) resampled to weekly closes, stitched before Yahoo/Coinbase without
+ * double-counting overlap (modern source wins). Soft-fails to Yahoo-era chart if the
+ * pre-history fetch fails. Live spot prefers Coinbase ticker. Educational — NFA.
  */
 
 export const runtime = "nodejs";
@@ -14,6 +16,9 @@ export const maxDuration = 60;
 const CB = "https://api.exchange.coinbase.com";
 const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD";
 const YAHOO_CHART_2 = "https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD";
+/** Blockchain.com Charts — composite average USD market price (daily). */
+const BLOCKCHAIN_MARKET_PRICE =
+  "https://api.blockchain.info/charts/market-price?timespan=all&format=json&sampled=false";
 const UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindin.finance)";
 
@@ -242,6 +247,70 @@ async function fetchYahooWeeklyCloses(): Promise<WeeklyClose[]> {
   throw lastErr ?? new Error("Yahoo BTC-USD weekly feed unavailable");
 }
 
+/**
+ * Blockchain.com Charts market-price: daily average USD across major exchanges.
+ * Early years are a composite/index USD print — not the same as Yahoo BTC-USD.
+ */
+async function fetchBlockchainDailyCloses(): Promise<DailyClose[]> {
+  const res = await fetch(BLOCKCHAIN_MARKET_PRICE, {
+    headers: { Accept: "application/json", "User-Agent": UA },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(`Blockchain.com market-price HTTP ${res.status}`);
+  }
+  const data = (await res.json()) as {
+    status?: string;
+    values?: Array<{ x?: number; y?: number }>;
+  };
+  const values = data.values ?? [];
+  if (!values.length) {
+    throw new Error("Blockchain.com market-price: empty values");
+  }
+  const out: DailyClose[] = [];
+  for (const row of values) {
+    const t = row.x;
+    const c = row.y;
+    if (
+      typeof t !== "number" ||
+      typeof c !== "number" ||
+      !Number.isFinite(t) ||
+      !Number.isFinite(c) ||
+      c <= 0
+    ) {
+      continue;
+    }
+    out.push({ t, c });
+  }
+  out.sort((a, b) => a.t - b.t);
+  if (!out.length) {
+    throw new Error("Blockchain.com market-price: no positive prices");
+  }
+  return out;
+}
+
+/**
+ * Prefer modern (Yahoo/Coinbase) weeks on overlap; keep Blockchain weeks strictly
+ * before the first modern week (by ISO week key + timestamp).
+ */
+function stitchWeeklyPrehistory(
+  pre: WeeklyClose[],
+  modern: WeeklyClose[],
+): WeeklyClose[] {
+  if (!modern.length) return pre.filter((w) => w.price > 0);
+  if (!pre.length) return modern;
+  const modernKeys = new Set(modern.map((w) => isoWeekKey(w.t)));
+  const firstModernT = modern[0]!.t;
+  const preOnly = pre.filter(
+    (w) =>
+      w.price > 0 &&
+      w.t < firstModernT &&
+      !modernKeys.has(isoWeekKey(w.t)),
+  );
+  return [...preOnly, ...modern];
+}
+
 function buildMaSeries(weeks: WeeklyClose[]): {
   points: MaPoint[];
   firstMaT: number | null;
@@ -294,16 +363,16 @@ async function fetchCoinbaseSpot(): Promise<number | null> {
 
 export async function GET() {
   const warnings: string[] = [];
-  let weeks: WeeklyClose[] = [];
+  let modernWeeks: WeeklyClose[] = [];
   let dailyCount = 0;
-  let historySource:
-    | "yahoo-weekly"
-    | "coinbase-daily"
-    | null = null;
+  let modernSource: "yahoo-weekly" | "coinbase-daily" | null = null;
+  let prehistorySource: "blockchain-market-price" | null = null;
+  let prehistoryWeeklyCount = 0;
+  let stitchSeamDate: string | null = null;
 
   try {
-    weeks = await fetchYahooWeeklyCloses();
-    historySource = "yahoo-weekly";
+    modernWeeks = await fetchYahooWeeklyCloses();
+    modernSource = "yahoo-weekly";
   } catch (e) {
     warnings.push(
       e instanceof Error ? `Yahoo weekly: ${e.message}` : "Yahoo weekly failed",
@@ -312,8 +381,8 @@ export async function GET() {
       const { dailies, chunkErrors } = await fetchCoinbaseDailyCloses();
       dailyCount = dailies.length;
       if (chunkErrors.length) warnings.push(...chunkErrors);
-      weeks = dailyToWeekly(dailies);
-      historySource = "coinbase-daily";
+      modernWeeks = dailyToWeekly(dailies);
+      modernSource = "coinbase-daily";
     } catch (e2) {
       warnings.push(
         e2 instanceof Error
@@ -322,6 +391,39 @@ export async function GET() {
       );
     }
   }
+
+  let weeks = modernWeeks;
+  let preWeeks: WeeklyClose[] = [];
+  try {
+    const preDailies = await fetchBlockchainDailyCloses();
+    preWeeks = dailyToWeekly(preDailies);
+    if (preWeeks.length) {
+      const stitched = stitchWeeklyPrehistory(preWeeks, modernWeeks);
+      const added = stitched.length - modernWeeks.length;
+      if (added > 0) {
+        weeks = stitched;
+        prehistorySource = "blockchain-market-price";
+        prehistoryWeeklyCount = added;
+        stitchSeamDate = modernWeeks[0]
+          ? new Date(modernWeeks[0]!.t * 1000).toISOString().slice(0, 10)
+          : null;
+      } else if (!modernWeeks.length) {
+        weeks = stitched;
+        prehistorySource = "blockchain-market-price";
+        prehistoryWeeklyCount = stitched.length;
+      }
+    }
+  } catch (e) {
+    warnings.push(
+      e instanceof Error
+        ? `Pre-2014 Blockchain.com: ${e.message} — using modern history only`
+        : "Pre-2014 Blockchain.com failed — using modern history only",
+    );
+  }
+
+  const historySource = prehistorySource
+    ? (`${prehistorySource}+${modernSource ?? "none"}` as const)
+    : modernSource;
 
   try {
     if (weeks.length < MA_WEEKS) {
@@ -364,14 +466,33 @@ export async function GET() {
         ? (weeks[weeks.length - 1]!.t - weeks[0]!.t) / (86400 * 365.25)
         : 0;
 
-    const source =
-      historySource === "yahoo-weekly"
-        ? "Yahoo Finance BTC-USD (weekly closes → SMA 200); live spot via Coinbase when available"
-        : "Coinbase Exchange BTC-USD (daily candles → weekly closes → SMA 200)";
-    const sourceUrl =
-      historySource === "yahoo-weekly"
-        ? "https://finance.yahoo.com/quote/BTC-USD"
-        : "https://www.coinbase.com/price/bitcoin";
+    let source: string;
+    let sourceUrl: string;
+    if (prehistorySource && modernSource === "yahoo-weekly") {
+      source =
+        "Stitched weekly closes: Blockchain.com Charts market-price (pre-seam composite USD average) + Yahoo Finance BTC-USD; live spot via Coinbase when available";
+      sourceUrl = "https://www.blockchain.com/explorer/charts/market-price";
+    } else if (prehistorySource && modernSource === "coinbase-daily") {
+      source =
+        "Stitched weekly closes: Blockchain.com Charts market-price (pre-seam composite USD average) + Coinbase Exchange BTC-USD daily→weekly";
+      sourceUrl = "https://www.blockchain.com/explorer/charts/market-price";
+    } else if (modernSource === "yahoo-weekly") {
+      source =
+        "Yahoo Finance BTC-USD (weekly closes → SMA 200); live spot via Coinbase when available";
+      sourceUrl = "https://finance.yahoo.com/quote/BTC-USD";
+    } else {
+      source =
+        "Coinbase Exchange BTC-USD (daily candles → weekly closes → SMA 200)";
+      sourceUrl = "https://www.coinbase.com/price/bitcoin";
+    }
+
+    const noteParts = [
+      "200-week simple moving average of weekly closes.",
+      prehistorySource
+        ? "Early years before the Yahoo/Coinbase seam use Blockchain.com's composite average USD market price (not Yahoo BTC-USD)."
+        : null,
+      "Educational cycle framing only — not financial advice (NFA).",
+    ].filter(Boolean);
 
     return Response.json(
       {
@@ -395,10 +516,14 @@ export async function GET() {
         maPointCount: points.length,
         weeklyCount: weeks.length,
         dailyCount: dailyCount || undefined,
+        prehistoryWeeklyCount: prehistoryWeeklyCount || undefined,
+        stitchSeamDate: stitchSeamDate || undefined,
+        modernSource: modernSource || undefined,
+        prehistorySource: prehistorySource || undefined,
         historySource,
         source,
         sourceUrl,
-        note: "200-week simple moving average of weekly closes. Educational cycle framing only — not financial advice (NFA).",
+        note: noteParts.join(" "),
         asOf: new Date().toISOString(),
         warnings: warnings.length ? warnings : undefined,
       },

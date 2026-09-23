@@ -35,10 +35,15 @@ type Payload = {
   historyYears?: number;
   maPointCount?: number;
   weeklyCount?: number;
+  prehistoryWeeklyCount?: number;
+  stitchSeamDate?: string;
+  modernSource?: string;
+  prehistorySource?: string;
   historySource?: string;
   source?: string;
   sourceUrl?: string;
   note?: string;
+  warnings?: string[];
   error?: string;
 };
 
@@ -342,9 +347,10 @@ export function Btc200wMaPanel() {
             Bitcoin · 200-week MA
           </h2>
           <p className="mt-1 max-w-xl text-sm text-muted">
-            BTC-USD weekly close versus its 200-week simple moving average —
-            a long-cycle reference often watched in crypto. Educational only
-            (NFA).
+            Weekly Bitcoin USD close versus its 200-week simple moving average —
+            a long-cycle reference often watched in crypto. Early years may use
+            a stitched composite USD average before Yahoo BTC-USD. Educational
+            only (NFA).
           </p>
         </div>
         {headline && (
@@ -606,11 +612,24 @@ export function Btc200wMaPanel() {
             {data?.source ?? "Coinbase Exchange BTC-USD"}
           </a>
           .
+          {data?.prehistorySource ? (
+            <>
+              {" "}
+              Pre-{data.stitchSeamDate ?? "2014"} weeks from Blockchain.com
+              Charts market-price (composite average USD, not Yahoo BTC-USD);
+              from the seam onward Yahoo/Coinbase wins on overlap.
+            </>
+          ) : null}
         </p>
         <p>
           {data?.note ??
             "200-week simple moving average of weekly closes. Educational only — NFA."}
         </p>
+        {data?.warnings && data.warnings.length > 0 ? (
+          <p className="text-[11px] text-muted/80">
+            Notes: {data.warnings.join("; ")}
+          </p>
+        ) : null}
       </div>
     </section>
   );
