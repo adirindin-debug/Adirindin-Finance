@@ -263,6 +263,10 @@ export function computePeriodSummary(
 
 export function returnWindowHint(window: PositionReturnWindow): string {
   switch (window) {
+    case "1D":
+      return "1D · price change";
+    case "1W":
+      return "1W · price change";
     case "1M":
       return "1M · price change";
     case "YTD":

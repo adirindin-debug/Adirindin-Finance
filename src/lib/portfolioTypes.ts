@@ -83,7 +83,7 @@ export type PortfolioTimeframe = PortfolioChartTimeframe;
 export type PositionReturnWindow = PortfolioTimeframe;
 
 export const POSITION_RETURN_CAPTION =
-  "1M: ~30 days · YTD: calendar year-to-date vs start-of-year AUD price · 1Y–20Y: calendar lookbacks · ALL: vs cost basis (AUD). Synced with Performance chart. Collectables have no market history — shown as — outside ALL. NFA.";
+  "1D: vs prior trading-day close · 1W: ~7 calendar days · 1M: ~30 days · YTD: calendar year-to-date vs start-of-year AUD price · 1Y–20Y: calendar lookbacks · ALL: vs cost basis (AUD). Synced with Performance chart. Collectables have no market history — shown as — outside ALL. NFA.";
 
 export const PORTFOLIO_STORAGE_KEY = "adirindin-portfolio-v1";
 

@@ -1,7 +1,7 @@
 /**
  * Relative % from the start of each window for BTC, equities, MSCI World proxy,
  * US/AU housing, and US M2.
- * Query: ?window=1m|ytd|1y|3y|4y|5y|10y|20y|all  (default: 1y)
+ * Query: ?window=1d|1w|1m|ytd|1y|3y|4y|5y|10y|20y|all  (default: 1y)
  * Yahoo Finance chart API + FRED CSV/API (server-side; UA required). Educational — NFA.
  *
  * Series sources (documented for maintainers):
@@ -47,7 +47,7 @@ export type SeriesId =
   | "auhouses"
   | "m2";
 
-type WindowKey = "1m" | "ytd" | "1y" | "3y" | "4y" | "5y" | "10y" | "20y" | "all";
+type WindowKey = "1d" | "1w" | "1m" | "ytd" | "1y" | "3y" | "4y" | "5y" | "10y" | "20y" | "all";
 
 type ClosePoint = { t: number; c: number };
 type PctPoint = { t: number; pct: number };
@@ -135,7 +135,7 @@ const SERIES: SeriesMeta[] = [
 /** Equity trio used for ALL-window common start (preserves original ALL semantics). */
 const ALL_ANCHOR_IDS: SeriesId[] = ["ndx", "spx", "aord"];
 
-/** Multi-year lookbacks (years × 365.25). 1m / ytd handled separately. */
+/** Multi-year lookbacks (years × 365.25). 1d / 1w / 1m / ytd handled separately. */
 const WINDOW_YEARS: Record<"1y" | "3y" | "4y" | "5y" | "10y" | "20y", number> = {
   "1y": 1,
   "3y": 3,
@@ -146,6 +146,8 @@ const WINDOW_YEARS: Record<"1y" | "3y" | "4y" | "5y" | "10y" | "20y", number> = 
 };
 
 const VALID_WINDOWS = new Set<string>([
+  "1d",
+  "1w",
   "1m",
   "ytd",
   "1y",
@@ -158,6 +160,8 @@ const VALID_WINDOWS = new Set<string>([
 ]);
 
 const AVAILABLE_WINDOWS = [
+  "1d",
+  "1w",
   "1m",
   "ytd",
   "1y",
@@ -192,6 +196,8 @@ function parseWindow(raw: string | null): WindowKey {
 /** Shared display-from (unix sec) for rolling windows; null for ALL. */
 function windowFromSec(key: WindowKey, nowSec: number): number | null {
   if (key === "all") return null;
+  if (key === "1d") return nowSec - 86400;
+  if (key === "1w") return nowSec - 7 * 86400;
   if (key === "1m") return nowSec - 30 * 86400;
   if (key === "ytd") {
     const d = new Date(nowSec * 1000);
@@ -683,6 +689,32 @@ function windowMeta(key: WindowKey, nowSec: number) {
   const from = windowFromSec(key, nowSec)!;
   const sec = nowSec - from;
   const days = Math.round(sec / 86400);
+  if (key === "1d") {
+    return {
+      window: key as WindowKey,
+      windowLabel: "1-day",
+      windowShort: "1D",
+      mode: "relative" as const,
+      windowDays: days,
+      windowSec: sec,
+      title: "Relative % over ~1 day",
+      definition:
+        "Each line starts at 0% at the left of the ~1 calendar-day window (prior-session style) and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+    };
+  }
+  if (key === "1w") {
+    return {
+      window: key as WindowKey,
+      windowLabel: "1-week",
+      windowShort: "1W",
+      mode: "relative" as const,
+      windowDays: days,
+      windowSec: sec,
+      title: "Relative % over ~1 week",
+      definition:
+        "Each line starts at 0% at the left of the ~7-day window and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+    };
+  }
   if (key === "1m") {
     return {
       window: key as WindowKey,

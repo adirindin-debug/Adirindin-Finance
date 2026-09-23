@@ -22,7 +22,7 @@ export const revalidate = 0;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-type Tf = "1M" | "YTD" | "1Y" | "3Y" | "4Y" | "5Y" | "10Y" | "20Y" | "ALL";
+type Tf = "1D" | "1W" | "1M" | "YTD" | "1Y" | "3Y" | "4Y" | "5Y" | "10Y" | "20Y" | "ALL";
 type ClosePoint = { t: number; c: number };
 type PctPoint = { t: number; pct: number };
 
@@ -43,6 +43,8 @@ const BENCHMARKS = [
 ] as const;
 
 const VALID_TF = new Set<string>([
+  "1D",
+  "1W",
   "1M",
   "YTD",
   "1Y",
@@ -64,6 +66,9 @@ function parseTf(raw: string | null): Tf {
 
 function windowStartSec(tf: Tf, nowSec: number): number {
   const d = new Date(nowSec * 1000);
+  // 1D: ~1 calendar day target (prior-session clip applied after day union).
+  if (tf === "1D") return nowSec - 86400;
+  if (tf === "1W") return nowSec - 7 * 86400;
   if (tf === "1M") return nowSec - 30 * 86400;
   if (tf === "YTD") return Math.floor(Date.UTC(d.getUTCFullYear(), 0, 1) / 1000);
   if (tf === "1Y") return nowSec - Math.round(365.25 * 86400);
@@ -230,13 +235,19 @@ export async function GET(req: NextRequest) {
 
     // Build sorted union of trading days from FX + securities + benchmarks
     const daySet = new Set<number>();
+    // 1D needs a wider pad so weekends still yield a prior trading session.
+    const dayPadSec = (tf === "1D" ? 14 : 5) * 86400;
     for (const map of priceMaps.values()) {
       for (const d of map.keys()) {
-        if (tf === "ALL" || d >= winStart - 5 * 86400) daySet.add(d);
+        if (tf === "ALL" || d >= winStart - dayPadSec) daySet.add(d);
       }
     }
     let days = [...daySet].sort((a, b) => a - b);
-    if (tf !== "ALL") {
+    if (tf === "1D") {
+      // Prior-session style (aligns with portfolio-returns 1D): last two trading days.
+      const recent = days.filter((d) => d >= nowSec - 14 * 86400);
+      days = recent.length >= 2 ? recent.slice(-2) : recent;
+    } else if (tf !== "ALL") {
       days = days.filter((d) => d >= winStart);
     }
     if (days.length < 2) {
@@ -245,6 +256,8 @@ export async function GET(req: NextRequest) {
         { status: 422 },
       );
     }
+    // Effective left edge after clip (important for 1D weekend prior-session).
+    const rangeStart = days[0]!;
 
     function audPerUsdAt(day: number): number | null {
       const audUsd = lookupPrice(fxMap!, day); // USD per 1 AUD
@@ -306,7 +319,7 @@ export async function GET(req: NextRequest) {
           acq != null
             ? acq
             : // missing acquiredAt → held for full window from earliest price or window start
-              Math.max(tf === "ALL" ? firstPxDay : winStart, firstPxDay);
+              Math.max(tf === "ALL" ? firstPxDay : rangeStart, firstPxDay);
 
         if (day < heldFrom) continue;
 

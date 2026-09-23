@@ -9,6 +9,8 @@ export const CHART_TIMEFRAME_STORAGE_KEY = "adirindin.chartTimeframe";
 
 /** Canonical keys (homepage API + localStorage). */
 export const CHART_TIMEFRAME_KEYS = [
+  "1d",
+  "1w",
   "1m",
   "ytd",
   "1y",
@@ -24,13 +26,15 @@ export type ChartTimeframeKey = (typeof CHART_TIMEFRAME_KEYS)[number];
 
 export type ChartTimeframeDef = {
   key: ChartTimeframeKey;
-  /** Chip label (1M, YTD, 1Y, …). */
+  /** Chip label (1D, 1W, 1M, YTD, 1Y, …). */
   label: string;
   /** portfolio-history `?tf=` value (same as label for these windows). */
   portfolioTf: string;
 };
 
 export const CHART_TIMEFRAMES: readonly ChartTimeframeDef[] = [
+  { key: "1d", label: "1D", portfolioTf: "1D" },
+  { key: "1w", label: "1W", portfolioTf: "1W" },
   { key: "1m", label: "1M", portfolioTf: "1M" },
   { key: "ytd", label: "YTD", portfolioTf: "YTD" },
   { key: "1y", label: "1Y", portfolioTf: "1Y" },
@@ -53,6 +57,8 @@ const LABEL_TO_KEY: Record<string, ChartTimeframeKey> = Object.fromEntries(
 
 /** Portfolio chip list (uppercase) — mirrors CHART_TIMEFRAMES. */
 export const PORTFOLIO_CHART_TIMEFRAMES = [
+  "1D",
+  "1W",
   "1M",
   "YTD",
   "1Y",
@@ -120,6 +126,10 @@ export function writeStoredChartTimeframe(key: ChartTimeframeKey): void {
 /** Human label for copy (e.g. "1-year", "year-to-date"). */
 export function chartTimeframeLongLabel(key: ChartTimeframeKey): string {
   switch (key) {
+    case "1d":
+      return "1-day";
+    case "1w":
+      return "1-week";
     case "1m":
       return "1-month";
     case "ytd":

@@ -443,7 +443,7 @@ export function PerformanceChart({
       </ul>
       {hasHoldings && (
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
-          Cumulative % from window start (1M / YTD / 1Y / 3Y / 4Y / 5Y / 10Y / 20Y / ALL; synced with
+          Cumulative % from window start (1D / 1W / 1M / YTD / 1Y / 3Y / 4Y / 5Y / 10Y / 20Y / ALL; synced with
           homepage compare). Missing acquiredAt ⇒ held for full window from earliest price. Shorter
           series degrade gracefully. Collectables = flat estimate · cash = flat A$. Quotes via Yahoo
           Finance (delayed third-party feed) · NFA.
