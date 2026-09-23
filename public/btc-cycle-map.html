@@ -599,15 +599,7 @@
       const shapes = events.map(function (e) {
         return vline(e.t, e.color, e.projected ? "dash" : "solid", e.projected ? 1.7 : 1.35);
       });
-      const annotations = [
-        {
-          x: FRAMEWORK.oct2025TopDate, y: 0.94, yref: "paper",
-          text: "FIXED TOP · Oct 2025",
-          showarrow: false, xanchor: "right", xshift: -6,
-          font: { size: 10, color: COL.red },
-          align: "right",
-        },
-      ];
+      const annotations = [];
       if (overlay) {
         shapes.push(vline(FRAMEWORK.mstrTreasury, "rgba(240,163,107,0.55)", "dot", 1.2));
         annotations.push({
