@@ -3,8 +3,10 @@
  * Jagged phase line with stacked historical/framework years. Next-cycle
  * theory years (≈2037 / 2039 / 2044 / 2048) sit on the classic columns
  * (future above older) — a reset/wrap onto the same loop, not a linear
- * runway past 2030. Green Live marker is calendar-dated on classic year vertices
- * (end-of-year → vertex), with an outward pulse — not a decorative tour.
+ * runway past 2030. Green Live marker is calendar-dated: classic year vertices
+ * through end-2030, then wraps to recovery and walks the same geometric loop
+ * on next-lap theory years (2037 / 2039 / 2044 / 2048), parking at the low
+ * after end-2048. Outward pulse — not a decorative tour.
  * Active-cycle years render bold yellow (current lap before end-2030; next-lap
  * theory years after). Research only — not prices, not predictive, not for timing.
  */
@@ -131,6 +133,37 @@ const YEAR_WAYPOINTS: { year: number; points: Pt[] }[] = [
   { year: 2030, points: [{ x: POINTS[6].x, y: POINTS[6].y }] },
 ];
 
+/**
+ * Next-lap theory years on the same geometric loop after the ~2030 reset.
+ * Live jumps from the 2030 low to recovery, then walks these waypoints;
+ * parks at the low after end-2048 (no third lap).
+ * 2044 uses landBoom → LAND_ACCEL → peak (same silhouette idea as classic 2024→2026).
+ * 2048 routes peak → downturn → next like classic peak→downturn→low.
+ */
+const NEXT_LAP_WAYPOINTS: { year: number; points: Pt[] }[] = [
+  /** Restart / wrap start — recovery (leftmost vertex) at end-2030 */
+  { year: 2030, points: [{ x: POINTS[0].x, y: POINTS[0].y }] },
+  { year: 2037, points: [{ x: POINTS[1].x, y: POINTS[1].y }] },
+  { year: 2039, points: [{ x: POINTS[2].x, y: POINTS[2].y }] },
+  {
+    year: 2044,
+    points: [
+      { x: POINTS[2].x, y: POINTS[2].y }, // midSlow — continuous from prior vertex
+      { x: POINTS[3].x, y: POINTS[3].y }, // landBoom
+      { x: LAND_ACCEL.x, y: LAND_ACCEL.y },
+      { x: POINTS[4].x, y: POINTS[4].y }, // peak
+    ],
+  },
+  {
+    year: 2048,
+    points: [
+      { x: POINTS[4].x, y: POINTS[4].y }, // peak
+      { x: POINTS[5].x, y: POINTS[5].y }, // downturn
+      { x: POINTS[6].x, y: POINTS[6].y }, // next / low
+    ],
+  },
+];
+
 /** End of calendar year Y as UTC ms (schematic; Melbourne date used for "now"). */
 function endOfYearMs(year: number): number {
   return Date.UTC(year, 11, 31, 23, 59, 59, 999);
@@ -216,34 +249,32 @@ function pointAlong(points: Pt[], t: number): Pt {
 }
 
 /**
- * Melbourne-local Y-M-D → Live (cx, cy) on the classic path.
- * Linear in calendar time between neighbouring year waypoints; on the
- * 2024→2026 leg, movement follows path length through LAND_ACCEL.
+ * Walk calendar time along year waypoints. Multi-point destination polylines
+ * (e.g. landBoom→LAND_ACCEL→peak, or peak→downturn→next) use path-length
+ * interpolation via pointAlong; single-point legs are straight lerps.
  */
-function livePositionFromNow(nowMs: number = Date.now()): Pt {
-  const { y, m, d } = melbourneYmd(nowMs);
-  const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-
-  const ends = YEAR_WAYPOINTS.map((w) => endOfYearMs(w.year));
+function livePositionOnWaypoints(
+  now: number,
+  waypoints: { year: number; points: Pt[] }[],
+): Pt {
+  const ends = waypoints.map((w) => endOfYearMs(w.year));
   if (now <= ends[0]) {
-    return YEAR_WAYPOINTS[0].points[YEAR_WAYPOINTS[0].points.length - 1];
+    return waypoints[0].points[waypoints[0].points.length - 1];
   }
   if (now >= ends[ends.length - 1]) {
-    const last = YEAR_WAYPOINTS[YEAR_WAYPOINTS.length - 1];
+    const last = waypoints[waypoints.length - 1];
     return last.points[last.points.length - 1];
   }
 
-  for (let i = 0; i < YEAR_WAYPOINTS.length - 1; i++) {
+  for (let i = 0; i < waypoints.length - 1; i++) {
     const t0 = ends[i];
     const t1 = ends[i + 1];
     if (now > t1) continue;
     const frac = (now - t0) / (t1 - t0);
-    const a = YEAR_WAYPOINTS[i];
-    const b = YEAR_WAYPOINTS[i + 1];
-    // Segment geometry: start at end of prior waypoint, end at next year vertex.
-    // For 2026 entry, YEAR_WAYPOINTS[2026].points is landBoom→accel→peak; use that
-    // full polyline when leaving 2024. Otherwise straight lerp between vertices.
-    if (b.year === 2026 && b.points.length > 1) {
+    const a = waypoints[i];
+    const b = waypoints[i + 1];
+    // Multi-point destination: path-length along b.points (starts at prior vertex).
+    if (b.points.length > 1) {
       return pointAlong(b.points, frac);
     }
     const from = a.points[a.points.length - 1];
@@ -254,8 +285,24 @@ function livePositionFromNow(nowMs: number = Date.now()): Pt {
     };
   }
 
-  const last = YEAR_WAYPOINTS[YEAR_WAYPOINTS.length - 1];
+  const last = waypoints[waypoints.length - 1];
   return last.points[last.points.length - 1];
+}
+
+/**
+ * Melbourne-local Y-M-D → Live (cx, cy) on the cycle path.
+ * Through end-2030: classic YEAR_WAYPOINTS (unchanged).
+ * After end-2030: intentional reset to recovery, then NEXT_LAP_WAYPOINTS
+ * on the same geometric loop; parks at the low after end-2048.
+ */
+function livePositionFromNow(nowMs: number = Date.now()): Pt {
+  const { y, m, d } = melbourneYmd(nowMs);
+  const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
+
+  if (now > endOfYearMs(2030)) {
+    return livePositionOnWaypoints(now, NEXT_LAP_WAYPOINTS);
+  }
+  return livePositionOnWaypoints(now, YEAR_WAYPOINTS);
 }
 
 function YearColumn({
@@ -616,9 +663,9 @@ export default function RealEstateCycleChart() {
           Mid-cycle peak
         </text>
 
-        {/* Green Live dot — calendar-dated on classic year waypoints; pulse resonates out */}
+        {/* Green Live dot — classic lap then next-lap wrap on same loop; pulse resonates out */}
         <g
-          aria-label="Live marker positioned by calendar date on the cycle path"
+          aria-label="Live marker positioned by calendar date on the cycle path (classic lap, then next-lap wrap)"
           filter="url(#live-glow)"
         >
           {/* Expanding opacity rings — resonate outward from the fixed dot (~2.5s) */}
