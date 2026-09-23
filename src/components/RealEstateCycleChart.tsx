@@ -1,9 +1,9 @@
 /**
  * Classic “18.6 Year Real Estate Cycle theory” schematic (educational diagram).
  * Jagged phase line with stacked historical/framework years. Next-cycle
- * theory waypoints (≈2037 / 2039 / 2044 / 2048) overlay the same loop
- * shape — a reset/wrap onto the classic schematic, not a linear runway
- * past 2030. Green Live marker is calendar-dated on classic year vertices
+ * theory years (≈2037 / 2039 / 2044 / 2048) sit on the classic columns
+ * (future above older) — a reset/wrap onto the same loop, not a linear
+ * runway past 2030. Green Live marker is calendar-dated on classic year vertices
  * (end-of-year → vertex), with an outward pulse — not a decorative tour.
  * Active-cycle years render bold yellow (current lap before end-2030; next-lap
  * theory years after). Research only — not prices, not predictive, not for timing.
@@ -38,42 +38,10 @@ const POINTS = [
 ] as const;
 
 /**
- * Next-lap theory waypoints mapped onto the classic loop (reset/wrap),
- * not a linear x-axis extension. Conceptual only — rough guide.
+ * Next-lap theory years are stacked on the classic YEAR_STACKS columns
+ * (future above older). Distant THEORY_OVERLAY callouts removed to avoid
+ * duplicating years away from the vertices.
  */
-const THEORY_OVERLAY: {
-  id: (typeof POINTS)[number]["id"];
-  year: string;
-  caption: string;
-  placement: "above" | "below";
-  dx?: number;
-  dy?: number;
-}[] = [
-  {
-    id: "midPeak",
-    year: "2037",
-    caption: "Theory mid",
-    placement: "below",
-    dx: -86,
-    dy: 32,
-  },
-  {
-    id: "midSlow",
-    year: "2039",
-    caption: "Theory dip",
-    placement: "below",
-    dx: 74,
-    dy: 26,
-  },
-  {
-    id: "next",
-    year: "2048",
-    caption: "Theory low",
-    placement: "below",
-    dx: 62,
-    dy: 18,
-  },
-];
 
 /**
  * Geometry-only inflection after the 2024 land-boom vertex: hold a modest rise,
@@ -88,29 +56,29 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     placement: "above",
   },
   midPeak: {
-    years: ["2019", "2000", "1981"],
+    /** Future theory year above classic stack */
+    years: ["2037", "2019", "2000", "1981"],
     placement: "above",
     dx: -10,
     dyClear: 8,
   },
   midSlow: {
-    years: ["2022", "2002", "1982"],
+    years: ["2039", "2022", "2002", "1982"],
     placement: "below",
     dx: -8,
     dyClear: 4,
   },
+  /** Geometry vertex only — 2024 label removed; path/live-dot still use landBoom */
   landBoom: {
-    years: ["2024"],
+    years: [],
     placement: "above",
-    dx: -10,
-    dyClear: 6,
   },
   peak: {
-    years: ["2026", "2007", "1989", "2044"],
+    /** Future on top; stack tucked nearer crest, lower to clear left Winner’s Curse */
+    years: ["2044", "2026", "2007", "1989"],
     placement: "above",
-    /** Right of crest; lower dyClear so stack clears Winner’s Curse labels */
-    dx: 40,
-    dyClear: 6,
+    dx: 22,
+    dyClear: -4,
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
@@ -118,7 +86,7 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     dx: -4,
   },
   next: {
-    years: ["2030", "2011", "1993", "1974"],
+    years: ["2048", "2030", "2011", "1993", "1974"],
     placement: "above",
     dx: 6,
   },
@@ -372,85 +340,6 @@ function YearColumn({
   );
 }
 
-/** Next-lap theory label at a classic loop vertex — muted until past ~2030, then bold yellow. */
-function TheoryOverlayLabel({
-  x,
-  y,
-  year,
-  caption,
-  placement,
-  dx = 0,
-  dy = 0,
-  active,
-}: {
-  x: number;
-  y: number;
-  year: string;
-  caption: string;
-  placement: "above" | "below";
-  dx?: number;
-  dy?: number;
-  /** True after end-2030 — next-lap timing years become the bold yellow highlight */
-  active?: boolean;
-}) {
-  const cx = x + dx;
-  const baseY = y + dy;
-  const yearY = placement === "above" ? baseY - 18 : baseY + 22;
-  const capY = placement === "above" ? baseY - 30 : baseY + 34;
-  const yearFill = active ? ACTIVE_YEAR_FILL : "#8fa0b8";
-  const haloStroke = active ? ACTIVE_YEAR_FILL : "#8fa0b8";
-  return (
-    <g opacity={active ? 1 : 0.78}>
-      {Math.abs(dx) >= 14 && (
-        <line
-          x1={x}
-          y1={placement === "above" ? y - 8 : y + 8}
-          x2={cx}
-          y2={placement === "above" ? yearY + 4 : yearY - 8}
-          stroke={active ? "#c9a227" : "#5a6a80"}
-          strokeWidth="1"
-          strokeDasharray="2 3"
-          opacity="0.65"
-        />
-      )}
-      <text
-        x={cx}
-        y={capY}
-        textAnchor="middle"
-        fill={active ? "#d4b84a" : "#6b7a90"}
-        fontSize="7"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="600"
-      >
-        {caption}
-      </text>
-      <text
-        x={cx}
-        y={yearY}
-        textAnchor="middle"
-        fill={yearFill}
-        fontSize={active ? 11 : 10}
-        fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-        fontWeight={active ? 700 : 600}
-        textDecoration={active ? "underline" : undefined}
-      >
-        {year}
-      </text>
-      {/* Soft vertex halo — dashed ring to mark theory overlay */}
-      <circle
-        cx={x}
-        cy={y}
-        r="8"
-        fill="none"
-        stroke={haloStroke}
-        strokeWidth="1"
-        strokeDasharray="3 3"
-        opacity={active ? 0.7 : 0.45}
-      />
-    </g>
-  );
-}
-
 /** Orange double-headed span under the chart (classic diagram framing). */
 function SpanArrow({
   x1,
@@ -513,7 +402,7 @@ export default function RealEstateCycleChart() {
 
   const live = livePositionFromNow();
   const past2030 = isPast2030Low();
-  /** Below-left of dot — crest has peak years (above-right) + Winner’s Curse callouts */
+  /** Below-left of dot — crest has peak years (above-right) + left Winner’s Curse */
   const liveLabelDx = -42;
   const liveLabelDy = 20;
 
@@ -522,7 +411,7 @@ export default function RealEstateCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Classic 18.6 Year Real Estate Cycle theory schematic with stacked historical framework years and next-lap theory waypoints overlaid on the same loop — educational rough guide only, not a predictive model or financial advice"
+      aria-label="Classic 18.6 Year Real Estate Cycle theory schematic with stacked historical and next-lap theory years on the same loop — educational rough guide only, not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -665,71 +554,55 @@ export default function RealEstateCycleChart() {
           />
         ))}
 
-        {/* Year stacks (2024 sits at land-boom geometry; wording moved to peak) */}
+        {/* Year stacks — landBoom vertex unlabeled (geometry kept for path / live dot) */}
         {(
           [
             "recovery",
             "midPeak",
             "midSlow",
-            "landBoom",
             "peak",
             "downturn",
             "next",
           ] as const
         ).map((id) => {
           const pt = POINTS.find((p) => p.id === id)!;
+          const stack = YEAR_STACKS[id];
+          if (stack.years.length === 0) return null;
           return (
             <YearColumn
               key={id}
               x={pt.x}
               pointY={pt.y}
-              stack={YEAR_STACKS[id]}
+              stack={stack}
               past2030={past2030}
             />
           );
         })}
 
-        {/* Winner’s Curse — classic crest zone at peak (both shoulders) */}
-        <text
-          x={peak.x - 72}
-          y={peak.y + 12}
-          textAnchor="end"
-          fill="#d4a017"
-          fontSize="11"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-        >
-          Winner's Curse
-        </text>
-        <text
-          x={peak.x + 48}
-          y={peak.y + 44}
-          textAnchor="start"
-          fill="#d4a017"
-          fontSize="11"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-        >
-          Winner's Curse
-        </text>
-
-        {/* Next-lap theory waypoints — same loop verts, muted / dashed */}
-        {THEORY_OVERLAY.map((t) => {
-          const pt = POINTS.find((p) => p.id === t.id)!;
-          return (
-            <TheoryOverlayLabel
-              key={t.year}
-              x={pt.x}
-              y={pt.y}
-              year={t.year}
-              caption={t.caption}
-              placement={t.placement}
-              dx={t.dx}
-              dy={t.dy}
-              active={past2030 && NEXT_CYCLE_YEARS.has(t.year)}
-            />
-          );
-        })}
+        {/* Winner’s Curse — left callout only; dotted leader toward crest / peak */}
+        <g>
+          <text
+            x={peak.x - 78}
+            y={peak.y + 18}
+            textAnchor="end"
+            fill="#d4a017"
+            fontSize="11"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="700"
+          >
+            Winner's Curse
+          </text>
+          <line
+            x1={peak.x - 74}
+            y1={peak.y + 14}
+            x2={peak.x - 10}
+            y2={peak.y + 2}
+            stroke="#d4a017"
+            strokeWidth="1.25"
+            strokeDasharray="2 3"
+            opacity="0.85"
+          />
+        </g>
 
         {/* Mid-cycle peak caption — left of vertex so year stack stays clear */}
         <text
@@ -898,7 +771,7 @@ export default function RealEstateCycleChart() {
           fontFamily="system-ui, sans-serif"
           fontWeight="700"
         >
-          Next-lap theory overlay (muted): rough guide on the repeating cycle shape — not a predictive model.
+          Next-lap theory years on columns (future above older): rough guide on the repeating cycle shape — not a predictive model.
         </text>
         <text
           x={SVG_W / 2}
