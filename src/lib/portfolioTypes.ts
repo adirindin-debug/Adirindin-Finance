@@ -1,5 +1,10 @@
 /** Portfolio tracker types — user-entered holdings + live quotes (AUD). */
 
+import {
+  PORTFOLIO_CHART_TIMEFRAMES,
+  type PortfolioChartTimeframe,
+} from "@/lib/chartTimeframes";
+
 export type AssetKind = "security" | "collectable";
 export type CostCurrency = "AUD" | "USD";
 
@@ -66,8 +71,9 @@ export const PERFORMANCE_BENCHMARKS = [
   { id: "aord", label: "All Ords", color: "#6b7280" },
 ] as const;
 
-export const PORTFOLIO_TIMEFRAMES = ["1M", "YTD", "1Y", "3Y", "5Y", "10Y", "ALL"] as const;
-export type PortfolioTimeframe = (typeof PORTFOLIO_TIMEFRAMES)[number];
+/** Unified with homepage compare chart (see chartTimeframes). Includes 4Y + 20Y. */
+export const PORTFOLIO_TIMEFRAMES = PORTFOLIO_CHART_TIMEFRAMES;
+export type PortfolioTimeframe = PortfolioChartTimeframe;
 
 /**
  * Shared return window for portfolio summary + per-position gains.

@@ -1,18 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   PERFORMANCE_BENCHMARKS,
   PORTFOLIO_TIMEFRAMES,
   type PortfolioTimeframe,
 } from "@/lib/portfolioTypes";
+import {
+  DEFAULT_CHART_TIMEFRAME,
+  readStoredChartTimeframe,
+  toHomepageKey,
+  toPortfolioTf,
+  writeStoredChartTimeframe,
+} from "@/lib/chartTimeframes";
 
 type Props = {
   hasHoldings: boolean;
 };
 
 export function PerformanceChartEmpty({ hasHoldings }: Props) {
-  const [tf, setTf] = useState<PortfolioTimeframe>("ALL");
+  const [tf, setTf] = useState<PortfolioTimeframe>(() =>
+    toPortfolioTf(DEFAULT_CHART_TIMEFRAME),
+  );
+
+  useEffect(() => {
+    setTf(toPortfolioTf(readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME)));
+  }, []);
+
+  const selectTf = useCallback((next: PortfolioTimeframe) => {
+    setTf(next);
+    writeStoredChartTimeframe(toHomepageKey(next));
+  }, []);
 
   return (
     <section className="mt-8" aria-label="Performance vs indices">
@@ -29,7 +47,7 @@ export function PerformanceChartEmpty({ hasHoldings }: Props) {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setTf(t)}
+                onClick={() => selectTf(t)}
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   active
                     ? "bg-zinc-800 text-white"

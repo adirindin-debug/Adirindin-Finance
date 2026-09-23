@@ -13,6 +13,13 @@ import {
   type PortfolioConfig,
   type PortfolioTimeframe,
 } from "@/lib/portfolioTypes";
+import {
+  DEFAULT_CHART_TIMEFRAME,
+  readStoredChartTimeframe,
+  toHomepageKey,
+  toPortfolioTf,
+  writeStoredChartTimeframe,
+} from "@/lib/chartTimeframes";
 
 type PctPoint = { t: number; pct: number };
 
@@ -88,7 +95,9 @@ function pathFor(
 }
 
 export function PerformanceChart({ portfolio, hasHoldings }: Props) {
-  const [tf, setTf] = useState<PortfolioTimeframe>("1Y");
+  const [tf, setTf] = useState<PortfolioTimeframe>(() =>
+    toPortfolioTf(DEFAULT_CHART_TIMEFRAME),
+  );
   const [series, setSeries] = useState<SeriesPayload[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +106,17 @@ export function PerformanceChart({ portfolio, hasHoldings }: Props) {
     t: number;
     values: Array<{ id: string; label: string; color: string; pct: number | null }>;
   } | null>(null);
+
+  // Sync timeframe with homepage compare chart via shared localStorage key.
+  useEffect(() => {
+    const stored = readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME);
+    setTf(toPortfolioTf(stored));
+  }, []);
+
+  const selectTf = useCallback((next: PortfolioTimeframe) => {
+    setTf(next);
+    writeStoredChartTimeframe(toHomepageKey(next));
+  }, []);
 
   const holdingsKey = useMemo(() => {
     return JSON.stringify(
@@ -241,7 +261,7 @@ export function PerformanceChart({ portfolio, hasHoldings }: Props) {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setTf(t)}
+                onClick={() => selectTf(t)}
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   active
                     ? "bg-zinc-800 text-white"
@@ -388,9 +408,10 @@ export function PerformanceChart({ portfolio, hasHoldings }: Props) {
       </ul>
       {hasHoldings && (
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
-          Cumulative % from window start (1M / YTD / 1Y / 3Y / 5Y / 10Y / ALL). Missing acquiredAt ⇒
-          held for full window from earliest price. Shorter series degrade gracefully. Collectables =
-          flat estimate · cash = flat A$. Quotes via Yahoo Finance (delayed third-party feed) · NFA.
+          Cumulative % from window start (1M / YTD / 1Y / 3Y / 4Y / 5Y / 10Y / 20Y / ALL; synced with
+          homepage compare). Missing acquiredAt ⇒ held for full window from earliest price. Shorter
+          series degrade gracefully. Collectables = flat estimate · cash = flat A$. Quotes via Yahoo
+          Finance (delayed third-party feed) · NFA.
         </p>
       )}
     </section>

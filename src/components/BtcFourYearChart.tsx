@@ -8,9 +8,17 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react";
+import {
+  CHART_TIMEFRAMES,
+  DEFAULT_CHART_TIMEFRAME,
+  chartTimeframeLongLabel,
+  readStoredChartTimeframe,
+  writeStoredChartTimeframe,
+  type ChartTimeframeKey,
+} from "@/lib/chartTimeframes";
 
 type SeriesId = "btc" | "ndx" | "spx" | "aord" | "msci" | "case" | "auhouses" | "m2";
-type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "20y" | "all";
+type WindowKey = ChartTimeframeKey;
 type ChartMode = "line" | "bar";
 
 type PctPoint = { t: number; pct: number };
@@ -79,16 +87,6 @@ const ALL_SERIES_IDS: SeriesId[] = [
   "case",
   "auhouses",
   "m2",
-];
-
-const WINDOWS: { key: WindowKey; label: string }[] = [
-  { key: "1y", label: "1Y" },
-  { key: "3y", label: "3Y" },
-  { key: "4y", label: "4Y" },
-  { key: "5y", label: "5Y" },
-  { key: "10y", label: "10Y" },
-  { key: "20y", label: "20Y" },
-  { key: "all", label: "ALL" },
 ];
 
 const W = 920;
@@ -391,15 +389,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
     };
   }
   const label =
-    payload?.windowLabel ??
-    ({
-      "1y": "1-year",
-      "3y": "3-year",
-      "4y": "4-year",
-      "5y": "5-year",
-      "10y": "10-year",
-      "20y": "20-year",
-    }[windowKey] as string);
+    payload?.windowLabel ?? chartTimeframeLongLabel(windowKey);
   const days = payload?.windowDays;
   const daysBit = days != null ? `~${days}d` : windowKey;
   return {
@@ -417,7 +407,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
 }
 
 export function BtcFourYearChart() {
-  const [windowKey, setWindowKey] = useState<WindowKey>("4y");
+  const [windowKey, setWindowKey] = useState<WindowKey>(DEFAULT_CHART_TIMEFRAME);
   const [chartMode, setChartMode] = useState<ChartMode>("line");
   const [selected, setSelected] = useState<Set<SeriesId>>(
     () => new Set(DEFAULT_SELECTED),
@@ -428,16 +418,22 @@ export function BtcFourYearChart() {
   const [lineHover, setLineHover] = useState<LineHover | null>(null);
   const lineSvgRef = useRef<SVGSVGElement | null>(null);
 
+  // Sync timeframe with portfolio chart via shared localStorage key.
+  useEffect(() => {
+    const stored = readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME);
+    setWindowKey(stored);
+  }, []);
+
+  const selectWindow = useCallback((key: WindowKey) => {
+    setWindowKey(key);
+    writeStoredChartTimeframe(key);
+  }, []);
+
   const toggleSeries = useCallback((id: SeriesId) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        // Keep at least one series selected so the chart never goes blank.
-        if (next.size <= 1) return prev;
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
@@ -617,13 +613,13 @@ export function BtcFourYearChart() {
             role="group"
             aria-label="Timeframe"
           >
-            {WINDOWS.map((w) => (
+            {CHART_TIMEFRAMES.map((w) => (
               <button
                 key={w.key}
                 type="button"
                 className={`${toggleBtn} ${windowKey === w.key ? toggleOn : toggleOff}`}
                 aria-pressed={windowKey === w.key}
-                onClick={() => setWindowKey(w.key)}
+                onClick={() => selectWindow(w.key)}
               >
                 {w.label}
               </button>
@@ -753,6 +749,16 @@ export function BtcFourYearChart() {
                 detailed cycle map
               </a>
               .
+            </p>
+          </div>
+        )}
+
+        {status === "ready" && selectedSeries.length === 0 && (
+          <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
+            <p className="text-sm text-muted">Select a series</p>
+            <p className="max-w-sm text-xs text-muted/70">
+              All chips are off — turn on one or more series above to plot the
+              compare chart. Empty chart is intentional.
             </p>
           </div>
         )}

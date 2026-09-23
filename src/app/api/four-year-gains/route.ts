@@ -1,7 +1,7 @@
 /**
  * Relative % from the start of each window for BTC, equities, MSCI World proxy,
  * US/AU housing, and US M2.
- * Query: ?window=1y|3y|4y|5y|10y|20y|all  (default: 4y — keeps existing route callers working)
+ * Query: ?window=1m|ytd|1y|3y|4y|5y|10y|20y|all  (default: 1y)
  * Yahoo Finance chart API + FRED CSV/API (server-side; UA required). Educational — NFA.
  *
  * Series sources (documented for maintainers):
@@ -47,7 +47,7 @@ export type SeriesId =
   | "auhouses"
   | "m2";
 
-type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "20y" | "all";
+type WindowKey = "1m" | "ytd" | "1y" | "3y" | "4y" | "5y" | "10y" | "20y" | "all";
 
 type ClosePoint = { t: number; c: number };
 type PctPoint = { t: number; pct: number };
@@ -135,8 +135,8 @@ const SERIES: SeriesMeta[] = [
 /** Equity trio used for ALL-window common start (preserves original ALL semantics). */
 const ALL_ANCHOR_IDS: SeriesId[] = ["ndx", "spx", "aord"];
 
-/** Calendar-day lookbacks (years × 365.25). Same window for every series. */
-const WINDOW_YEARS: Record<Exclude<WindowKey, "all">, number> = {
+/** Multi-year lookbacks (years × 365.25). 1m / ytd handled separately. */
+const WINDOW_YEARS: Record<"1y" | "3y" | "4y" | "5y" | "10y" | "20y", number> = {
   "1y": 1,
   "3y": 3,
   "4y": 4,
@@ -145,7 +145,29 @@ const WINDOW_YEARS: Record<Exclude<WindowKey, "all">, number> = {
   "20y": 20,
 };
 
-const VALID_WINDOWS = new Set<string>(["1y", "3y", "4y", "5y", "10y", "20y", "all"]);
+const VALID_WINDOWS = new Set<string>([
+  "1m",
+  "ytd",
+  "1y",
+  "3y",
+  "4y",
+  "5y",
+  "10y",
+  "20y",
+  "all",
+]);
+
+const AVAILABLE_WINDOWS = [
+  "1m",
+  "ytd",
+  "1y",
+  "3y",
+  "4y",
+  "5y",
+  "10y",
+  "20y",
+  "all",
+] as const;
 
 const SERIES_ORDER: SeriesId[] = [
   "btc",
@@ -164,7 +186,18 @@ function windowSec(years: number) {
 
 function parseWindow(raw: string | null): WindowKey {
   if (raw && VALID_WINDOWS.has(raw)) return raw as WindowKey;
-  return "4y";
+  return "1y";
+}
+
+/** Shared display-from (unix sec) for rolling windows; null for ALL. */
+function windowFromSec(key: WindowKey, nowSec: number): number | null {
+  if (key === "all") return null;
+  if (key === "1m") return nowSec - 30 * 86400;
+  if (key === "ytd") {
+    const d = new Date(nowSec * 1000);
+    return Math.floor(Date.UTC(d.getUTCFullYear(), 0, 1) / 1000);
+  }
+  return nowSec - windowSec(WINDOW_YEARS[key]);
 }
 
 function pickClose(
@@ -633,7 +666,7 @@ function isoDate(ts: number) {
   return new Date(ts * 1000).toISOString().slice(0, 10);
 }
 
-function windowMeta(key: WindowKey) {
+function windowMeta(key: WindowKey, nowSec: number) {
   if (key === "all") {
     return {
       window: key as WindowKey,
@@ -647,9 +680,36 @@ function windowMeta(key: WindowKey) {
         "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI World, Case-Shiller, AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is optional on the ALL line when selected; Yahoo daily BTC-USD starts from Sep 2014, so it is marked partial/short history and uses its own inception start. Educational only — not financial advice (NFA).",
     };
   }
-  const years = WINDOW_YEARS[key];
-  const sec = windowSec(years);
+  const from = windowFromSec(key, nowSec)!;
+  const sec = nowSec - from;
   const days = Math.round(sec / 86400);
+  if (key === "1m") {
+    return {
+      window: key as WindowKey,
+      windowLabel: "1-month",
+      windowShort: "1M",
+      mode: "relative" as const,
+      windowDays: days,
+      windowSec: sec,
+      title: "Relative % over ~1 month",
+      definition:
+        "Each line starts at 0% at the left of the ~30-day window and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+    };
+  }
+  if (key === "ytd") {
+    return {
+      window: key as WindowKey,
+      windowLabel: "year-to-date",
+      windowShort: "YTD",
+      mode: "relative" as const,
+      windowDays: days,
+      windowSec: sec,
+      title: "Relative % year-to-date",
+      definition:
+        "Each line starts at 0% at the UTC calendar year start and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+    };
+  }
+  const years = WINDOW_YEARS[key];
   return {
     window: key as WindowKey,
     windowLabel: `${years}-year`,
@@ -689,7 +749,8 @@ async function loadSeriesCloses(meta: SeriesMeta): Promise<LoadedSeries> {
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const windowKey = parseWindow(searchParams.get("window"));
-  const meta = windowMeta(windowKey);
+  const nowSecEarly = Math.floor(Date.now() / 1000);
+  const meta = windowMeta(windowKey, nowSecEarly);
 
   const errors: Record<string, string> = {};
   const closesById: Partial<Record<SeriesId, ClosePoint[]>> = {};
@@ -722,7 +783,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const nowSec = Math.floor(Date.now() / 1000);
+  const nowSec = nowSecEarly;
   let displayCutoff: number | null;
   const btcFirst = firstPositive(closesById.btc ?? [])?.t ?? null;
   if (windowKey === "all") {
@@ -739,7 +800,7 @@ export async function GET(request: Request) {
       displayCutoff = indexFirsts.length ? Math.max(...indexFirsts) : null;
     }
   } else {
-    displayCutoff = nowSec - windowSec(WINDOW_YEARS[windowKey]);
+    displayCutoff = windowFromSec(windowKey, nowSec);
   }
 
   const series: Array<{
@@ -839,7 +900,7 @@ export async function GET(request: Request) {
       displayTo: nowSec,
       commonStart: displayCutoff != null ? isoDate(displayCutoff) : null,
       seriesStarts: Object.keys(seriesStarts).length ? seriesStarts : undefined,
-      availableWindows: ["1y", "3y", "4y", "5y", "10y", "20y", "all"],
+      availableWindows: [...AVAILABLE_WINDOWS],
       source:
         "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL); mirrors/bundled CSV if FRED times out",
       seriesOrigins: Object.keys(originById).length ? originById : undefined,
