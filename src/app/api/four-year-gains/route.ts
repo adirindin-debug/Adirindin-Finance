@@ -1,7 +1,26 @@
 /**
- * Relative % from the start of each window for BTC vs major equity indices.
+ * Relative % from the start of each window for BTC, equities, MSCI World proxy,
+ * US/AU housing, and US M2.
  * Query: ?window=1y|3y|4y|5y|10y|all  (default: 4y — keeps existing route callers working)
- * Yahoo Finance chart API (server-side; UA required). Educational — NFA.
+ * Yahoo Finance chart API + FRED CSV/API (server-side; UA required). Educational — NFA.
+ *
+ * Series sources (documented for maintainers):
+ * - btc: Yahoo BTC-USD
+ * - spx: Yahoo ^GSPC
+ * - ndx: Yahoo ^NDX
+ * - aord: Yahoo ^AORD
+ * - msci: Yahoo ACWI — chosen over URTH/VT for longest reliable Yahoo daily history
+ *   (ACWI from ~Mar 2008; URTH from ~Jan 2012). iShares MSCI ACWI ETF (all-country;
+ *   closest long-history MSCI World-family proxy on Yahoo).
+ * - case: FRED CSUSHPISA — Case-Shiller US National Home Price Index (monthly, SA)
+ * - auhouses: FRED QAUN628BIS — BIS nominal Residential Property Prices for Australia
+ *   (quarterly, Index 2010=100; 8 big cities). Nominal chosen to align with Case-Shiller
+ *   (also a nominal price index) for relative-% compares. QAUR628BIS is the real (CPI-
+ *   deflated) sibling if a real series is preferred later.
+ * - m2: FRED M2SL — US M2 money stock (monthly, SA, billions USD). Plotted as relative
+ *   % from window start (same formula as equities), NOT the raw dollar level.
+ *
+ * Bonds intentionally omitted pending Anthony's pick (Agg TR / long Treasury / yields / skip).
  */
 
 export const runtime = "nodejs";
@@ -11,7 +30,16 @@ export const revalidate = 0;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-type SeriesId = "btc" | "ndx" | "spx" | "aord";
+export type SeriesId =
+  | "btc"
+  | "ndx"
+  | "spx"
+  | "aord"
+  | "msci"
+  | "case"
+  | "auhouses"
+  | "m2";
+
 type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "all";
 
 type ClosePoint = { t: number; c: number };
@@ -21,20 +49,84 @@ type SeriesMeta = {
   id: SeriesId;
   label: string;
   ticker: string;
-  yahooSymbol: string;
+  source: "yahoo" | "fred";
+  yahooSymbol?: string;
+  fredId?: string;
+  /** Native cadence before daily forward-fill. */
+  frequency: "daily" | "monthly" | "quarterly";
 };
 
 const SERIES: SeriesMeta[] = [
-  { id: "btc", label: "BTC-USD", ticker: "BTC-USD", yahooSymbol: "BTC-USD" },
-  { id: "ndx", label: "Nasdaq 100", ticker: "^NDX", yahooSymbol: "^NDX" },
-  { id: "spx", label: "S&P 500", ticker: "^GSPC", yahooSymbol: "^GSPC" },
+  {
+    id: "btc",
+    label: "BTC-USD",
+    ticker: "BTC-USD",
+    source: "yahoo",
+    yahooSymbol: "BTC-USD",
+    frequency: "daily",
+  },
+  {
+    id: "ndx",
+    label: "Nasdaq 100",
+    ticker: "^NDX",
+    source: "yahoo",
+    yahooSymbol: "^NDX",
+    frequency: "daily",
+  },
+  {
+    id: "spx",
+    label: "S&P 500",
+    ticker: "^GSPC",
+    source: "yahoo",
+    yahooSymbol: "^GSPC",
+    frequency: "daily",
+  },
   {
     id: "aord",
     label: "All Ordinaries",
     ticker: "^AORD",
+    source: "yahoo",
     yahooSymbol: "^AORD",
+    frequency: "daily",
+  },
+  {
+    // ACWI: longest Yahoo daily among URTH (2012) / ACWI (2008) / VT (2008, slightly shorter).
+    id: "msci",
+    label: "MSCI World",
+    ticker: "ACWI",
+    source: "yahoo",
+    yahooSymbol: "ACWI",
+    frequency: "daily",
+  },
+  {
+    id: "case",
+    label: "US real estate",
+    ticker: "CSUSHPISA",
+    source: "fred",
+    fredId: "CSUSHPISA",
+    frequency: "monthly",
+  },
+  {
+    // FRED QAUN628BIS — BIS nominal AU residential property prices (quarterly).
+    id: "auhouses",
+    label: "AU homes",
+    ticker: "QAUN628BIS",
+    source: "fred",
+    fredId: "QAUN628BIS",
+    frequency: "quarterly",
+  },
+  {
+    id: "m2",
+    label: "US M2",
+    ticker: "M2SL",
+    source: "fred",
+    fredId: "M2SL",
+    frequency: "monthly",
   },
 ];
+
+/** Equity trio used for ALL-window common start (preserves original ALL semantics). */
+const ALL_ANCHOR_IDS: SeriesId[] = ["ndx", "spx", "aord"];
 
 /** Calendar-day lookbacks (years × 365.25). Same window for every series. */
 const WINDOW_YEARS: Record<Exclude<WindowKey, "all">, number> = {
@@ -46,6 +138,17 @@ const WINDOW_YEARS: Record<Exclude<WindowKey, "all">, number> = {
 };
 
 const VALID_WINDOWS = new Set<string>(["1y", "3y", "4y", "5y", "10y", "all"]);
+
+const SERIES_ORDER: SeriesId[] = [
+  "btc",
+  "spx",
+  "ndx",
+  "aord",
+  "msci",
+  "case",
+  "auhouses",
+  "m2",
+];
 
 function windowSec(years: number) {
   return Math.round(years * 365.25 * 86400);
@@ -114,6 +217,128 @@ async function fetchYahooDaily(symbol: string): Promise<ClosePoint[]> {
   return out;
 }
 
+type FredObs = { t: number; v: number };
+
+function parseFredCsv(text: string, seriesId: string): FredObs[] {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return [];
+  const header = lines[0].toLowerCase();
+  if (!header.includes("observation_date") && !header.includes("date")) {
+    return [];
+  }
+  const out: FredObs[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const [dateStr, valStr] = line.split(",");
+    if (!dateStr || valStr == null || valStr === "." || valStr === "") continue;
+    const v = Number(valStr);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const t = Date.parse(`${dateStr.trim()}T00:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    out.push({ t: Math.floor(t / 1000), v });
+  }
+  if (!out.length) {
+    throw new Error(`FRED ${seriesId}: no numeric observations in CSV`);
+  }
+  return out;
+}
+
+async function fetchFredCsv(seriesId: string): Promise<FredObs[]> {
+  const url = `https://fred.stlouisfed.org/graph/fredgraph.csv?id=${encodeURIComponent(seriesId)}`;
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, Accept: "text/csv,text/plain,*/*" },
+    next: { revalidate: 21600 },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`FRED CSV ${seriesId}: HTTP ${res.status}`);
+  const text = await res.text();
+  if (
+    text.trimStart().startsWith("<!DOCTYPE") ||
+    text.trimStart().startsWith("<html")
+  ) {
+    throw new Error(`FRED CSV ${seriesId}: HTML challenge page`);
+  }
+  return parseFredCsv(text, seriesId);
+}
+
+async function fetchFredApi(
+  seriesId: string,
+  apiKey: string,
+): Promise<FredObs[]> {
+  const url =
+    `https://api.stlouisfed.org/fred/series/observations` +
+    `?series_id=${encodeURIComponent(seriesId)}` +
+    `&api_key=${encodeURIComponent(apiKey)}&file_type=json&observation_start=1970-01-01`;
+  const res = await fetch(url, {
+    headers: { Accept: "application/json", "User-Agent": UA },
+    next: { revalidate: 21600 },
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`FRED API ${seriesId}: HTTP ${res.status}`);
+  const json = (await res.json()) as {
+    observations?: Array<{ date: string; value: string }>;
+  };
+  const out: FredObs[] = [];
+  for (const o of json.observations ?? []) {
+    if (o.value === "." || o.value === "") continue;
+    const v = Number(o.value);
+    if (!Number.isFinite(v) || v <= 0) continue;
+    const t = Date.parse(`${o.date}T00:00:00Z`);
+    if (!Number.isFinite(t)) continue;
+    out.push({ t: Math.floor(t / 1000), v });
+  }
+  if (!out.length) throw new Error(`FRED API ${seriesId}: empty`);
+  return out;
+}
+
+async function fetchFredSeries(seriesId: string): Promise<ClosePoint[]> {
+  const apiKey = process.env.FRED_API_KEY?.trim() || undefined;
+  const errors: string[] = [];
+  let obs: FredObs[] | null = null;
+  if (apiKey) {
+    try {
+      obs = await fetchFredApi(seriesId, apiKey);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : "api failed");
+    }
+  }
+  if (!obs) {
+    try {
+      obs = await fetchFredCsv(seriesId);
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : "csv failed");
+      throw new Error(errors.join("; ") || `FRED ${seriesId} failed`);
+    }
+  }
+  return obs.map((o) => ({ t: o.t, c: o.v }));
+}
+
+/**
+ * Forward-fill sparse (monthly/quarterly) observations onto a daily step so
+ * lines share the chart axis with Yahoo daily series. Step holds last known
+ * level until the next observation (honest step path, not interpolated).
+ */
+function expandSparseToDaily(closes: ClosePoint[]): ClosePoint[] {
+  if (closes.length < 1) return [];
+  const sorted = [...closes].sort((a, b) => a.t - b.t);
+  const day = 86400;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const out: ClosePoint[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = sorted[i]!;
+    if (!out.length || out[out.length - 1]!.t !== cur.t) {
+      out.push({ t: cur.t, c: cur.c });
+    }
+    const endExclusive =
+      i + 1 < sorted.length ? sorted[i + 1]!.t : nowSec + day;
+    for (let t = cur.t + day; t < endExclusive; t += day) {
+      out.push({ t, c: cur.c });
+    }
+  }
+  return out;
+}
+
 /**
  * Relative % from the window start: every series at 0% on the left,
  * then the path of that window's performance. End value = window return
@@ -123,8 +348,8 @@ function windowRelative(
   closes: ClosePoint[],
   fromSec: number,
   toSec: number,
-): PctPoint[] {
-  if (closes.length < 2) return [];
+): { points: PctPoint[]; usedFallbackBase: boolean } {
+  if (closes.length < 2) return { points: [], usedFallbackBase: false };
   let base: ClosePoint | null = null;
   for (const p of closes) {
     if (p.t > toSec) break;
@@ -134,15 +359,19 @@ function windowRelative(
   const inWin = closes.filter(
     (p) => p.t >= fromSec && p.t <= toSec && p.c > 0,
   );
-  if (!inWin.length) return [];
-  if (!base || base.c <= 0) base = inWin[0]!;
+  if (!inWin.length) return { points: [], usedFallbackBase: false };
+  let usedFallbackBase = false;
+  if (!base || base.c <= 0) {
+    base = inWin[0]!;
+    usedFallbackBase = true;
+  }
   const out: PctPoint[] = [];
   for (const p of inWin) {
     const pct = (p.c / base.c - 1) * 100;
     if (!Number.isFinite(pct)) continue;
     out.push({ t: p.t, pct: Math.max(pct, -100) });
   }
-  return out;
+  return { points: out, usedFallbackBase };
 }
 
 function firstPositive(closes: ClosePoint[]): ClosePoint | null {
@@ -180,7 +409,7 @@ function windowMeta(key: WindowKey) {
       windowSec: null as number | null,
       title: "All-time index relative %",
       definition:
-        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Bitcoin is omitted from the line (Yahoo daily BTC-USD only from Sep 2014) and kept on the bars / chips as its own all-time return. Educational only — not financial advice (NFA).",
+        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI ACWI, Case-Shiller, AU homes, US M2) join when selected; shorter history is marked partial. Bitcoin is omitted from the ALL line (Yahoo daily BTC-USD only from Sep 2014) and kept on the bars / chips as its own all-time return. Educational only — not financial advice (NFA).",
     };
   }
   const years = WINDOW_YEARS[key];
@@ -194,8 +423,21 @@ function windowMeta(key: WindowKey) {
     windowDays: days,
     windowSec: sec,
     title: `Relative % over ${years} year${years === 1 ? "" : "s"}`,
-    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date for BTC-USD, ^NDX, ^GSPC and ^AORD. End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
+    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date across selected series (BTC-USD, equities, MSCI ACWI, Case-Shiller, AU homes, US M2 % change). End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
   };
+}
+
+async function loadSeriesCloses(
+  meta: SeriesMeta,
+): Promise<ClosePoint[]> {
+  if (meta.source === "yahoo") {
+    if (!meta.yahooSymbol) throw new Error(`${meta.id}: missing yahooSymbol`);
+    return fetchYahooDaily(meta.yahooSymbol);
+  }
+  if (!meta.fredId) throw new Error(`${meta.id}: missing fredId`);
+  const sparse = await fetchFredSeries(meta.fredId);
+  // Monthly/quarterly → daily step so the shared axis can plot them.
+  return expandSparseToDaily(sparse);
 }
 
 export async function GET(request: Request) {
@@ -209,7 +451,7 @@ export async function GET(request: Request) {
   await Promise.all(
     SERIES.map(async (sMeta) => {
       try {
-        closesById[sMeta.id] = await fetchYahooDaily(sMeta.yahooSymbol);
+        closesById[sMeta.id] = await loadSeriesCloses(sMeta);
       } catch (e) {
         errors[sMeta.id] = e instanceof Error ? e.message : "fetch failed";
       }
@@ -233,11 +475,18 @@ export async function GET(request: Request) {
   let displayCutoff: number | null;
   const btcFirst = firstPositive(closesById.btc ?? [])?.t ?? null;
   if (windowKey === "all") {
-    const indexFirsts = loaded
-      .filter((s) => s.id !== "btc")
-      .map((s) => firstPositive(closesById[s.id] ?? [])?.t)
-      .filter((t): t is number => t != null);
-    displayCutoff = indexFirsts.length ? Math.max(...indexFirsts) : null;
+    const anchorFirsts = ALL_ANCHOR_IDS.map(
+      (id) => firstPositive(closesById[id] ?? [])?.t,
+    ).filter((t): t is number => t != null);
+    if (anchorFirsts.length) {
+      displayCutoff = Math.max(...anchorFirsts);
+    } else {
+      const indexFirsts = loaded
+        .filter((s) => s.id !== "btc")
+        .map((s) => firstPositive(closesById[s.id] ?? [])?.t)
+        .filter((t): t is number => t != null);
+      displayCutoff = indexFirsts.length ? Math.max(...indexFirsts) : null;
+    }
   } else {
     displayCutoff = nowSec - windowSec(WINDOW_YEARS[windowKey]);
   }
@@ -250,6 +499,8 @@ export async function GET(request: Request) {
     latestPct: number | null;
     startDate?: string;
     coverage: "full" | "partial";
+    source: "yahoo" | "fred";
+    frequency: "daily" | "monthly" | "quarterly";
   }> = [];
 
   const seriesStarts: Partial<Record<SeriesId, string>> = {};
@@ -263,27 +514,40 @@ export async function GET(request: Request) {
           ? btcFirst
           : displayCutoff ?? firstPositive(closes)?.t;
       if (cutoff == null) continue;
-      const pct = windowRelative(closes, cutoff, nowSec);
+      const { points: pct, usedFallbackBase } = windowRelative(
+        closes,
+        cutoff,
+        nowSec,
+      );
       const points = downsample(pct, 900);
       const latestPct = points.length ? points[points.length - 1]!.pct : null;
       const startDate = points.length ? isoDate(points[0]!.t) : isoDate(cutoff);
       seriesStarts[sMeta.id] = startDate;
+
+      // Honest coverage: partial if the series has no observation at/before window
+      // start (shorter history than the shared domain). Coarser FRED cadences are
+      // still "full" when they span the window — the step fill is documented in footer.
+      const coverage: "full" | "partial" = usedFallbackBase ? "partial" : "full";
+
       series.push({
         id: sMeta.id,
         label: sMeta.label,
         ticker: sMeta.ticker,
         points,
         latestPct,
-        coverage: "full",
+        coverage,
         startDate,
+        source: sMeta.source,
+        frequency: sMeta.frequency,
       });
     } catch (e) {
       errors[sMeta.id] = e instanceof Error ? e.message : "compute failed";
     }
   }
 
-  const order: SeriesId[] = ["btc", "ndx", "spx", "aord"];
-  series.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+  series.sort(
+    (a, b) => SERIES_ORDER.indexOf(a.id) - SERIES_ORDER.indexOf(b.id),
+  );
 
   if (!series.length) {
     return Response.json(
@@ -314,11 +578,13 @@ export async function GET(request: Request) {
       commonStart: displayCutoff != null ? isoDate(displayCutoff) : null,
       seriesStarts: Object.keys(seriesStarts).length ? seriesStarts : undefined,
       availableWindows: ["1y", "3y", "4y", "5y", "10y", "all"],
-      source: "Yahoo Finance chart API (query1)",
+      source:
+        "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL)",
       tickers: SERIES.map((s) => ({
         id: s.id,
         ticker: s.ticker,
         label: s.label,
+        source: s.source,
       })),
       series,
       errors: Object.keys(errors).length ? errors : undefined,

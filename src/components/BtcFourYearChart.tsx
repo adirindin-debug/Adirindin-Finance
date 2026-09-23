@@ -9,7 +9,7 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 
-type SeriesId = "btc" | "ndx" | "spx" | "aord";
+type SeriesId = "btc" | "ndx" | "spx" | "aord" | "msci" | "case" | "auhouses" | "m2";
 type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "all";
 type ChartMode = "line" | "bar";
 
@@ -23,6 +23,8 @@ type SeriesPayload = {
   latestPct: number | null;
   startDate?: string;
   coverage?: "full" | "partial";
+  source?: "yahoo" | "fred";
+  frequency?: "daily" | "monthly" | "quarterly";
 };
 
 type ApiPayload = {
@@ -46,12 +48,38 @@ type ApiPayload = {
   asOf?: string;
 };
 
-const SERIES_STYLE: Record<SeriesId, { color: string; short: string }> = {
-  btc: { color: "#f7931a", short: "BTC" },
-  ndx: { color: "#4c9fff", short: "NDX" },
-  spx: { color: "#3dcc9a", short: "SPX" },
-  aord: { color: "#e8873a", short: "AORD" },
+const SERIES_STYLE: Record<
+  SeriesId,
+  { color: string; short: string; chip: string; hint?: string }
+> = {
+  btc: { color: "#f7931a", short: "BTC", chip: "BTC" },
+  spx: { color: "#3dcc9a", short: "SPX", chip: "S&P 500" },
+  ndx: { color: "#4c9fff", short: "NDX", chip: "Nasdaq 100" },
+  aord: { color: "#e8873a", short: "AORD", chip: "All Ords" },
+  msci: { color: "#a78bfa", short: "MSCI", chip: "MSCI World" },
+  case: { color: "#f472b6", short: "CASE", chip: "US real estate" },
+  auhouses: { color: "#38bdf8", short: "AU", chip: "AU homes" },
+  m2: {
+    color: "#94a3b8",
+    short: "M2",
+    chip: "US M2",
+    hint: "% change, not level",
+  },
 };
+
+/** Default-on series on first load (others off until toggled). */
+const DEFAULT_SELECTED: SeriesId[] = ["spx", "btc", "case"];
+
+const ALL_SERIES_IDS: SeriesId[] = [
+  "btc",
+  "spx",
+  "ndx",
+  "aord",
+  "msci",
+  "case",
+  "auhouses",
+  "m2",
+];
 
 const WINDOWS: { key: WindowKey; label: string }[] = [
   { key: "1y", label: "1Y" },
@@ -331,12 +359,14 @@ function formatStartsLine(payload: ApiPayload | null): string {
   const bits = payload.series
     .filter((s) => s.id !== "btc")
     .map((s) => {
+      const style = SERIES_STYLE[s.id];
+      if (!style) return null;
       const d =
         s.startDate ??
         payload.seriesStarts?.[s.id] ??
         (s.points[0] ? new Date(s.points[0].t * 1000).toISOString().slice(0, 10) : null);
       if (!d) return null;
-      return `${SERIES_STYLE[s.id].short} ${d}`;
+      return `${style.short} ${d}`;
     })
     .filter(Boolean);
   return bits.length ? bits.join(" · ") : "";
@@ -346,16 +376,16 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
   if (windowKey === "all") {
     const starts = formatStartsLine(payload);
     return {
-      heading: "All-time index chart",
+      heading: "All-time relative chart",
       subtitle:
-        "NDX, SPX and AORD from the first shared index date · BTC stays on the chips and bars · educational · NFA",
+        "NDX, SPX and AORD set the shared start · toggle series on chips · BTC on bars · educational · NFA",
       kpiSuffix: "% all-time",
       chartTitle: payload?.title ?? "All-time index relative %",
-      chartHint: "Indices only · start = 0% · BTC on bars",
-      aria: "All-time relative percentage returns for Nasdaq 100, S&P 500, and All Ordinaries",
-      loading: "Loading all-time index returns…",
+      chartHint: "Selected series · start = 0% · BTC on bars",
+      aria: "All-time relative percentage returns for selected series",
+      loading: "Loading all-time relative returns…",
       footerLead:
-        "Educational compare of Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily, Oct 1985). Bitcoin is left off the line — Yahoo daily BTC-USD only starts Sep 2014 — and kept on the chips and bars as its own all-time return",
+        "Educational compare from the first date NDX, SPX and AORD all exist on Yahoo (NDX daily, Oct 1985). Toggle series chips to show or hide lines. Bitcoin is left off the ALL line — Yahoo daily BTC-USD only starts Sep 2014 — and kept on the chips and bars as its own all-time return",
       startsLine: starts,
       errorLabel: "all-time compare chart",
     };
@@ -377,7 +407,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
     kpiSuffix: `${windowKey.toUpperCase()} %`,
     chartTitle: payload?.title ?? `Relative % over ${label}`,
     chartHint: `Shared % scale · from ${daysBit} ago · not price levels`,
-    aria: `Relative ${label} percentage returns on a shared Y-axis for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries`,
+    aria: `Relative ${label} percentage returns on a shared Y-axis for selected series`,
     loading: `Loading ${label} relative %…`,
     footerLead: `Educational compare of percentage returns over the same ${label} window (all lines start at 0% on the left)`,
     startsLine: "",
@@ -388,15 +418,32 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
 export function BtcFourYearChart() {
   const [windowKey, setWindowKey] = useState<WindowKey>("4y");
   const [chartMode, setChartMode] = useState<ChartMode>("line");
+  const [selected, setSelected] = useState<Set<SeriesId>>(
+    () => new Set(DEFAULT_SELECTED),
+  );
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<ApiPayload | null>(null);
   const [lineHover, setLineHover] = useState<LineHover | null>(null);
   const lineSvgRef = useRef<SVGSVGElement | null>(null);
 
+  const toggleSeries = useCallback((id: SeriesId) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        // Keep at least one series selected so the chart never goes blank.
+        if (next.size <= 1) return prev;
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
   useEffect(() => {
     setLineHover(null);
-  }, [windowKey, chartMode]);
+  }, [windowKey, chartMode, selected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -428,23 +475,29 @@ export function BtcFourYearChart() {
     [windowKey, payload],
   );
 
+  const selectedSeries = useMemo(() => {
+    if (!payload?.series?.length) return [] as SeriesPayload[];
+    return payload.series.filter((s) => selected.has(s.id));
+  }, [payload, selected]);
+
   const chart = useMemo(() => {
-    if (!payload?.series?.length || chartMode !== "line") return null;
+    if (!selectedSeries.length || chartMode !== "line") return null;
+    // ALL window: BTC stays off the line (own inception on bars/chips only).
     const lineSeries =
       windowKey === "all"
-        ? payload.series.filter((s) => s.id !== "btc")
-        : payload.series;
+        ? selectedSeries.filter((s) => s.id !== "btc")
+        : selectedSeries;
     return lineSeries.length
-      ? buildSharedAxis(lineSeries, payload, windowKey)
+      ? buildSharedAxis(lineSeries, payload!, windowKey)
       : null;
-  }, [payload, chartMode, windowKey]);
+  }, [selectedSeries, payload, chartMode, windowKey]);
 
   const barLayout = useMemo(
     () =>
-      payload?.series?.length && chartMode === "bar"
-        ? buildBarLayout(payload.series)
+      selectedSeries.length && chartMode === "bar"
+        ? buildBarLayout(selectedSeries)
         : null,
-    [payload, chartMode],
+    [selectedSeries, chartMode],
   );
 
   const activeYRange = chart?.yRange ?? barLayout?.yRange ?? null;
@@ -611,45 +664,75 @@ export function BtcFourYearChart() {
       </div>
 
       {status === "ready" && payload?.series && (
-        <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {payload.series.map((s) => {
-            const style = SERIES_STYLE[s.id];
-            const pct = s.latestPct;
-            const start =
-              s.startDate ??
-              payload.seriesStarts?.[s.id] ??
-              (windowKey === "all" && s.points[0]
-                ? new Date(s.points[0].t * 1000).toISOString().slice(0, 10)
-                : null);
-            return (
-              <div
-                key={s.id}
-                className="rounded-lg border border-border bg-card px-3 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <span
-                    className="inline-block h-2 w-2 rounded-full"
-                    style={{ background: style.color }}
-                    aria-hidden
-                  />
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
-                    {s.label}
-                  </span>
-                </div>
-                <p
-                  className="mt-1 text-lg font-semibold tabular-nums"
-                  style={{ color: style.color }}
+        <div className="mb-3">
+          <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
+            Series (click to toggle)
+          </span>
+          <div
+            className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+            role="group"
+            aria-label="Toggle series visibility"
+          >
+            {ALL_SERIES_IDS.map((id) => {
+              const s = payload.series!.find((x) => x.id === id);
+              const style = SERIES_STYLE[id];
+              const on = selected.has(id);
+              const pct = s?.latestPct ?? null;
+              const start =
+                s?.startDate ??
+                payload.seriesStarts?.[id] ??
+                (windowKey === "all" && s?.points[0]
+                  ? new Date(s.points[0].t * 1000).toISOString().slice(0, 10)
+                  : null);
+              const missing = !s;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  disabled={missing}
+                  aria-pressed={on}
+                  aria-label={`${style.chip}${style.hint ? ` (${style.hint})` : ""}${on ? ", shown" : ", hidden"}`}
+                  onClick={() => toggleSeries(id)}
+                  className={`rounded-lg bg-card px-3 py-2 text-left transition-colors ${
+                    missing
+                      ? "cursor-not-allowed border border-border/40 opacity-40"
+                      : on
+                        ? "border-2 border-accent shadow-sm"
+                        : "border border-border/50 opacity-70 hover:opacity-90"
+                  }`}
+                  style={
+                    on && !missing
+                      ? { borderColor: style.color, boxShadow: `0 0 0 1px ${style.color}33` }
+                      : undefined
+                  }
                 >
-                  {pct == null ? "—" : fmtPct(pct)}
-                </p>
-                <p className="text-[10px] text-muted">
-                  {s.ticker} · {copy.kpiSuffix}
-                  {start ? ` · from ${start}` : ""}
-                  {s.coverage === "partial" ? " · short history" : ""}
-                </p>
-              </div>
-            );
-          })}
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="inline-block h-2 w-2 rounded-full"
+                      style={{ background: style.color, opacity: on ? 1 : 0.45 }}
+                      aria-hidden
+                    />
+                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
+                      {style.chip}
+                    </span>
+                  </div>
+                  <p
+                    className="mt-1 text-lg font-semibold tabular-nums"
+                    style={{ color: on ? style.color : "#8b9bb4" }}
+                  >
+                    {missing ? "—" : pct == null ? "—" : fmtPct(pct)}
+                  </p>
+                  <p className="text-[10px] text-muted">
+                    {s?.ticker ?? style.short} · {copy.kpiSuffix}
+                    {start ? ` · from ${start}` : ""}
+                    {s?.coverage === "partial" ? " · short history" : ""}
+                    {style.hint ? ` · ${style.hint}` : ""}
+                    {missing ? " · unavailable" : on ? "" : " · hidden"}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -658,8 +741,7 @@ export function BtcFourYearChart() {
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <p className="text-sm text-muted">{copy.loading}</p>
             <p className="text-xs text-muted/70">
-              BTC-USD · Nasdaq 100 (^NDX) · S&amp;P 500 (^GSPC) · All Ordinaries
-              (^AORD)
+              BTC · S&amp;P 500 · Case-Shiller · equities · MSCI · AU homes · US M2
             </p>
           </div>
         )}
@@ -779,13 +861,14 @@ export function BtcFourYearChart() {
               );
             })}
 
-            {payload?.series
-              ?.filter((s) => windowKey !== "all" || s.id !== "btc")
+            {selectedSeries
+              .filter((s) => windowKey !== "all" || s.id !== "btc")
               .map((s, i) => {
               const style = SERIES_STYLE[s.id];
-              const x = PAD.left + i * 155;
+              const x = PAD.left + (i % 4) * 220;
+              const yOff = i >= 4 ? -14 : 0;
               return (
-                <g key={s.id} transform={`translate(${x}, ${H - 12})`}>
+                <g key={s.id} transform={`translate(${x}, ${H - 12 + yOff})`}>
                   <line
                     x1={0}
                     y1={-3}
@@ -913,7 +996,7 @@ export function BtcFourYearChart() {
             viewBox={`0 0 ${W} ${H}`}
             className="block w-full"
             role="img"
-            aria-label={`Latest ${copy.kpiSuffix} as grouped bars for BTC-USD, Nasdaq 100, S&P 500, and All Ordinaries`}
+            aria-label={`Latest ${copy.kpiSuffix} as grouped bars for selected series`}
             style={{ background: "#000", height: 420 }}
           >
             <title>
@@ -1047,15 +1130,16 @@ export function BtcFourYearChart() {
         {copy.footerLead}
         {copy.startsLine ? ` — starts: ${copy.startsLine}` : ""}. Not absolute
         price levels.{" "}
-        <strong className="font-medium text-muted">Shared % scale:</strong> all
-        four series use one Y-axis so Bitcoin's relative path is visible
-        (equities may look flatter on long windows — that is the compare).{" "}
+        <strong className="font-medium text-muted">Shared % scale:</strong>{" "}
+        selected series share one Y-axis so relative paths are comparable
+        (equities and housing may look flatter on long windows — that is the
+        compare).{" "}
         {windowKey === "all" ? (
           <>
-            <strong className="font-medium text-muted">ALL:</strong> the line is
-            NDX, SPX and AORD from Oct 1985 (first shared index date). Bitcoin
-            is omitted from the line (Yahoo daily from Sep 2014) and kept on
-            the chips and bars.{" "}
+            <strong className="font-medium text-muted">ALL:</strong> the shared
+            start is NDX, SPX and AORD from Oct 1985. Bitcoin is omitted from
+            the line (Yahoo daily from Sep 2014) and kept on the chips and
+            bars. Shorter series (e.g. MSCI ACWI from 2008) are marked partial.{" "}
           </>
         ) : (
           <>
@@ -1063,26 +1147,18 @@ export function BtcFourYearChart() {
             the left; the right edge matches the bar).{" "}
           </>
         )}
-        <strong className="font-medium text-muted">Shared % scale:</strong> all
-        four series use one Y-axis so Bitcoin&apos;s relative outperformance is
-        visible (equities may look flatter — that is intentional).{" "}
-        {windowKey === "all" ? (
-          <>
-            <strong className="font-medium text-muted">ALL semantics:</strong>{" "}
-            cumulative % from each series&apos; own earliest available Yahoo
-            close (longest run); lines may start on different dates — not clipped
-            to BTC&apos;s first date and not a rolling lookback.{" "}
-          </>
-        ) : (
-          <>
-            Rolling definition: close_t / close_at_or_before_t−window − 1.{" "}
-          </>
-        )}
+        <strong className="font-medium text-muted">Series toggles:</strong> click
+        chips to show or hide lines and bars (defaults: S&amp;P 500, BTC, US
+        real estate).{" "}
+        <strong className="font-medium text-muted">US M2</strong> is relative %
+        change from the window start, not the raw money-stock level.{" "}
         <strong className="font-medium text-muted">Bar mode:</strong> latest %
-        for the selected window as grouped bars (same end value as the line);
-        Line mode shows the path from 0% at the start of the window. Data via
-        Yahoo Finance chart API: BTC-USD, ^NDX, ^GSPC, ^AORD. Partial series may
-        appear if one feed fails. For the full BTC+MSTR cycle desk, open{" "}
+        for the selected window as grouped bars (same end value as the line).
+        Data via Yahoo Finance (BTC-USD, ^NDX, ^GSPC, ^AORD, ACWI) and FRED
+        (CSUSHPISA Case-Shiller, QAUN628BIS AU homes, M2SL). Monthly/quarterly
+        series are step-forward-filled to the shared axis. Partial series may
+        appear if history is short or a feed fails. Bonds not included yet.
+        For the full BTC+MSTR cycle desk, open{" "}
         <a href="/dashboard" className="text-accent hover:underline">
           Cycle desk
         </a>
