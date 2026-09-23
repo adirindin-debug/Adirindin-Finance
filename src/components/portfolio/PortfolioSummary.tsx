@@ -1,14 +1,26 @@
 "use client";
 
-import type { PortfolioLiveSummary } from "@/lib/portfolioTypes";
-import { formatAud, formatGain } from "@/lib/portfolioCompute";
+import {
+  POSITION_RETURN_WINDOWS,
+  type PortfolioLiveSummary,
+  type PositionReturnWindow,
+} from "@/lib/portfolioTypes";
+import { formatAud, formatGain, returnWindowHint } from "@/lib/portfolioCompute";
 
 type Props = {
   portfolioName: string;
   hasHoldings: boolean;
   summary: PortfolioLiveSummary | null;
+  /** Period overlay gains (null fields when unavailable) */
+  periodGainAud: number | null;
+  periodGainPct: number | null;
+  periodAvailable: boolean;
+  returnWindow: PositionReturnWindow;
+  onReturnWindowChange: (w: PositionReturnWindow) => void;
+  returnsLoading: boolean;
   quotesLoading: boolean;
   quotesError: string | null;
+  returnsError: string | null;
   onEditName: () => void;
   onAdd: () => void;
 };
@@ -17,18 +29,38 @@ export function PortfolioSummary({
   portfolioName,
   hasHoldings,
   summary,
+  periodGainAud,
+  periodGainPct,
+  periodAvailable,
+  returnWindow,
+  onReturnWindowChange,
+  returnsLoading,
   quotesLoading,
   quotesError,
+  returnsError,
   onEditName,
   onAdd,
 }: Props) {
-  const gain = summary?.totalGainAud ?? null;
-  const gainPct = summary?.totalGainPct ?? null;
+  const gain = returnWindow === "ALL" ? (summary?.totalGainAud ?? null) : periodGainAud;
+  const gainPct = returnWindow === "ALL" ? (summary?.totalGainPct ?? null) : periodGainPct;
+  const showGain =
+    hasHoldings &&
+    summary &&
+    (returnWindow === "ALL" ? true : periodAvailable) &&
+    gain != null &&
+    gainPct != null;
   const positive = gain != null && gain >= 0;
   const valueLabel =
-    !hasHoldings || !summary
-      ? "A$—"
-      : formatAud(summary.totalMarketValueAud, 2);
+    !hasHoldings || !summary ? "A$—" : formatAud(summary.totalMarketValueAud, 2);
+
+  const statusHint = (() => {
+    if (quotesLoading) return "updating quotes…";
+    if (returnWindow !== "ALL" && returnsLoading) return "updating returns…";
+    if (quotesError) return "quotes unavailable";
+    if (returnWindow !== "ALL" && returnsError) return "returns unavailable";
+    if (!hasHoldings) return "empty";
+    return returnWindowHint(returnWindow);
+  })();
 
   return (
     <section className="px-1" aria-label="Portfolio summary">
@@ -59,23 +91,43 @@ export function PortfolioSummary({
           <span className="ml-2 text-sm font-normal text-zinc-500">AUD</span>
         </p>
         <p className="mt-2 text-sm">
-          {hasHoldings && summary ? (
+          {showGain ? (
             <span className={positive ? "text-emerald-400" : "text-rose-400"}>
               {formatGain(gain, gainPct)}
             </span>
           ) : (
             <span className="text-zinc-500">+— · —%</span>
           )}
-          <span className="ml-2 text-xs text-zinc-600">
-            {quotesLoading
-              ? "updating quotes…"
-              : quotesError
-                ? "quotes unavailable"
-                : hasHoldings
-                  ? "live · vs cost"
-                  : "empty"}
-          </span>
+          <span className="ml-2 text-xs text-zinc-600">{statusHint}</span>
         </p>
+
+        {hasHoldings && (
+          <div
+            className="mt-3 flex flex-wrap gap-1"
+            role="tablist"
+            aria-label="Return timeframe"
+          >
+            {POSITION_RETURN_WINDOWS.map((w) => {
+              const active = w.key === returnWindow;
+              return (
+                <button
+                  key={w.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => onReturnWindowChange(w.key)}
+                  className={`rounded-full px-2.5 py-1 text-xs transition ${
+                    active
+                      ? "bg-zinc-800 text-white"
+                      : "text-zinc-500 hover:text-zinc-300"
+                  }`}
+                >
+                  {w.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </section>
   );

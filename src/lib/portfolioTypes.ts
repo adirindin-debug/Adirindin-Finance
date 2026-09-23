@@ -66,8 +66,24 @@ export const PERFORMANCE_BENCHMARKS = [
   { id: "aord", label: "All Ords", color: "#6b7280" },
 ] as const;
 
-export const PORTFOLIO_TIMEFRAMES = ["1M", "YTD", "1Y", "ALL"] as const;
+export const PORTFOLIO_TIMEFRAMES = ["1M", "YTD", "1Y", "3Y", "5Y", "10Y", "ALL"] as const;
 export type PortfolioTimeframe = (typeof PORTFOLIO_TIMEFRAMES)[number];
+
+/**
+ * Shared return window for portfolio summary + per-position gains.
+ * ALL = vs cost basis (existing). Other windows = price change over the period.
+ */
+export const POSITION_RETURN_WINDOWS = [
+  { key: "1D", label: "Daily" },
+  { key: "1W", label: "Weekly" },
+  { key: "1M", label: "Monthly" },
+  { key: "1Y", label: "Yearly" },
+  { key: "ALL", label: "All time" },
+] as const;
+export type PositionReturnWindow = (typeof POSITION_RETURN_WINDOWS)[number]["key"];
+
+export const POSITION_RETURN_CAPTION =
+  "Daily: vs prior trading-day close · Weekly: ~7 calendar days · Monthly: ~30 days · Yearly: ~365 days · All time: vs cost basis (AUD). Collectables have no market history — shown as — outside All time. NFA.";
 
 export const PORTFOLIO_STORAGE_KEY = "adirindin-portfolio-v1";
 

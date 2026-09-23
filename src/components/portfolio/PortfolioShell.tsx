@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   PortfolioConfig,
   PortfolioHolding,
+  PositionReturnWindow,
   QuoteResult,
 } from "@/lib/portfolioTypes";
 import { DEFAULT_PORTFOLIO, HOLDING_COLORS } from "@/lib/portfolioTypes";
@@ -14,7 +15,12 @@ import {
   loadPortfolioFromSources,
   savePortfolioToStorage,
 } from "@/lib/portfolioStorage";
-import { computeLiveHoldings } from "@/lib/portfolioCompute";
+import {
+  applyPeriodReturns,
+  computeLiveHoldings,
+  computePeriodSummary,
+  type PeriodTickerReturn,
+} from "@/lib/portfolioCompute";
 import { PortfolioSummary } from "./PortfolioSummary";
 import { PerformanceChart } from "./PerformanceChart";
 import { AllocationDonutEmpty } from "./AllocationDonutEmpty";
@@ -34,6 +40,10 @@ export function PortfolioShell({ seed }: Props) {
   const [quotesError, setQuotesError] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [returnWindow, setReturnWindow] = useState<PositionReturnWindow>("ALL");
+  const [periodReturns, setPeriodReturns] = useState<PeriodTickerReturn[] | null>(null);
+  const [returnsLoading, setReturnsLoading] = useState(false);
+  const [returnsError, setReturnsError] = useState<string | null>(null);
 
   // Seed from JSON, then overlay localStorage on the client
   useEffect(() => {
@@ -109,9 +119,62 @@ export function PortfolioShell({ seed }: Props) {
     return () => window.clearInterval(id);
   }, [hydrated, fetchQuotes]);
 
-  const { holdings: liveHoldings, summary } = useMemo(
+  const fetchPeriodReturns = useCallback(async () => {
+    if (returnWindow === "ALL") {
+      setPeriodReturns(null);
+      setReturnsError(null);
+      setReturnsLoading(false);
+      return;
+    }
+    if (!securityTickersKey) {
+      setPeriodReturns([]);
+      setReturnsError(null);
+      setReturnsLoading(false);
+      return;
+    }
+    setReturnsLoading(true);
+    try {
+      const res = await fetch(
+        `/api/portfolio-returns?tf=${encodeURIComponent(returnWindow)}&tickers=${encodeURIComponent(securityTickersKey)}`,
+      );
+      const data = (await res.json()) as {
+        ok?: boolean;
+        returns?: PeriodTickerReturn[];
+        error?: string;
+      };
+      if (!res.ok || data.ok === false) {
+        setReturnsError(data.error || `HTTP ${res.status}`);
+        setPeriodReturns(data.returns ?? null);
+      } else {
+        setPeriodReturns(data.returns ?? []);
+        setReturnsError(null);
+      }
+    } catch (e) {
+      setReturnsError(e instanceof Error ? e.message : "Returns fetch failed");
+      setPeriodReturns(null);
+    } finally {
+      setReturnsLoading(false);
+    }
+  }, [returnWindow, securityTickersKey]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void fetchPeriodReturns();
+  }, [hydrated, fetchPeriodReturns]);
+
+  const { holdings: baseLiveHoldings, summary } = useMemo(
     () => computeLiveHoldings(portfolio, quotes, audPerUsd),
     [portfolio, quotes, audPerUsd],
+  );
+
+  const liveHoldings = useMemo(
+    () => applyPeriodReturns(baseLiveHoldings, periodReturns, returnWindow),
+    [baseLiveHoldings, periodReturns, returnWindow],
+  );
+
+  const periodSummary = useMemo(
+    () => computePeriodSummary(baseLiveHoldings, periodReturns, returnWindow, summary),
+    [baseLiveHoldings, periodReturns, returnWindow, summary],
   );
 
   const editing = useMemo(
@@ -222,8 +285,15 @@ export function PortfolioShell({ seed }: Props) {
         portfolioName={portfolio.name}
         hasHoldings={showSummary}
         summary={showSummary ? summary : null}
+        periodGainAud={periodSummary.totalGainAud}
+        periodGainPct={periodSummary.totalGainPct}
+        periodAvailable={periodSummary.available}
+        returnWindow={returnWindow}
+        onReturnWindowChange={setReturnWindow}
+        returnsLoading={returnsLoading}
         quotesLoading={quotesLoading}
         quotesError={quotesError}
+        returnsError={returnsError}
         onEditName={openMeta}
         onAdd={openAdd}
       />
@@ -232,6 +302,8 @@ export function PortfolioShell({ seed }: Props) {
       <HoldingsListEmpty
         holdings={liveHoldings}
         availableCashAud={portfolio.availableCashAud}
+        returnWindow={returnWindow}
+        returnsLoading={returnsLoading}
         onEdit={openEdit}
         onAdd={openAdd}
         onEditCash={openMeta}

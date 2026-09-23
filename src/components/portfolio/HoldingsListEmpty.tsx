@@ -1,12 +1,18 @@
 "use client";
 
-import type { HoldingLive } from "@/lib/portfolioTypes";
-import { formatAud, formatPrice } from "@/lib/portfolioCompute";
+import {
+  POSITION_RETURN_CAPTION,
+  type HoldingLive,
+  type PositionReturnWindow,
+} from "@/lib/portfolioTypes";
+import { formatAud, formatPrice, returnWindowHint } from "@/lib/portfolioCompute";
 import { HoldingLogo } from "./HoldingLogo";
 
 type Props = {
   holdings: HoldingLive[];
   availableCashAud: number | null;
+  returnWindow: PositionReturnWindow;
+  returnsLoading: boolean;
   onEdit: (id: string) => void;
   onAdd: () => void;
   onEditCash: () => void;
@@ -26,6 +32,8 @@ function formatRowGain(gainAud: number | null, gainPct: number | null): string {
 export function HoldingsListEmpty({
   holdings,
   availableCashAud,
+  returnWindow,
+  returnsLoading,
   onEdit,
   onAdd,
   onEditCash,
@@ -54,7 +62,9 @@ export function HoldingsListEmpty({
           Add
         </button>
         <span className="rounded-full bg-zinc-900 px-3 py-1 text-xs text-zinc-400">
-          Highest Holdings ▾
+          {returnsLoading && returnWindow !== "ALL"
+            ? "Updating returns…"
+            : `Returns · ${returnWindowHint(returnWindow)}`}
         </span>
       </div>
 
@@ -90,6 +100,14 @@ export function HoldingsListEmpty({
                   h.costCurrency === "USD" ? " · cost USD" : ""
                 }${h.name ? ` · ${h.name}` : ""}`;
 
+            const gainLabel = (() => {
+              if (isCollectable) {
+                if (returnWindow !== "ALL") return "—";
+                if (h.costBasis <= 0) return "est. value";
+              }
+              return formatRowGain(h.gainAud, h.gainPct);
+            })();
+
             return (
               <li key={h.id}>
                 <button
@@ -113,16 +131,14 @@ export function HoldingsListEmpty({
                     </p>
                     <p
                       className={`text-xs ${
-                        h.gainAud == null
+                        gainLabel === "—" || gainLabel === "est. value"
                           ? "text-zinc-500"
                           : gainPositive
                             ? "text-emerald-400"
                             : "text-rose-400"
                       }`}
                     >
-                      {isCollectable && h.costBasis <= 0
-                        ? "est. value"
-                        : formatRowGain(h.gainAud, h.gainPct)}
+                      {gainLabel}
                     </p>
                   </div>
                 </button>
@@ -160,6 +176,12 @@ export function HoldingsListEmpty({
           {availableCashAud == null ? "A$—" : formatAud(availableCashAud, 2)}
         </p>
       </button>
+
+      {!empty && (
+        <p className="mt-3 text-[10px] leading-relaxed text-zinc-600">
+          {POSITION_RETURN_CAPTION}
+        </p>
+      )}
     </section>
   );
 }

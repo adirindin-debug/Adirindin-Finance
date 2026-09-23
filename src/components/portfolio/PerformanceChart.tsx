@@ -388,8 +388,9 @@ export function PerformanceChart({ portfolio, hasHoldings }: Props) {
       </ul>
       {hasHoldings && (
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
-          Cumulative % from window start. Missing acquiredAt ⇒ held for full window from earliest
-          price. Collectables = flat estimate · cash = flat A$. Quotes via Yahoo Finance (delayed third-party feed) · NFA.
+          Cumulative % from window start (1M / YTD / 1Y / 3Y / 5Y / 10Y / ALL). Missing acquiredAt ⇒
+          held for full window from earliest price. Shorter series degrade gracefully. Collectables =
+          flat estimate · cash = flat A$. Quotes via Yahoo Finance (delayed third-party feed) · NFA.
         </p>
       )}
     </section>

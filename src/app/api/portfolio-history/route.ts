@@ -22,7 +22,7 @@ export const revalidate = 0;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
-type Tf = "1M" | "YTD" | "1Y" | "ALL";
+type Tf = "1M" | "YTD" | "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
 type ClosePoint = { t: number; c: number };
 type PctPoint = { t: number; pct: number };
 
@@ -43,7 +43,17 @@ const BENCHMARKS = [
 ] as const;
 
 function parseTf(raw: string | null): Tf {
-  if (raw === "1M" || raw === "YTD" || raw === "1Y" || raw === "ALL") return raw;
+  if (
+    raw === "1M" ||
+    raw === "YTD" ||
+    raw === "1Y" ||
+    raw === "3Y" ||
+    raw === "5Y" ||
+    raw === "10Y" ||
+    raw === "ALL"
+  ) {
+    return raw;
+  }
   return "1Y";
 }
 
@@ -52,6 +62,9 @@ function windowStartSec(tf: Tf, nowSec: number): number {
   if (tf === "1M") return nowSec - 30 * 86400;
   if (tf === "YTD") return Math.floor(Date.UTC(d.getUTCFullYear(), 0, 1) / 1000);
   if (tf === "1Y") return nowSec - Math.round(365.25 * 86400);
+  if (tf === "3Y") return nowSec - Math.round(3 * 365.25 * 86400);
+  if (tf === "5Y") return nowSec - Math.round(5 * 365.25 * 86400);
+  if (tf === "10Y") return nowSec - Math.round(10 * 365.25 * 86400);
   return 0; // ALL — clip later to data
 }
 

@@ -5,6 +5,7 @@ import {
   type HoldingLive,
   type PortfolioConfig,
   type PortfolioLiveSummary,
+  type PositionReturnWindow,
   type QuoteResult,
 } from "./portfolioTypes";
 
@@ -158,4 +159,119 @@ export function formatPrice(n: number | null | undefined): string {
     return n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 4 });
   }
   return n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+}
+
+export type PeriodTickerReturn = {
+  ticker: string;
+  startPriceAud: number | null;
+  endPriceAud: number | null;
+  returnPct: number | null;
+};
+
+/**
+ * Overlay period price returns onto live holdings.
+ * ALL → keep cost-basis gains. Other windows → AUD P&L from start→end unit price × qty.
+ * Collectables / missing history → gainAud/gainPct null (UI shows —).
+ */
+export function applyPeriodReturns(
+  holdings: HoldingLive[],
+  periodReturns: PeriodTickerReturn[] | null,
+  window: PositionReturnWindow,
+): HoldingLive[] {
+  if (window === "ALL" || !periodReturns) return holdings;
+  const map = new Map(
+    periodReturns.map((r) => [r.ticker.toUpperCase(), r]),
+  );
+  return holdings.map((h) => {
+    if (h.kind === "collectable") {
+      return { ...h, gainAud: null, gainPct: null };
+    }
+    const r = map.get(h.ticker.toUpperCase());
+    if (
+      !r ||
+      r.startPriceAud == null ||
+      r.endPriceAud == null ||
+      r.returnPct == null ||
+      !(r.startPriceAud > 0)
+    ) {
+      return { ...h, gainAud: null, gainPct: null };
+    }
+    const gainAud = h.quantity * (r.endPriceAud - r.startPriceAud);
+    return {
+      ...h,
+      gainAud,
+      gainPct: r.returnPct,
+    };
+  });
+}
+
+export type PeriodSummary = {
+  totalGainAud: number | null;
+  totalGainPct: number | null;
+  /** True when at least one security contributed period P&L */
+  available: boolean;
+};
+
+/**
+ * Portfolio-level period P&L from current quantities × start/end AUD unit prices.
+ * Cash and collectables are flat (0 contribution). Missing history skipped.
+ */
+export function computePeriodSummary(
+  holdings: HoldingLive[],
+  periodReturns: PeriodTickerReturn[] | null,
+  window: PositionReturnWindow,
+  costSummary: PortfolioLiveSummary,
+): PeriodSummary {
+  if (window === "ALL") {
+    return {
+      totalGainAud: costSummary.totalGainAud,
+      totalGainPct: costSummary.totalGainPct,
+      available: costSummary.totalGainPct != null,
+    };
+  }
+  if (!periodReturns) {
+    return { totalGainAud: null, totalGainPct: null, available: false };
+  }
+  const map = new Map(
+    periodReturns.map((r) => [r.ticker.toUpperCase(), r]),
+  );
+  let startTotal = 0;
+  let endTotal = 0;
+  let any = false;
+  for (const h of holdings) {
+    if (h.kind !== "security") continue;
+    const r = map.get(h.ticker.toUpperCase());
+    if (
+      !r ||
+      r.startPriceAud == null ||
+      r.endPriceAud == null ||
+      !(r.startPriceAud > 0)
+    ) {
+      continue;
+    }
+    startTotal += h.quantity * r.startPriceAud;
+    endTotal += h.quantity * r.endPriceAud;
+    any = true;
+  }
+  if (!any || !(startTotal > 0)) {
+    return { totalGainAud: null, totalGainPct: null, available: false };
+  }
+  const totalGainAud = endTotal - startTotal;
+  const totalGainPct = (totalGainAud / startTotal) * 100;
+  return { totalGainAud, totalGainPct, available: true };
+}
+
+export function returnWindowHint(window: PositionReturnWindow): string {
+  switch (window) {
+    case "1D":
+      return "daily · vs prior close";
+    case "1W":
+      return "weekly · ~7 days";
+    case "1M":
+      return "monthly · ~30 days";
+    case "1Y":
+      return "yearly · ~1 year";
+    case "ALL":
+      return "all time · vs cost";
+  }
 }
