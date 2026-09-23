@@ -9,12 +9,15 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 
-type Point = { t: number; volumeUsd: number };
+type Point = { t: number; volumeUsd: number; rawVolumeUsd?: number };
 type Payload = {
   ok: boolean;
   currency?: string;
+  maWindow?: number;
+  seriesKind?: string | null;
   currentVolumeUsd?: number | null;
   currentMarketCapUsd?: number | null;
+  rawCurrentVolumeUsd?: number | null;
   currentSource?: string | null;
   points?: Point[];
   historySource?: string | null;
@@ -128,6 +131,8 @@ export function MarketVolumePanel() {
   }, [tf]);
 
   const allPoints = data?.points ?? [];
+  const maWindow = data?.maWindow ?? 7;
+  const isMaSeries = data?.seriesKind === "7dma" || allPoints.length >= 2;
 
   const windowedPoints = useMemo(() => {
     if (allPoints.length < 2) return [];
@@ -215,6 +220,14 @@ export function MarketVolumePanel() {
   const hasAnyHistory = allPoints.length >= 2;
   const hasWindowPoints = windowedPoints.length >= 2;
 
+  const headlineLabel = isMaSeries
+    ? `${maWindow}-day MA · USD`
+    : "24h total volume · USD";
+
+  const subtitle = data?.historyIsProxy
+    ? `Public-feed volume as a ${maWindow}-day moving average (fallback source labelled below — not CoinGecko). Compare on The Block for their spot desk series.`
+    : `CoinGecko total-market volume as a ${maWindow}-day moving average. Not The Block’s spot exchange desk — compare there for their series.`;
+
   const toggleBtn =
     "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
   const toggleOn = "bg-accent text-white shadow-sm";
@@ -226,21 +239,18 @@ export function MarketVolumePanel() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Total crypto market volume
+            Crypto total-market volume (7-day MA)
           </h2>
-          <p className="mt-1 max-w-xl text-sm text-muted">
-            Public-feed total market volume (USD). Proxy when global history is
-            unavailable — not The Block’s spot exchange desk.
-          </p>
+          <p className="mt-1 max-w-xl text-sm text-muted">{subtitle}</p>
         </div>
         {data?.currentVolumeUsd != null && (
           <div className="text-right">
             <p className="font-mono text-3xl font-semibold tabular-nums text-foreground">
               {fmtUsdCompact(data.currentVolumeUsd)}
             </p>
-            <p className="mt-0.5 text-xs text-muted">24h total volume · USD</p>
+            <p className="mt-0.5 text-xs text-muted">{headlineLabel}</p>
             {data.currentSource && (
-              <p className="mt-1 max-w-[220px] text-right font-mono text-[10px] text-muted">
+              <p className="mt-1 max-w-[260px] text-right font-mono text-[10px] text-muted">
                 {data.currentSource}
               </p>
             )}
@@ -280,7 +290,7 @@ export function MarketVolumePanel() {
           rel="noopener noreferrer"
           className="inline-flex items-center rounded-md border border-border bg-navy/60 px-3 py-2 text-sm text-accent hover:border-accent hover:bg-accent-soft"
         >
-          Full spot exchange volume desk on The Block →
+          Compare on The Block →
         </a>
       </div>
 
@@ -297,8 +307,8 @@ export function MarketVolumePanel() {
         )}
         {!loading && data?.ok && !hasAnyHistory && (
           <p className="py-12 text-center text-sm text-muted">
-            No volume history available from public feeds right now. Try The
-            Block link above, or refresh later.
+            No volume history available from public feeds right now. Try the
+            compare link above, or refresh later.
           </p>
         )}
         {!loading && data?.ok && hasAnyHistory && !hasWindowPoints && (
@@ -313,11 +323,13 @@ export function MarketVolumePanel() {
               viewBox={`0 0 ${W} ${H}`}
               className="w-full cursor-crosshair"
               role="img"
-              aria-label={`Total crypto market volume USD, ${tf} window. Hover for daily values.`}
+              aria-label={`Crypto total-market volume ${maWindow}-day moving average USD, ${tf} window. Hover for values.`}
               onMouseMove={onMainMouseMove}
               onMouseLeave={onMainMouseLeave}
             >
-              <title>Total crypto market volume USD</title>
+              <title>
+                Crypto total-market volume {maWindow}-day moving average USD
+              </title>
               {chart.ticks.map((v) => (
                 <g key={v}>
                   <line
@@ -382,9 +394,9 @@ export function MarketVolumePanel() {
             </svg>
             {hover && (
               <div
-                className="pointer-events-none absolute z-10 min-w-[148px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
+                className="pointer-events-none absolute z-10 min-w-[168px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
                 style={{
-                  left: `clamp(8px, calc(${(hover.svgX / W) * 100}% + 12px), calc(100% - 176px))`,
+                  left: `clamp(8px, calc(${(hover.svgX / W) * 100}% + 12px), calc(100% - 196px))`,
                   top: 12,
                 }}
               >
@@ -397,16 +409,26 @@ export function MarketVolumePanel() {
                       className="inline-block h-2 w-2 rounded-full bg-[#3dcc9a]"
                       aria-hidden
                     />
-                    Volume
+                    {maWindow}-day MA
                   </span>
                   <span className="font-mono font-semibold text-[#e8eef7]">
                     {fmtUsdTooltip(hover.point.volumeUsd)}
                   </span>
                 </p>
+                {hover.point.rawVolumeUsd != null &&
+                  Number.isFinite(hover.point.rawVolumeUsd) && (
+                    <p className="mt-1 flex items-center justify-between gap-3 text-[11px] tabular-nums">
+                      <span className="text-muted">Daily (raw)</span>
+                      <span className="font-mono text-[#c5d0de]">
+                        {fmtUsdTooltip(hover.point.rawVolumeUsd)}
+                      </span>
+                    </p>
+                  )}
               </div>
             )}
             <p className="mt-2 text-[11px] text-muted">
-              Hover for daily volume · snap to nearest day
+              Hover for {maWindow}-day MA (and daily raw when available) · snap
+              to nearest day
             </p>
           </div>
         )}
@@ -415,8 +437,7 @@ export function MarketVolumePanel() {
       <div className="mt-4 space-y-1 text-xs text-muted">
         {data?.historySource && (
           <p>
-            Chart series: {data.historySource}
-            {data.historyIsProxy ? " (proxy)." : "."}
+            Chart series: {data.historySource}.
             {data.droppedCorrupt
               ? ` Dropped ${data.droppedCorrupt} corrupt/outlier single-asset prints before summing.`
               : ""}
@@ -424,7 +445,7 @@ export function MarketVolumePanel() {
         )}
         <p>
           {data?.disclaimer ??
-            "Public total market volume feed / proxy — educational only (NFA)."}
+            `CoinGecko total-market volume as a ${maWindow}-day moving average. Compare on The Block for their spot desk series.`}
         </p>
       </div>
     </section>

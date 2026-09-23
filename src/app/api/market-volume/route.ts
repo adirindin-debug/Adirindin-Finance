@@ -1,18 +1,21 @@
 /**
- * Total crypto market volume (public feeds).
- * Prefer CoinGecko global / market_cap_chart when available;
+ * Total crypto market volume as a 7-day moving average.
+ * Prefer CoinGecko global / market_cap_chart daily volume when available;
  * otherwise CoinMetrics major-asset sum (history proxy) with full pagination
- * + corrupt-print / relative-outlier hygiene.
- * Not The Block spot exchange desk — link out for that. Educational — NFA.
+ * + corrupt-print / relative-outlier hygiene, or DefiLlama DEX as last resort.
+ * Always label the underlying source — do not present a proxy as CoinGecko.
+ * Not The Block spot exchange desk — link out to compare. Educational.
  */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type VolPoint = { t: number; volumeUsd: number };
+type VolPoint = { t: number; volumeUsd: number; rawVolumeUsd?: number };
 
 const UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindin.finance)";
+
+const MA_WINDOW = 7;
 
 const CM_ASSETS = [
   "btc",
@@ -53,11 +56,50 @@ async function fetchJson(url: string, init?: RequestInit) {
   return { res, json: res.ok ? await res.json() : null };
 }
 
+/** CoinGecko chart days query accepts a fixed enum (plus max). */
+function coinGeckoDaysParam(days: number): string {
+  const allowed = [7, 14, 30, 90, 180, 365];
+  if (days > 365) return "max";
+  const hit = allowed.find((d) => d >= days);
+  return String(hit ?? 365);
+}
+
+/**
+ * Trailing 7-day moving average over daily volume.
+ * Emits a point only when a full window of 7 consecutive daily prints is available
+ * (no partial windows). volumeUsd is the MA; rawVolumeUsd is that day's raw print.
+ */
+function computeSevenDayMA(raw: VolPoint[]): VolPoint[] {
+  if (raw.length < MA_WINDOW) return [];
+  const out: VolPoint[] = [];
+  for (let i = MA_WINDOW - 1; i < raw.length; i++) {
+    let sum = 0;
+    let ok = true;
+    for (let j = i - (MA_WINDOW - 1); j <= i; j++) {
+      const v = raw[j]!.volumeUsd;
+      if (!Number.isFinite(v) || v <= 0) {
+        ok = false;
+        break;
+      }
+      sum += v;
+    }
+    if (!ok) continue;
+    const day = raw[i]!;
+    out.push({
+      t: day.t,
+      volumeUsd: sum / MA_WINDOW,
+      rawVolumeUsd: day.volumeUsd,
+    });
+  }
+  return out;
+}
+
 async function fetchCoinGeckoHistory(days: number): Promise<{
   points: VolPoint[];
   source: string;
 } | null> {
-  const url = `https://api.coingecko.com/api/v3/global/market_cap_chart?days=${days}&vs_currency=usd`;
+  const daysParam = coinGeckoDaysParam(days);
+  const url = `https://api.coingecko.com/api/v3/global/market_cap_chart?days=${daysParam}&vs_currency=usd`;
   try {
     const { res, json } = await fetchJson(url, { next: { revalidate: 3600 } });
     if (!res.ok || !json) return null;
@@ -353,25 +395,34 @@ function downsample(points: VolPoint[], maxPts: number): VolPoint[] {
   return out;
 }
 
+function withMaSourceLabel(baseSource: string, isProxy: boolean): string {
+  const ma = `${baseSource} · ${MA_WINDOW}-day moving average (full window only)`;
+  if (!isProxy) return ma;
+  return `${ma} — fallback (not CoinGecko)`;
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const daysRaw = Number(searchParams.get("days") ?? "365");
+  // Requested MA series length (client may ask up to ~5y).
   const days = Number.isFinite(daysRaw)
     ? Math.min(Math.max(Math.floor(daysRaw), 7), 1825)
     : 365;
+  // Extra raw days so the first MA point still lands inside the requested window.
+  const rawDays = Math.min(days + (MA_WINDOW - 1), 1831);
 
   const errors: string[] = [];
 
   const [cgCurrent, paprikaCurrent, cgHistory] = await Promise.all([
     fetchCoinGeckoCurrent(),
     fetchCoinPaprikaCurrent(),
-    fetchCoinGeckoHistory(days),
+    fetchCoinGeckoHistory(rawDays),
   ]);
 
-  const current = cgCurrent ?? paprikaCurrent;
-  if (!current) errors.push("Could not load current total market volume");
+  const snapshot = cgCurrent ?? paprikaCurrent;
+  if (!snapshot) errors.push("Could not load current total market volume snapshot");
 
-  let history: {
+  let rawHistory: {
     points: VolPoint[];
     source: string;
     droppedCorrupt: number;
@@ -380,13 +431,13 @@ export async function GET(request: Request) {
     : null;
   let historyIsProxy = false;
 
-  if (!history) {
+  if (!rawHistory) {
     errors.push(
       "CoinGecko global market_cap_chart unavailable (rate limit or Pro-only)",
     );
-    const cm = await fetchCoinMetricsHistory(days);
+    const cm = await fetchCoinMetricsHistory(rawDays);
     if (cm) {
-      history = cm;
+      rawHistory = cm;
       historyIsProxy = true;
       if (cm.pages > 1) {
         errors.push(
@@ -395,9 +446,9 @@ export async function GET(request: Request) {
       }
     } else {
       errors.push("CoinMetrics history unavailable");
-      const llama = await fetchDefiLlamaDexHistory(days);
+      const llama = await fetchDefiLlamaDexHistory(rawDays);
       if (llama) {
-        history = { ...llama, droppedCorrupt: 0 };
+        rawHistory = { ...llama, droppedCorrupt: 0 };
         historyIsProxy = true;
         errors.push("Fell back to DefiLlama DEX daily volume (labelled)");
       } else {
@@ -406,41 +457,65 @@ export async function GET(request: Request) {
     }
   }
 
-  if (!current && !history) {
+  if (!snapshot && !rawHistory) {
     return Response.json(
       { ok: false, error: "No volume data", errors },
       { status: 502 },
     );
   }
 
-  // Keep near-daily resolution so client window filters (7D/30D) still have enough ticks.
-  const points = history ? downsample(history.points, 2000) : [];
-  const latestFromHistory = points.length
-    ? points[points.length - 1]!.volumeUsd
-    : null;
+  const maPoints = rawHistory ? computeSevenDayMA(rawHistory.points) : [];
+  if (rawHistory && maPoints.length < 2) {
+    errors.push(
+      `Need at least ${MA_WINDOW} daily prints for a full-window ${MA_WINDOW}-day MA`,
+    );
+  }
 
-  const droppedCorrupt = history?.droppedCorrupt ?? 0;
+  // Keep near-daily resolution so client window filters (7D/30D) still have enough ticks.
+  const points = maPoints.length >= 2 ? downsample(maPoints, 2000) : [];
+  const latestMa = points.length ? points[points.length - 1]! : null;
+
+  const droppedCorrupt = rawHistory?.droppedCorrupt ?? 0;
   if (droppedCorrupt > 0) {
     errors.push(
       `Dropped ${droppedCorrupt} corrupt/outlier single-asset daily prints before summing`,
     );
   }
 
+  const historySource = rawHistory
+    ? withMaSourceLabel(rawHistory.source, historyIsProxy)
+    : null;
+
+  // Headline matches chart end: latest 7DMA when available.
+  const currentVolumeUsd = latestMa?.volumeUsd ?? null;
+  const currentSource = latestMa
+    ? historySource
+    : snapshot
+      ? `${snapshot.source} — raw 24h (no ${MA_WINDOW}-day MA history)`
+      : null;
+
+  const disclaimer = historyIsProxy
+    ? `Chart shows a ${MA_WINDOW}-day moving average of a labelled public proxy (CoinGecko’s global daily volume history was unavailable). Levels will not match CoinGecko total-market volume or The Block’s spot exchange desk — use the compare link for The Block reference.`
+    : `Chart shows CoinGecko total-market volume as a ${MA_WINDOW}-day moving average (full 7-day window only). Dollar levels will not match The Block’s spot exchange desk series — use the compare link for that reference.`;
+
   return Response.json(
     {
       ok: true,
       currency: "USD",
-      currentVolumeUsd: current?.volumeUsd ?? latestFromHistory,
-      currentMarketCapUsd: current?.marketCapUsd ?? null,
-      currentSource: current?.source ?? null,
+      maWindow: MA_WINDOW,
+      seriesKind: latestMa ? "7dma" : snapshot ? "raw_24h" : null,
+      currentVolumeUsd:
+        currentVolumeUsd ?? snapshot?.volumeUsd ?? null,
+      currentMarketCapUsd: snapshot?.marketCapUsd ?? null,
+      rawCurrentVolumeUsd: snapshot?.volumeUsd ?? latestMa?.rawVolumeUsd ?? null,
+      currentSource,
       points,
-      historySource: history?.source ?? null,
+      historySource,
       historyIsProxy,
       droppedCorrupt: droppedCorrupt || undefined,
       theBlockUrl:
         "https://www.theblock.co/data/crypto-markets/spot/total-exchange-volume-daily",
-      disclaimer:
-        "Our chart is total crypto market volume from a public feed (or a major-asset / DEX volume proxy when CoinGecko’s global history endpoint is unavailable). Corrupt and extreme single-asset prints are dropped before summing. It is not The Block’s spot exchange volume desk — use the link for that reference. Educational only — not financial advice (NFA).",
+      disclaimer,
       errors: errors.length ? errors : undefined,
       asOf: new Date().toISOString(),
     },
