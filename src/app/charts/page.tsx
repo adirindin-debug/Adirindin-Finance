@@ -35,7 +35,7 @@ export default function ChartsPage() {
           defaultSource="FearGreedChart.com Fear & Greed Index (US stocks, independent)"
           defaultSourceUrl="https://feargreedchart.com/"
           defaultCompareUrl="https://www.cnn.com/markets/fear-and-greed"
-          defaultCompareLabel="View CNN Fear & Greed"
+          defaultCompareLabel="Compare with CNN Fear & Greed →"
         />
         <FearGreedPanel
           endpoint="/api/fear-greed-crypto"

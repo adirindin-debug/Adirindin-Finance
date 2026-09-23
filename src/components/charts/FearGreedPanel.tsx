@@ -140,7 +140,7 @@ export function FearGreedPanel({
   defaultSource = "FearGreedChart.com Fear & Greed Index (US stocks, independent)",
   defaultSourceUrl = "https://feargreedchart.com/",
   defaultCompareUrl = "https://www.cnn.com/markets/fear-and-greed",
-  defaultCompareLabel = "View CNN Fear & Greed",
+  defaultCompareLabel = "Compare with CNN Fear & Greed →",
 }: FearGreedPanelProps = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -497,6 +497,21 @@ export function FearGreedPanel({
           <p className="mt-1 text-sm text-muted">
             {subtitle}
           </p>
+          {(data?.compareUrl ?? defaultCompareUrl) && defaultCompareLabel ? (
+            <p className="mt-2">
+              <a
+                href={data?.compareUrl ?? defaultCompareUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-sm font-semibold text-accent hover:underline"
+              >
+                {defaultCompareLabel}
+              </a>
+              <span className="ml-1 text-xs text-muted">
+                (link-out only — independent index, not CNN)
+              </span>
+            </p>
+          ) : null}
         </div>
         {current && (
           <div className="text-right">
@@ -803,16 +818,17 @@ export function FearGreedPanel({
         endorsed by the source.{" "}
         {(data?.compareUrl ?? defaultCompareUrl) && defaultCompareLabel ? (
           <>
-            Compare:{" "}
+            For a well-known peer gauge, see{" "}
             <a
               href={data?.compareUrl ?? defaultCompareUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent hover:underline"
             >
-              {defaultCompareLabel}
+              CNN Fear &amp; Greed
             </a>{" "}
-            (link-out only — we do not republish that page&apos;s series).{" "}
+            (link-out only — we do not scrape or republish that page&apos;s
+            series).{" "}
           </>
         ) : null}
         {data?.note ?? "Educational only — NFA."}
