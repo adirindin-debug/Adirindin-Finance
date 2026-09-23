@@ -9,9 +9,9 @@
  * - spx: Yahoo ^GSPC
  * - ndx: Yahoo ^NDX
  * - aord: Yahoo ^AORD
- * - msci: Yahoo ACWI — chosen over URTH/VT for longest reliable Yahoo daily history
- *   (ACWI from ~Mar 2008; URTH from ~Jan 2012). iShares MSCI ACWI ETF (all-country;
- *   closest long-history MSCI World-family proxy on Yahoo).
+ * - msci: Yahoo ^990100-USD-STRD — MSCI World Standard (price) index level via Yahoo
+ *   delayed chart feed. Daily history from ~1972-01-03. Price return only (not net total
+ *   return); not an ETF. MSCI® is a trademark of MSCI Inc.
  * - case: FRED CSUSHPISA — Case-Shiller US National Home Price Index (monthly, SA)
  * - auhouses: FRED QAUN628BIS — BIS nominal Residential Property Prices for Australia
  *   (quarterly, Index 2010=100; 8 big cities). Nominal chosen to align with Case-Shiller
@@ -97,12 +97,12 @@ const SERIES: SeriesMeta[] = [
     frequency: "daily",
   },
   {
-    // ACWI: longest Yahoo daily among URTH (2012) / ACWI (2008) / VT (2008, slightly shorter).
+    // MSCI World Standard (price) on Yahoo — daily from ~1972; not ACWI ETF / not net TR.
     id: "msci",
-    label: "iShares ACWI (MSCI)",
-    ticker: "ACWI",
+    label: "MSCI World",
+    ticker: "^990100-USD-STRD",
     source: "yahoo",
-    yahooSymbol: "ACWI",
+    yahooSymbol: "^990100-USD-STRD",
     frequency: "daily",
   },
   {
@@ -644,7 +644,7 @@ function windowMeta(key: WindowKey) {
       windowSec: null as number | null,
       title: "All-time index relative %",
       definition:
-        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI ACWI, Case-Shiller, AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is optional on the ALL line when selected; Yahoo daily BTC-USD starts from Sep 2014, so it is marked partial/short history and uses its own inception start. Educational only — not financial advice (NFA).",
+        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI World, Case-Shiller, AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is optional on the ALL line when selected; Yahoo daily BTC-USD starts from Sep 2014, so it is marked partial/short history and uses its own inception start. Educational only — not financial advice (NFA).",
     };
   }
   const years = WINDOW_YEARS[key];
@@ -658,7 +658,7 @@ function windowMeta(key: WindowKey) {
     windowDays: days,
     windowSec: sec,
     title: `Relative % over ${years} year${years === 1 ? "" : "s"}`,
-    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date across selected series (BTC-USD, equities, MSCI ACWI, Case-Shiller, AU real estate, US M2 % change). End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
+    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date across selected series (BTC-USD, equities, MSCI World, Case-Shiller, AU real estate, US M2 % change). End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
   };
 }
 

@@ -56,7 +56,7 @@ const SERIES_STYLE: Record<
   spx: { color: "#3dcc9a", short: "SPX", chip: "S&P 500" },
   ndx: { color: "#4c9fff", short: "NDX", chip: "Nasdaq 100" },
   aord: { color: "#e8873a", short: "AORD", chip: "All Ords" },
-  msci: { color: "#a78bfa", short: "ACWI", chip: "iShares ACWI" },
+  msci: { color: "#a78bfa", short: "WORLD", chip: "MSCI World" },
   case: { color: "#f472b6", short: "CASE", chip: "US real estate" },
   auhouses: { color: "#38bdf8", short: "AU", chip: "AU real estate" },
   m2: {
@@ -737,7 +737,7 @@ export function BtcFourYearChart() {
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <p className="text-sm text-muted">{copy.loading}</p>
             <p className="text-xs text-muted/70">
-              BTC · S&amp;P 500 · Case-Shiller · equities · ACWI · AU real estate · US M2
+              BTC · S&amp;P 500 · Case-Shiller · equities · MSCI World · AU real estate · US M2
             </p>
           </div>
         )}
@@ -1135,7 +1135,7 @@ export function BtcFourYearChart() {
             start is NDX, SPX and AORD from Oct 1985. Bitcoin can be toggled on
             for the line when selected; Yahoo daily BTC-USD starts around Sep
             2014, so it is marked partial/short history versus that shared
-            start. Shorter series (e.g. MSCI ACWI from 2008) are marked partial.{" "}
+            start. Shorter series (e.g. Bitcoin from 2014) are marked partial.{" "}
           </>
         ) : (
           <>
@@ -1150,13 +1150,14 @@ export function BtcFourYearChart() {
         change from the window start, not the raw money-stock level.{" "}
         <strong className="font-medium text-muted">Bar mode:</strong> latest %
         for the selected window as grouped bars (same end value as the line).
-        Data via Yahoo Finance delayed third-party chart feeds (BTC-USD, ^NDX, ^GSPC, ^AORD, ACWI) and FRED®,
+        Data via Yahoo Finance delayed third-party chart feeds (BTC-USD, ^NDX, ^GSPC, ^AORD, ^990100-USD-STRD) and FRED®,
         Federal Reserve Bank of St. Louis (CSUSHPISA S&amp;P CoreLogic Case-Shiller
         US National HPI; QAUN628BIS BIS AU residential property prices; M2SL US M2).
-        The ACWI chip is the iShares MSCI ACWI ETF on Yahoo — a long-history
-        all-country equity proxy, not the official MSCI World Index level.
-        Index names and Case-Shiller® are trademarks of their owners; no endorsement
-        implied. Monthly/quarterly series are step-forward-filled to the shared axis.
+        The MSCI World chip is the developed-world MSCI World Standard (price)
+        index via Yahoo&apos;s delayed chart feed (^990100-USD-STRD) — not an ETF,
+        not ACWI, and not a net total-return series. MSCI® is a trademark of MSCI
+        Inc.; Case-Shiller® and other index names are trademarks of their owners; no
+        endorsement implied. Monthly/quarterly series are step-forward-filled to the shared axis.
         Partial series may appear if history is short or a feed fails. Bonds not
         included yet. For the full BTC+MSTR cycle desk, open{" "}
         <a href="/dashboard" className="text-accent hover:underline">
