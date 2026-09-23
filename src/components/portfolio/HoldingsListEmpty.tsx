@@ -5,7 +5,13 @@ import {
   type HoldingLive,
   type PositionReturnWindow,
 } from "@/lib/portfolioTypes";
-import { formatAud, formatPrice, returnWindowHint } from "@/lib/portfolioCompute";
+import type { DisplayCurrency } from "@/lib/portfolioCompute";
+import {
+  audToDisplay,
+  formatMoney,
+  formatPrice,
+  returnWindowHint,
+} from "@/lib/portfolioCompute";
 import { HoldingLogo } from "./HoldingLogo";
 
 type Props = {
@@ -15,20 +21,27 @@ type Props = {
   returnsLoading: boolean;
   /** Briefly highlight a newly added holding */
   highlightId?: string | null;
+  displayCurrency?: DisplayCurrency;
+  audPerUsd?: number | null;
   onEdit: (id: string) => void;
   onAdd: () => void;
   onEditCash: () => void;
 };
 
-function formatRowGain(gainAud: number | null, gainPct: number | null): string {
-  if (gainAud == null || gainPct == null) return "—";
-  const sign = gainAud >= 0 ? "+" : "−";
-  const dollars = Math.abs(gainAud).toLocaleString("en-AU", {
+function formatRowGain(
+  gain: number | null,
+  gainPct: number | null,
+  currency: DisplayCurrency,
+): string {
+  if (gain == null || gainPct == null) return "—";
+  const prefix = currency === "USD" ? "US$" : "A$";
+  const sign = gain >= 0 ? "+" : "−";
+  const dollars = Math.abs(gain).toLocaleString("en-AU", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
   const pctSign = gainPct >= 0 ? "+" : "−";
-  return `${sign}A$${dollars} ${pctSign}${Math.abs(gainPct).toFixed(2)}%`;
+  return `${sign}${prefix}${dollars} ${pctSign}${Math.abs(gainPct).toFixed(2)}%`;
 }
 
 export function HoldingsListEmpty({
@@ -37,6 +50,8 @@ export function HoldingsListEmpty({
   returnWindow,
   returnsLoading,
   highlightId = null,
+  displayCurrency = "AUD",
+  audPerUsd = null,
   onEdit,
   onAdd,
   onEditCash,
@@ -91,6 +106,8 @@ export function HoldingsListEmpty({
             const gainPositive = h.gainAud != null && h.gainAud >= 0;
             const isCollectable = h.kind === "collectable";
             const title = isCollectable ? h.name ?? h.ticker : h.ticker;
+            const unitPrice = audToDisplay(h.priceAud, displayCurrency, audPerUsd);
+            const pricePrefix = displayCurrency === "USD" ? "US$" : "$";
             const subtitle = isCollectable
               ? [
                   "Collectable",
@@ -99,7 +116,7 @@ export function HoldingsListEmpty({
                 ]
                   .filter(Boolean)
                   .join(" · ")
-              : `${h.quantity} | $${formatPrice(h.priceAud)}${
+              : `${h.quantity} | ${pricePrefix}${formatPrice(unitPrice)}${
                   h.costCurrency === "USD" ? " · cost USD" : ""
                 }${h.name ? ` · ${h.name}` : ""}`;
 
@@ -108,7 +125,8 @@ export function HoldingsListEmpty({
                 if (returnWindow !== "ALL") return "—";
                 if (h.costBasis <= 0) return "est. value";
               }
-              return formatRowGain(h.gainAud, h.gainPct);
+              const gainDisp = audToDisplay(h.gainAud, displayCurrency, audPerUsd);
+              return formatRowGain(gainDisp, h.gainPct, displayCurrency);
             })();
 
             const isNew = highlightId === h.id;
@@ -150,7 +168,11 @@ export function HoldingsListEmpty({
                   </div>
                   <div className="text-right">
                     <p className="font-semibold text-white">
-                      {formatAud(h.marketValueAud, 2)}
+                      {formatMoney(
+                        audToDisplay(h.marketValueAud, displayCurrency, audPerUsd),
+                        displayCurrency,
+                        2,
+                      )}
                     </p>
                     <p
                       className={`text-xs ${
@@ -192,11 +214,15 @@ export function HoldingsListEmpty({
         <div className="flex-1">
           <p className="text-sm font-medium text-white">Available Cash</p>
           <p className="text-[11px] text-zinc-500">
-            Included in total A$ &amp; allocation · tap to edit
+            Included in total &amp; allocation · tap to edit
           </p>
         </div>
         <p className="text-sm font-semibold text-white">
-          {availableCashAud == null ? "A$—" : formatAud(availableCashAud, 2)}
+          {formatMoney(
+            audToDisplay(availableCashAud, displayCurrency, audPerUsd),
+            displayCurrency,
+            2,
+          )}
         </p>
       </button>
 

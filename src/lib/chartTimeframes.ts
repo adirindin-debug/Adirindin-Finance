@@ -174,3 +174,31 @@ export function writeStoredReturnsVsCost(on: boolean): void {
     // ignore quota / private mode
   }
 }
+
+/** Portfolio display currency (AUD bookkeeping; USD is display-only via AUDUSD). */
+export const PORTFOLIO_DISPLAY_CURRENCY_KEY = "adirindin.portfolioDisplayCurrency";
+
+export type PortfolioDisplayCurrency = "AUD" | "USD";
+
+export function readStoredDisplayCurrency(
+  fallback: PortfolioDisplayCurrency = "AUD",
+): PortfolioDisplayCurrency {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(PORTFOLIO_DISPLAY_CURRENCY_KEY);
+    if (raw === "USD" || raw === "AUD") return raw;
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeStoredDisplayCurrency(c: PortfolioDisplayCurrency): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PORTFOLIO_DISPLAY_CURRENCY_KEY, c);
+  } catch {
+    // ignore quota / private mode
+  }
+}
+

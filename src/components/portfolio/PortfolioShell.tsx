@@ -11,11 +11,14 @@ import { DEFAULT_PORTFOLIO, HOLDING_COLORS } from "@/lib/portfolioTypes";
 import {
   DEFAULT_CHART_TIMEFRAME,
   readStoredChartTimeframe,
+  readStoredDisplayCurrency,
   readStoredReturnsVsCost,
   toHomepageKey,
   toPortfolioTf,
   writeStoredChartTimeframe,
+  writeStoredDisplayCurrency,
   writeStoredReturnsVsCost,
+  type PortfolioDisplayCurrency,
 } from "@/lib/chartTimeframes";
 import {
   clearPortfolioStorage,
@@ -56,6 +59,8 @@ export function PortfolioShell({ seed }: Props) {
   const [tfReady, setTfReady] = useState(false);
   /** Pin summary/holdings to ALL vs cost; lock Performance chart to 1Y. Portfolio-only. */
   const [returnsVsCost, setReturnsVsCost] = useState(false);
+  /** Display-only AUD|USD toggle (bookkeeping stays AUD). */
+  const [displayCurrency, setDisplayCurrency] = useState<PortfolioDisplayCurrency>("AUD");
   const [periodReturns, setPeriodReturns] = useState<PeriodTickerReturn[] | null>(null);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
@@ -71,6 +76,7 @@ export function PortfolioShell({ seed }: Props) {
   useEffect(() => {
     setTf(toPortfolioTf(readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME)));
     setReturnsVsCost(readStoredReturnsVsCost(false));
+    setDisplayCurrency(readStoredDisplayCurrency("AUD"));
     setTfReady(true);
   }, []);
 
@@ -82,6 +88,11 @@ export function PortfolioShell({ seed }: Props) {
   const setReturnsVsCostPersist = useCallback((on: boolean) => {
     setReturnsVsCost(on);
     writeStoredReturnsVsCost(on);
+  }, []);
+
+  const setDisplayCurrencyPersist = useCallback((c: PortfolioDisplayCurrency) => {
+    setDisplayCurrency(c);
+    writeStoredDisplayCurrency(c);
   }, []);
 
   /** Chart timeframe: locked to 1Y while vs-cost is on. */
@@ -106,18 +117,19 @@ export function PortfolioShell({ seed }: Props) {
   );
 
   const fetchQuotes = useCallback(async () => {
-    // Always fetch AUDUSD when we have USD costs or collectables in USD,
-    // even with zero security tickers — use a sentinel request via any USD holding.
+    // Always fetch AUDUSD when display is USD, or when we have USD costs /
+    // collectables in USD / security tickers — use fxOnly=1 when no tickers.
     const needsFx =
+      displayCurrency === "USD" ||
       portfolio.holdings.some(
         (h) =>
           h.costCurrency === "USD" ||
           (h.kind === "collectable" && h.estimatedValueCurrency === "USD"),
-      ) || securityTickersKey.length > 0;
+      ) ||
+      securityTickersKey.length > 0;
 
     if (!needsFx) {
       setQuotes([]);
-      setAudPerUsd(null);
       setQuotesError(null);
       setQuotesLoading(false);
       return;
@@ -134,13 +146,16 @@ export function PortfolioShell({ seed }: Props) {
         audPerUsd?: number | null;
         error?: string | null;
       };
+      const nextFx =
+        data.audPerUsd != null && data.audPerUsd > 0 ? data.audPerUsd : null;
       if (!res.ok) {
         setQuotesError(data.error || `HTTP ${res.status}`);
         setQuotes(data.quotes ?? []);
-        setAudPerUsd(data.audPerUsd ?? null);
+        // Keep last known FX — do not invent a rate.
+        if (nextFx != null) setAudPerUsd(nextFx);
       } else {
         setQuotes(data.quotes ?? []);
-        setAudPerUsd(data.audPerUsd ?? null);
+        if (nextFx != null) setAudPerUsd(nextFx);
         setQuotesError(data.error || null);
       }
     } catch (e) {
@@ -148,7 +163,7 @@ export function PortfolioShell({ seed }: Props) {
     } finally {
       setQuotesLoading(false);
     }
-  }, [securityTickersKey, portfolio.holdings]);
+  }, [securityTickersKey, portfolio.holdings, displayCurrency]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -327,6 +342,13 @@ export function PortfolioShell({ seed }: Props) {
   const showSummary =
     hasHoldings || (portfolio.availableCashAud != null && portfolio.availableCashAud > 0);
 
+  const fxOk = audPerUsd != null && audPerUsd > 0;
+  /** Prefer USD when selected and FX is known; otherwise fall back to AUD (no invented rates). */
+  const effectiveDisplay: PortfolioDisplayCurrency =
+    displayCurrency === "USD" && fxOk ? "USD" : "AUD";
+  const fxUnavailableHint =
+    displayCurrency === "USD" && !fxOk ? "FX unavailable — showing A$" : null;
+
   return (
     <div className="mx-auto max-w-2xl bg-black px-4 py-8 sm:px-6 sm:py-10">
       <PortfolioSummary
@@ -341,6 +363,11 @@ export function PortfolioShell({ seed }: Props) {
         quotesLoading={quotesLoading}
         quotesError={quotesError}
         returnsError={returnsError}
+        displayCurrency={displayCurrency}
+        effectiveDisplay={effectiveDisplay}
+        audPerUsd={audPerUsd}
+        fxUnavailableHint={fxUnavailableHint}
+        onDisplayCurrencyChange={setDisplayCurrencyPersist}
         onEditName={openMeta}
         onAdd={openAdd}
       />
@@ -353,13 +380,20 @@ export function PortfolioShell({ seed }: Props) {
         onReturnsVsCostChange={setReturnsVsCostPersist}
         chipsLocked={returnsVsCost}
       />
-      <AllocationDonutEmpty holdings={liveHoldings} cashAud={summary.cashAud} />
+      <AllocationDonutEmpty
+        holdings={liveHoldings}
+        cashAud={summary.cashAud}
+        displayCurrency={effectiveDisplay}
+        audPerUsd={audPerUsd}
+      />
       <HoldingsListEmpty
         holdings={liveHoldings}
         availableCashAud={portfolio.availableCashAud}
         returnWindow={returnsTf}
         returnsLoading={returnsLoading}
         highlightId={justAddedId}
+        displayCurrency={effectiveDisplay}
+        audPerUsd={audPerUsd}
         onEdit={openEdit}
         onAdd={openAdd}
         onEditCash={openMeta}

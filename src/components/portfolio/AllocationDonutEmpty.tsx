@@ -2,7 +2,12 @@
 
 import { useMemo, useState } from "react";
 import type { HoldingLive } from "@/lib/portfolioTypes";
-import { CASH_COLOR, formatAud } from "@/lib/portfolioCompute";
+import {
+  CASH_COLOR,
+  audToDisplay,
+  formatMoney,
+  type DisplayCurrency,
+} from "@/lib/portfolioCompute";
 import { buildSectorSlices } from "@/lib/portfolioSectors";
 import { HoldingLogo } from "./HoldingLogo";
 
@@ -21,6 +26,8 @@ type Slice = {
 type Props = {
   holdings: HoldingLive[];
   cashAud: number;
+  displayCurrency?: DisplayCurrency;
+  audPerUsd?: number | null;
 };
 
 type ViewMode = "assets" | "sector";
@@ -117,7 +124,12 @@ function DonutChart({ slices }: { slices: Slice[] }) {
   );
 }
 
-export function AllocationDonutEmpty({ holdings, cashAud }: Props) {
+export function AllocationDonutEmpty({
+  holdings,
+  cashAud,
+  displayCurrency = "AUD",
+  audPerUsd = null,
+}: Props) {
   const [mode, setMode] = useState<ViewMode>("assets");
 
   const assetSlices = useMemo(
@@ -220,7 +232,11 @@ export function AllocationDonutEmpty({ holdings, cashAud }: Props) {
                     </span>
                     <span className="text-zinc-400">{s.pct.toFixed(1)}%</span>
                     <span className="w-24 text-right text-white">
-                      {formatAud(s.value, 0)}
+                      {formatMoney(
+                        audToDisplay(s.value, displayCurrency, audPerUsd),
+                        displayCurrency,
+                        0,
+                      )}
                     </span>
                   </li>
                 ))}

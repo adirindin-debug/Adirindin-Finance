@@ -310,6 +310,9 @@ export function PortfolioEditor({
             <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-500/90">
               Available cash (AUD)
             </p>
+            <p className="text-[10px] leading-relaxed text-zinc-500">
+              Cash is stored in AUD. Portfolio display currency (AUD ↔ USD) is separate.
+            </p>
             <label className="block text-xs text-zinc-500">
               Portfolio name
               <input

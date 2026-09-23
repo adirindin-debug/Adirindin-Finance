@@ -127,19 +127,49 @@ export function cashWeightPct(cashAud: number, totalMarketValueAud: number): num
 
 export { CASH_COLOR };
 
-export function formatAud(n: number | null | undefined, digits = 2): string {
-  if (n == null || !Number.isFinite(n)) return "A$—";
+/** Display currency for portfolio UI (bookkeeping stays AUD). */
+export type DisplayCurrency = "AUD" | "USD";
+
+/** Convert an AUD amount to the selected display currency. USD needs audPerUsd > 0. */
+export function audToDisplay(
+  amountAud: number | null | undefined,
+  display: DisplayCurrency,
+  audPerUsd: number | null,
+): number | null {
+  if (amountAud == null || !Number.isFinite(amountAud)) return null;
+  if (display === "AUD") return amountAud;
+  if (audPerUsd == null || !(audPerUsd > 0)) return null;
+  return amountAud / audPerUsd;
+}
+
+/** Format money in A$ or US$ (en-AU numerals). */
+export function formatMoney(
+  n: number | null | undefined,
+  currency: DisplayCurrency = "AUD",
+  digits = 2,
+): string {
+  const prefix = currency === "USD" ? "US$" : "A$";
+  if (n == null || !Number.isFinite(n)) return `${prefix}—`;
   const abs = Math.abs(n);
   const formatted = abs.toLocaleString("en-AU", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
-  if (n < 0) return `-A$${formatted}`;
-  return `A$${formatted}`;
+  if (n < 0) return `-${prefix}${formatted}`;
+  return `${prefix}${formatted}`;
 }
 
-export function formatGain(gain: number | null, pct: number | null): string {
+export function formatAud(n: number | null | undefined, digits = 2): string {
+  return formatMoney(n, "AUD", digits);
+}
+
+export function formatGain(
+  gain: number | null,
+  pct: number | null,
+  currency: DisplayCurrency = "AUD",
+): string {
   if (gain == null || pct == null) return "— · —%";
+  const prefix = currency === "USD" ? "US$" : "A$";
   const sign = gain >= 0 ? "+" : "";
   const g = Math.abs(gain).toLocaleString("en-AU", {
     minimumFractionDigits: 2,
@@ -147,7 +177,7 @@ export function formatGain(gain: number | null, pct: number | null): string {
   });
   const p = Math.abs(pct).toFixed(2);
   const pctSign = pct >= 0 ? "+" : "−";
-  return `${sign}A$${g} · ${pctSign}${p}%`;
+  return `${sign}${prefix}${g} · ${pctSign}${p}%`;
 }
 
 export function formatPrice(n: number | null | undefined): string {
