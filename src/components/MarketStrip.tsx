@@ -128,9 +128,9 @@ export function MarketStrip() {
   ];
 
   return (
-    <section className="mt-12" aria-label="Live market strip">
+    <section className="mt-12" aria-label="BTC info">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Market strip</p>
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">BTC info</p>
         <p className="text-xs text-muted">Educational / live market data · not advice</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
