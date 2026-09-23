@@ -5,10 +5,7 @@ import { BtcFourYearChart } from "@/components/BtcFourYearChart";
 export default function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-16">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-        Adirindin Finance
-      </p>
-      <h1 className="mt-3 max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+      <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
         A research desk for market cycles.
       </h1>
       <p className="mt-4 max-w-2xl text-muted">
