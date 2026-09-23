@@ -3,6 +3,8 @@
  * Coinbase Exchange first; Yahoo chart fallback. Cached briefly. Educational — NFA.
  */
 
+import { daysSinceHalving, daysUntilNextHalving } from "@/lib/bitcoinHalving";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -10,12 +12,7 @@ export const revalidate = 0;
 const UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
 const CB = "https://api.exchange.coinbase.com";
-const LAST_HALVING = Date.parse("2024-04-19T00:00:00Z");
 const FETCH_MS = 8_000;
-
-function daysSinceHalving(now = Date.now()) {
-  return Math.floor((now - LAST_HALVING) / 86400000);
-}
 
 async function fetchJson(url: string, init?: RequestInit) {
   const res = await fetch(url, {
@@ -86,6 +83,7 @@ async function yahooBtc(): Promise<{ price: number; ath: number }> {
 
 export async function GET() {
   const halvingDays = daysSinceHalving();
+  const daysToHalving = daysUntilNextHalving();
   const errors: string[] = [];
 
   try {
@@ -103,6 +101,7 @@ export async function GET() {
         ath,
         drawdownPct,
         daysSinceHalving: halvingDays,
+        daysUntilNextHalving: daysToHalving,
         asOf: new Date().toISOString(),
       },
       {
@@ -129,6 +128,7 @@ export async function GET() {
         ath,
         drawdownPct,
         daysSinceHalving: halvingDays,
+        daysUntilNextHalving: daysToHalving,
         asOf: new Date().toISOString(),
         note: errors.length ? `Coinbase unavailable (${errors.join("; ")})` : undefined,
       },
@@ -150,6 +150,7 @@ export async function GET() {
       ath: null,
       drawdownPct: null,
       daysSinceHalving: halvingDays,
+      daysUntilNextHalving: daysToHalving,
       asOf: new Date().toISOString(),
     },
     {

@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  daysSinceHalving,
+  daysUntilNextHalving,
+  NEXT_HALVING,
+} from "@/lib/bitcoinHalving";
 
 type StripState = {
   status: "loading" | "ready" | "error";
@@ -8,15 +13,10 @@ type StripState = {
   drawdownPct: number | null;
   ath: number | null;
   daysSinceHalving: number | null;
+  daysUntilNextHalving: number | null;
   source?: string;
   error?: string;
 };
-
-const LAST_HALVING = new Date("2024-04-19T00:00:00Z");
-
-function daysBetween(a: Date, b: Date) {
-  return Math.floor((b.getTime() - a.getTime()) / 86400000);
-}
 
 function fmtUsd(n: number) {
   return n.toLocaleString("en-US", {
@@ -37,6 +37,7 @@ type ApiPayload = {
   drawdownPct: number | null;
   ath: number | null;
   daysSinceHalving: number | null;
+  daysUntilNextHalving: number | null;
   source?: string;
   error?: string;
   note?: string;
@@ -57,7 +58,8 @@ export function MarketStrip() {
     btcPrice: null,
     drawdownPct: null,
     ath: null,
-    daysSinceHalving: daysBetween(LAST_HALVING, new Date()),
+    daysSinceHalving: daysSinceHalving(),
+    daysUntilNextHalving: daysUntilNextHalving(),
   });
 
   useEffect(() => {
@@ -79,8 +81,9 @@ export function MarketStrip() {
             btcPrice: data.btcPrice,
             drawdownPct: data.drawdownPct,
             ath: data.ath,
-            daysSinceHalving:
-              data.daysSinceHalving ?? daysBetween(LAST_HALVING, new Date()),
+            daysSinceHalving: data.daysSinceHalving ?? daysSinceHalving(),
+            daysUntilNextHalving:
+              data.daysUntilNextHalving ?? daysUntilNextHalving(),
             source: data.source,
           });
           return;
@@ -99,7 +102,8 @@ export function MarketStrip() {
               ? "Timed out"
               : lastErr.message
             : "Feed unavailable",
-        daysSinceHalving: daysBetween(LAST_HALVING, new Date()),
+        daysSinceHalving: daysSinceHalving(),
+        daysUntilNextHalving: daysUntilNextHalving(),
       }));
     })();
 
@@ -148,6 +152,16 @@ export function MarketStrip() {
       value: state.daysSinceHalving != null ? String(state.daysSinceHalving) : "—",
       hint: "Last halving 19 Apr 2024",
     },
+    {
+      label: "Days to halving",
+      value:
+        state.daysUntilNextHalving != null ? String(state.daysUntilNextHalving) : "—",
+      hint: `Estimated ~${new Date(NEXT_HALVING).toLocaleDateString("en-AU", {
+        month: "short",
+        year: "numeric",
+        timeZone: "UTC",
+      })}`,
+    },
   ];
 
   return (
@@ -158,7 +172,7 @@ export function MarketStrip() {
         </p>
         <p className="text-xs text-muted">Educational / live market data · not advice</p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         {cards.map((c) => (
           <div key={c.label} className="rounded-lg border border-border bg-card p-4">
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
@@ -173,14 +187,15 @@ export function MarketStrip() {
       </div>
       {state.status === "error" && (
         <p className="mt-2 text-xs text-muted">
-          Could not refresh live feed ({state.error}). Halving day count still shown.
+          Could not refresh live feed ({state.error}). Halving day counts still shown.
         </p>
       )}
       <p className="mt-3 text-xs text-muted">
         Source: Coinbase Exchange BTC-USD (spot ticker and daily candles), with Yahoo
         Finance chart as a fallback when Coinbase is rate-limited. Drawdown uses recent
         daily closes from that feed, not an all-time exchange ATH. Halving date is fixed
-        (19 Apr 2024). Educational only — NFA.
+        (19 Apr 2024). Next halving estimate uses 210,000 blocks at Bitcoin's 10-minute
+        target block time. Educational only — NFA.
       </p>
     </section>
   );
