@@ -264,6 +264,8 @@ export default function RealEstateCycleChart() {
     month: "short",
     year: "numeric",
   });
+  // Keep the live date/subtitle left of the peak leg rather than under its stroke.
+  const overlayX = nowPos.x - 96;
 
   /** Extra top band so title/subtitle sit clear of the high peak / NOW marker */
   const TOP_PAD = 60;
@@ -409,7 +411,7 @@ export default function RealEstateCycleChart() {
         <line
           x1={nowPos.x}
           y1={nowPos.y - 8}
-          x2={nowPos.x - 36}
+          x2={overlayX}
           y2={nowPos.y - 48}
           stroke="#5ec8ff"
           strokeWidth="1.5"
@@ -447,9 +449,9 @@ export default function RealEstateCycleChart() {
         </text>
         {/* Date caption below the line with clearance — not on the stroke */}
         <text
-          x={nowPos.x - 36}
+          x={overlayX}
           y={nowPos.y + 28}
-          textAnchor="middle"
+          textAnchor="end"
           fill="#9eb0c8"
           fontSize="10"
           fontFamily="system-ui, sans-serif"
@@ -458,9 +460,9 @@ export default function RealEstateCycleChart() {
           {`As of ${nowLabel}`}
         </text>
         <text
-          x={nowPos.x - 36}
+          x={overlayX}
           y={nowPos.y + 40}
-          textAnchor="middle"
+          textAnchor="end"
           fill="#6b7a90"
           fontSize="8"
           fontFamily="system-ui, sans-serif"

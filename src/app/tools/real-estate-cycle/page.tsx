@@ -133,8 +133,8 @@ export default function RealEstateCyclePage() {
         <p className="mt-3 text-sm leading-relaxed text-muted">
           This page does not invent the ~18-year land cycle. The modern framing is widely associated
           with Fred Harrison&apos;s work (building on earlier land-cycle research, often traced to Homer
-          Hoyt). Educators Phil Anderson and Jason Pizzino have discussed and taught this framework —
-          which is how Anthony first came across it. Educational study aid only · not financial advice.
+          Hoyt). Educators Phil Anderson and Jason Pizzino have discussed and taught this framework.
+          Educational study aid only · not financial advice.
         </p>
       </section>
 
