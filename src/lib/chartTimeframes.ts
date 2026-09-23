@@ -140,3 +140,27 @@ export function chartTimeframeLongLabel(key: ChartTimeframeKey): string {
       return "All time";
   }
 }
+
+/** Portfolio-only: pin summary/holdings to ALL-time vs cost; lock Performance chart to 1Y. */
+export const PORTFOLIO_RETURNS_VS_COST_KEY = "adirindin.portfolioReturnsVsCost";
+
+export function readStoredReturnsVsCost(fallback = false): boolean {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(PORTFOLIO_RETURNS_VS_COST_KEY);
+    if (raw === "1") return true;
+    if (raw === "0") return false;
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeStoredReturnsVsCost(on: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PORTFOLIO_RETURNS_VS_COST_KEY, on ? "1" : "0");
+  } catch {
+    // ignore quota / private mode
+  }
+}

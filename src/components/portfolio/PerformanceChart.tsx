@@ -34,9 +34,14 @@ type ApiPayload = {
 type Props = {
   portfolio: PortfolioConfig;
   hasHoldings: boolean;
-  /** Shared timeframe owned by PortfolioShell (localStorage-backed). */
+  /** Shared timeframe owned by PortfolioShell (localStorage-backed). When vs-cost is on, parent forces 1Y. */
   tf: PortfolioTimeframe;
   onTfChange: (tf: PortfolioTimeframe) => void;
+  /** Pin summary/holdings to ALL vs cost; chart stays on this component's tf (1Y). */
+  returnsVsCost?: boolean;
+  onReturnsVsCostChange?: (on: boolean) => void;
+  /** When true, chips show tf selected but other chips are disabled. */
+  chipsLocked?: boolean;
 };
 
 const W = 640;
@@ -90,7 +95,15 @@ function pathFor(
     .join(" ");
 }
 
-export function PerformanceChart({ portfolio, hasHoldings, tf, onTfChange }: Props) {
+export function PerformanceChart({
+  portfolio,
+  hasHoldings,
+  tf,
+  onTfChange,
+  returnsVsCost = false,
+  onReturnsVsCostChange,
+  chipsLocked = false,
+}: Props) {
   const [series, setSeries] = useState<SeriesPayload[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,23 +244,58 @@ export function PerformanceChart({ portfolio, hasHoldings, tf, onTfChange }: Pro
   return (
     <section className="mt-8" aria-label="Performance vs indices">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
-          Performance
-        </h2>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            Performance
+          </h2>
+          {onReturnsVsCostChange && (
+            <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
+              <span className="sr-only">Returns vs cost</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={returnsVsCost}
+                aria-label="Returns vs cost"
+                onClick={() => onReturnsVsCostChange(!returnsVsCost)}
+                className={`relative h-5 w-9 shrink-0 rounded-full transition ${
+                  returnsVsCost ? "bg-emerald-600" : "bg-zinc-700"
+                }`}
+              >
+                <span
+                  aria-hidden
+                  className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white transition ${
+                    returnsVsCost ? "translate-x-4" : "translate-x-0"
+                  }`}
+                />
+              </button>
+              <span className={returnsVsCost ? "text-zinc-200" : "text-zinc-500"}>
+                Vs cost
+              </span>
+            </label>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1" role="tablist" aria-label="Timeframe">
           {PORTFOLIO_TIMEFRAMES.map((t) => {
             const active = t === tf;
+            const disabled = chipsLocked && t !== tf;
             return (
               <button
                 key={t}
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => onTfChange(t)}
+                aria-disabled={disabled || undefined}
+                disabled={disabled}
+                onClick={() => {
+                  if (chipsLocked) return;
+                  onTfChange(t);
+                }}
                 className={`rounded-full px-2.5 py-1 text-xs transition ${
                   active
                     ? "bg-zinc-800 text-white"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    : disabled
+                      ? "cursor-not-allowed text-zinc-700"
+                      : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 {t}
@@ -256,6 +304,11 @@ export function PerformanceChart({ portfolio, hasHoldings, tf, onTfChange }: Pro
           })}
         </div>
       </div>
+      {returnsVsCost && (
+        <p className="mb-2 text-[10px] leading-relaxed text-zinc-500">
+          Chart: 1Y · returns vs cost
+        </p>
+      )}
 
       <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-black">
         <svg

@@ -11,9 +11,11 @@ import { DEFAULT_PORTFOLIO, HOLDING_COLORS } from "@/lib/portfolioTypes";
 import {
   DEFAULT_CHART_TIMEFRAME,
   readStoredChartTimeframe,
+  readStoredReturnsVsCost,
   toHomepageKey,
   toPortfolioTf,
   writeStoredChartTimeframe,
+  writeStoredReturnsVsCost,
 } from "@/lib/chartTimeframes";
 import {
   clearPortfolioStorage,
@@ -52,6 +54,8 @@ export function PortfolioShell({ seed }: Props) {
     toPortfolioTf(DEFAULT_CHART_TIMEFRAME),
   );
   const [tfReady, setTfReady] = useState(false);
+  /** Pin summary/holdings to ALL vs cost; lock Performance chart to 1Y. Portfolio-only. */
+  const [returnsVsCost, setReturnsVsCost] = useState(false);
   const [periodReturns, setPeriodReturns] = useState<PeriodTickerReturn[] | null>(null);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
@@ -66,6 +70,7 @@ export function PortfolioShell({ seed }: Props) {
   // Shared chart timeframe (homepage + Performance chips)
   useEffect(() => {
     setTf(toPortfolioTf(readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME)));
+    setReturnsVsCost(readStoredReturnsVsCost(false));
     setTfReady(true);
   }, []);
 
@@ -73,6 +78,16 @@ export function PortfolioShell({ seed }: Props) {
     setTf(next);
     writeStoredChartTimeframe(toHomepageKey(next));
   }, []);
+
+  const setReturnsVsCostPersist = useCallback((on: boolean) => {
+    setReturnsVsCost(on);
+    writeStoredReturnsVsCost(on);
+  }, []);
+
+  /** Chart timeframe: locked to 1Y while vs-cost is on. */
+  const chartTf: PortfolioTimeframe = returnsVsCost ? "1Y" : tf;
+  /** Summary + holdings: ALL vs cost while toggle on; else shared chip. */
+  const returnsTf: PortfolioTimeframe = returnsVsCost ? "ALL" : tf;
 
   // Persist
   useEffect(() => {
@@ -143,7 +158,7 @@ export function PortfolioShell({ seed }: Props) {
   }, [hydrated, fetchQuotes]);
 
   const fetchPeriodReturns = useCallback(async () => {
-    if (tf === "ALL") {
+    if (returnsTf === "ALL") {
       setPeriodReturns(null);
       setReturnsError(null);
       setReturnsLoading(false);
@@ -158,7 +173,7 @@ export function PortfolioShell({ seed }: Props) {
     setReturnsLoading(true);
     try {
       const res = await fetch(
-        `/api/portfolio-returns?tf=${encodeURIComponent(tf)}&tickers=${encodeURIComponent(securityTickersKey)}`,
+        `/api/portfolio-returns?tf=${encodeURIComponent(returnsTf)}&tickers=${encodeURIComponent(securityTickersKey)}`,
       );
       const data = (await res.json()) as {
         ok?: boolean;
@@ -178,7 +193,7 @@ export function PortfolioShell({ seed }: Props) {
     } finally {
       setReturnsLoading(false);
     }
-  }, [tf, securityTickersKey]);
+  }, [returnsTf, securityTickersKey]);
 
   useEffect(() => {
     if (!hydrated || !tfReady) return;
@@ -191,13 +206,13 @@ export function PortfolioShell({ seed }: Props) {
   );
 
   const liveHoldings = useMemo(
-    () => applyPeriodReturns(baseLiveHoldings, periodReturns, tf),
-    [baseLiveHoldings, periodReturns, tf],
+    () => applyPeriodReturns(baseLiveHoldings, periodReturns, returnsTf),
+    [baseLiveHoldings, periodReturns, returnsTf],
   );
 
   const periodSummary = useMemo(
-    () => computePeriodSummary(baseLiveHoldings, periodReturns, tf, summary),
-    [baseLiveHoldings, periodReturns, tf, summary],
+    () => computePeriodSummary(baseLiveHoldings, periodReturns, returnsTf, summary),
+    [baseLiveHoldings, periodReturns, returnsTf, summary],
   );
 
   const editing = useMemo(
@@ -321,7 +336,7 @@ export function PortfolioShell({ seed }: Props) {
         periodGainAud={periodSummary.totalGainAud}
         periodGainPct={periodSummary.totalGainPct}
         periodAvailable={periodSummary.available}
-        returnWindow={tf}
+        returnWindow={returnsTf}
         returnsLoading={returnsLoading}
         quotesLoading={quotesLoading}
         quotesError={quotesError}
@@ -332,14 +347,17 @@ export function PortfolioShell({ seed }: Props) {
       <PerformanceChart
         portfolio={portfolio}
         hasHoldings={hasHoldings}
-        tf={tf}
+        tf={chartTf}
         onTfChange={selectTf}
+        returnsVsCost={returnsVsCost}
+        onReturnsVsCostChange={setReturnsVsCostPersist}
+        chipsLocked={returnsVsCost}
       />
       <AllocationDonutEmpty holdings={liveHoldings} cashAud={summary.cashAud} />
       <HoldingsListEmpty
         holdings={liveHoldings}
         availableCashAud={portfolio.availableCashAud}
-        returnWindow={tf}
+        returnWindow={returnsTf}
         returnsLoading={returnsLoading}
         highlightId={justAddedId}
         onEdit={openEdit}
