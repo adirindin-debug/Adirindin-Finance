@@ -40,6 +40,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   upstreamUrl.searchParams.set("format", "png");
   upstreamUrl.searchParams.set("size", "128");
   upstreamUrl.searchParams.set("retina", "true");
+  // Black UI: monochrome marks (e.g. Strategy/MSTR, AAPL) come black-on-transparent
+  // by default and vanish; theme=dark flips those to white. Colour logos stay tinted.
+  upstreamUrl.searchParams.set("theme", "dark");
 
   try {
     const upstream = await fetch(upstreamUrl.toString(), {
