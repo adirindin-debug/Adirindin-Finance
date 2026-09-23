@@ -770,7 +770,7 @@ function AddProperty() {
           id="p-url"
           type="text"
           inputMode="url"
-          placeholder="https://www.realestate.com.au/property/176-miller-st-preston-vic-3072/"
+          placeholder="Paste a realestate.com.au or Domain property link"
           value={url}
           onChange={(e) => applyUrl(e.target.value)}
         />
@@ -780,7 +780,7 @@ function AddProperty() {
         <textarea
           id="p-history"
           rows={4}
-          placeholder={"2026 Sold $990,000\nSold 15 July 2026\n2015 Sold $820,000\nSold 6 August 2015"}
+          placeholder="Paste sold-price lines from the listing (optional)"
           value={history}
           onChange={(e) => setHistory(e.target.value)}
           className="w-full rounded-md border border-border bg-navy px-3 py-2 font-mono text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50 focus:ring-2"
@@ -788,7 +788,7 @@ function AddProperty() {
         <FieldLabel htmlFor="p-address">Address (filled from the link)</FieldLabel>
         <TextInput
           id="p-address"
-          placeholder="8/363 High Street"
+          placeholder="Street address"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
           autoComplete="street-address"
@@ -798,7 +798,7 @@ function AddProperty() {
             <FieldLabel htmlFor="p-suburb">Suburb</FieldLabel>
             <TextInput
               id="p-suburb"
-              placeholder="Templestowe Lower"
+              placeholder="Suburb"
               value={suburb}
               onChange={(e) => setSuburb(e.target.value)}
             />
@@ -808,7 +808,7 @@ function AddProperty() {
             <TextInput
               id="p-pc"
               inputMode="numeric"
-              placeholder="3107"
+              placeholder="Postcode"
               value={postcode}
               onChange={(e) => setPostcode(e.target.value)}
             />
