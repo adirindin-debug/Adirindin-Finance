@@ -644,7 +644,7 @@ function windowMeta(key: WindowKey) {
       windowSec: null as number | null,
       title: "All-time index relative %",
       definition:
-        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI ACWI, Case-Shiller, AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is omitted from the ALL line (Yahoo daily BTC-USD only from Sep 2014) and kept on the bars / chips as its own all-time return. Educational only — not financial advice (NFA).",
+        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI ACWI, Case-Shiller, AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is optional on the ALL line when selected; Yahoo daily BTC-USD starts from Sep 2014, so it is marked partial/short history and uses its own inception start. Educational only — not financial advice (NFA).",
     };
   }
   const years = WINDOW_YEARS[key];

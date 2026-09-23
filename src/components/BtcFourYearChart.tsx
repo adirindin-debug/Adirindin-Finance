@@ -358,7 +358,6 @@ function ticks(min: number, max: number, n = 5) {
 function formatStartsLine(payload: ApiPayload | null): string {
   if (!payload?.series?.length) return "";
   const bits = payload.series
-    .filter((s) => s.id !== "btc")
     .map((s) => {
       const style = SERIES_STYLE[s.id];
       if (!style) return null;
@@ -379,14 +378,14 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
     return {
       heading: "All-time relative chart",
       subtitle:
-        "NDX, SPX and AORD set the shared start · toggle series on chips · BTC on bars · educational · NFA",
+        "NDX, SPX and AORD set the shared start · toggle series on chips · BTC can join the line from ~Sep 2014 · educational · NFA",
       kpiSuffix: "% all-time",
       chartTitle: payload?.title ?? "All-time index relative %",
-      chartHint: "Selected series · start = 0% · BTC on bars",
+      chartHint: "Selected series · start = 0% · BTC partial from ~Sep 2014",
       aria: "All-time relative percentage returns for selected series",
       loading: "Loading all-time relative returns…",
       footerLead:
-        "Educational compare from the first date NDX, SPX and AORD all exist on Yahoo (NDX daily, Oct 1985). Toggle series chips to show or hide lines. Bitcoin is left off the ALL line — Yahoo daily BTC-USD only starts Sep 2014 — and kept on the chips and bars as its own all-time return",
+        "Educational compare from the first date NDX, SPX and AORD all exist on Yahoo (NDX daily, Oct 1985). Toggle series chips to show or hide lines; BTC can be toggled on with its shorter history from around Sep 2014",
       startsLine: starts,
       errorLabel: "all-time compare chart",
     };
@@ -484,13 +483,8 @@ export function BtcFourYearChart() {
 
   const chart = useMemo(() => {
     if (!selectedSeries.length || chartMode !== "line") return null;
-    // ALL window: BTC stays off the line (own inception on bars/chips only).
-    const lineSeries =
-      windowKey === "all"
-        ? selectedSeries.filter((s) => s.id !== "btc")
-        : selectedSeries;
-    return lineSeries.length
-      ? buildSharedAxis(lineSeries, payload!, windowKey)
+    return selectedSeries.length
+      ? buildSharedAxis(selectedSeries, payload!, windowKey)
       : null;
   }, [selectedSeries, payload, chartMode, windowKey]);
 
@@ -864,7 +858,6 @@ export function BtcFourYearChart() {
             })}
 
             {selectedSeries
-              .filter((s) => windowKey !== "all" || s.id !== "btc")
               .map((s, i) => {
               const style = SERIES_STYLE[s.id];
               const x = PAD.left + (i % 4) * 220;
@@ -1139,9 +1132,10 @@ export function BtcFourYearChart() {
         {windowKey === "all" ? (
           <>
             <strong className="font-medium text-muted">ALL:</strong> the shared
-            start is NDX, SPX and AORD from Oct 1985. Bitcoin is omitted from
-            the line (Yahoo daily from Sep 2014) and kept on the chips and
-            bars. Shorter series (e.g. MSCI ACWI from 2008) are marked partial.{" "}
+            start is NDX, SPX and AORD from Oct 1985. Bitcoin can be toggled on
+            for the line when selected; Yahoo daily BTC-USD starts around Sep
+            2014, so it is marked partial/short history versus that shared
+            start. Shorter series (e.g. MSCI ACWI from 2008) are marked partial.{" "}
           </>
         ) : (
           <>
