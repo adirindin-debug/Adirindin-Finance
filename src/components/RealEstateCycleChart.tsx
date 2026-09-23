@@ -1,8 +1,9 @@
 /**
  * Classic “18 Year Real Estate Cycle” schematic (educational diagram).
- * Jagged phase line with stacked historical/framework years, plus a dashed
- * theory-based extension after the assumed ~2030 cycle low — not prices,
- * not a predictive model, not for market timing.
+ * Jagged phase line with stacked historical/framework years. Next-cycle
+ * theory waypoints (≈2037 / 2039 / 2044 / 2048) overlay the same loop
+ * shape — a reset/wrap onto the classic schematic, not a linear runway
+ * past 2030. Research only — not prices, not predictive, not for timing.
  */
 
 type YearStack = {
@@ -36,15 +37,50 @@ const POINTS = [
 ] as const;
 
 /**
- * Theory-based forecast waypoints after assuming ~2030 is the cycle low.
- * Schematic cycle-theory extension only — rough guide, not a model.
+ * Next-lap theory waypoints mapped onto the classic loop (reset/wrap),
+ * not a linear x-axis extension. Conceptual only — rough guide.
  */
-const FORECAST_POINTS = [
-  { id: "fcMid", x: 928, y: 98, year: "2037", caption: "Mid cycle" },
-  { id: "fcMidSlow", x: 976, y: 158, year: "2039", caption: "Mid-cycle correction" },
-  { id: "fcPeak", x: 1096, y: 45, year: "2044", caption: "Projected top" },
-  { id: "fcLow", x: 1192, y: 295, year: "2048", caption: "Next low" },
-] as const;
+const THEORY_OVERLAY: {
+  id: (typeof POINTS)[number]["id"];
+  year: string;
+  caption: string;
+  placement: "above" | "below";
+  dx?: number;
+  dy?: number;
+}[] = [
+  {
+    id: "midPeak",
+    year: "2037",
+    caption: "Theory mid",
+    placement: "below",
+    dx: -62,
+    dy: 18,
+  },
+  {
+    id: "midSlow",
+    year: "2039",
+    caption: "Theory dip",
+    placement: "below",
+    dx: 52,
+    dy: 6,
+  },
+  {
+    id: "peak",
+    year: "2044",
+    caption: "Theory top",
+    placement: "above",
+    dx: 58,
+    dy: -4,
+  },
+  {
+    id: "next",
+    year: "2048",
+    caption: "Theory low",
+    placement: "below",
+    dx: 48,
+    dy: 4,
+  },
+];
 
 /**
  * Geometry-only inflection after the 2024 Land Boom marker: hold a modest rise,
@@ -52,9 +88,6 @@ const FORECAST_POINTS = [
  * classic diagram silhouette without adding a labeled vertex.
  */
 const LAND_ACCEL = { x: 525, y: 128 };
-
-/** Unlabeled steepening before the theory top (silhouette only). */
-const FC_ACCEL = { x: 1040, y: 120 };
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   recovery: {
@@ -79,9 +112,9 @@ const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
     years: ["2026", "2007", "1989"],
     emphasize: ["2026"],
     placement: "above",
-    /** Far right of the peak tip so NOW badge never covers the year stack */
-    dx: 52,
-    dyClear: 18,
+    /** Slight right offset so peak stack clears the tip */
+    dx: 28,
+    dyClear: 14,
   },
   downturn: {
     years: ["2028", "2009", "1991", "1972"],
@@ -110,68 +143,10 @@ const PATH_VERTS = [
 
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
-/** Forecast path starts at the assumed 2030 low so the schematic continues forward. */
-const FORECAST_VERTS = [
-  POINTS[6],
-  FORECAST_POINTS[0],
-  FORECAST_POINTS[1],
-  FC_ACCEL,
-  FORECAST_POINTS[2],
-  FORECAST_POINTS[3],
-] as const;
+/** Closed loop path for the Live dot: classic stroke, then soft wrap back to start. */
+const LOOP_PATH = `${LINE_PATH} L ${POINTS[6].x + 28} 348 L ${POINTS[0].x - 18} 348 L ${POINTS[0].x} ${POINTS[0].y}`;
 
-const FORECAST_PATH = FORECAST_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(
-  " ",
-);
-
-const SVG_W = 1260;
-
-/** Framework timeline for NOW placement along landBoom → LAND_ACCEL → peak. */
-const LAND_BOOM_MS = Date.UTC(2024, 0, 1);
-const PEAK_MS = Date.UTC(2026, 11, 31);
-
-function clamp01(n: number) {
-  return Math.max(0, Math.min(1, n));
-}
-
-/** Interpolate along polyline by fraction of cumulative length. */
-function pointAlong(
-  verts: readonly { x: number; y: number }[],
-  fraction: number,
-): { x: number; y: number } {
-  if (verts.length === 0) return { x: 0, y: 0 };
-  if (verts.length === 1) return { x: verts[0].x, y: verts[0].y };
-  const segs: { len: number; ax: number; ay: number; bx: number; by: number }[] = [];
-  let total = 0;
-  for (let i = 0; i < verts.length - 1; i++) {
-    const ax = verts[i].x;
-    const ay = verts[i].y;
-    const bx = verts[i + 1].x;
-    const by = verts[i + 1].y;
-    const len = Math.hypot(bx - ax, by - ay);
-    segs.push({ len, ax, ay, bx, by });
-    total += len;
-  }
-  let remain = clamp01(fraction) * total;
-  for (const s of segs) {
-    if (remain <= s.len || s === segs[segs.length - 1]) {
-      const t = s.len === 0 ? 0 : remain / s.len;
-      return {
-        x: s.ax + (s.bx - s.ax) * t,
-        y: s.ay + (s.by - s.ay) * t,
-      };
-    }
-    remain -= s.len;
-  }
-  const last = verts[verts.length - 1];
-  return { x: last.x, y: last.y };
-}
-
-function nowMarkerPosition(nowMs: number) {
-  const frac = clamp01((nowMs - LAND_BOOM_MS) / (PEAK_MS - LAND_BOOM_MS));
-  const boomPath = [POINTS[3], LAND_ACCEL, POINTS[4]];
-  return { ...pointAlong(boomPath, frac), frac };
-}
+const SVG_W = 820;
 
 function YearColumn({
   x,
@@ -234,14 +209,15 @@ function YearColumn({
   );
 }
 
-/** Single theory-year label with caption — kept clear of the stroke. */
-function ForecastLabel({
+/** Muted next-lap theory label at a classic loop vertex — not a linear forecast. */
+function TheoryOverlayLabel({
   x,
   y,
   year,
   caption,
   placement,
   dx = 0,
+  dy = 0,
 }: {
   x: number;
   y: number;
@@ -249,21 +225,23 @@ function ForecastLabel({
   caption: string;
   placement: "above" | "below";
   dx?: number;
+  dy?: number;
 }) {
   const cx = x + dx;
-  const yearY = placement === "above" ? y - 22 : y + 26;
-  const capY = placement === "above" ? y - 36 : y + 40;
+  const baseY = y + dy;
+  const yearY = placement === "above" ? baseY - 18 : baseY + 22;
+  const capY = placement === "above" ? baseY - 30 : baseY + 34;
   return (
-    <g>
+    <g opacity="0.92">
       {Math.abs(dx) >= 14 && (
         <line
           x1={x}
           y1={placement === "above" ? y - 8 : y + 8}
           x2={cx}
-          y2={placement === "above" ? yearY + 4 : yearY - 10}
-          stroke="#3a4558"
+          y2={placement === "above" ? yearY + 4 : yearY - 8}
+          stroke="#5a6a80"
           strokeWidth="1"
-          strokeDasharray="2 2"
+          strokeDasharray="2 3"
         />
       )}
       <text
@@ -281,13 +259,24 @@ function ForecastLabel({
         x={cx}
         y={yearY}
         textAnchor="middle"
-        fill="#b8c4d4"
+        fill="#a8b8cc"
         fontSize="11"
         fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
         fontWeight="700"
       >
         {year}
       </text>
+      {/* Soft vertex halo — dashed ring to mark theory overlay */}
+      <circle
+        cx={x}
+        cy={y}
+        r="9"
+        fill="none"
+        stroke="#8fa0b8"
+        strokeWidth="1.25"
+        strokeDasharray="3 3"
+        opacity="0.7"
+      />
     </g>
   );
 }
@@ -346,23 +335,9 @@ export default function RealEstateCycleChart() {
   const peak = POINTS[4];
   const downturn = POINTS[5];
   const next = POINTS[6];
-  const fcMid = FORECAST_POINTS[0];
-  const fcMidSlow = FORECAST_POINTS[1];
-  const fcPeak = FORECAST_POINTS[2];
-  const fcLow = FORECAST_POINTS[3];
 
-  // Client/server both use "today" — schematic placement on the classic timeline.
-  const nowMs = Date.now();
-  const nowPos = nowMarkerPosition(nowMs);
-  const nowLabel = new Date(nowMs).toLocaleDateString("en-AU", {
-    month: "short",
-    year: "numeric",
-  });
-  // Keep the live date/subtitle left of the peak leg rather than under its stroke.
-  const overlayX = nowPos.x - 96;
-
-  /** Extra top band so title/subtitle sit clear of the high peak / NOW marker */
-  const TOP_PAD = 60;
+  /** Extra top band so title/subtitle sit clear of the high peak */
+  const TOP_PAD = 52;
   /** Extra bottom band for theory disclaimer */
   const BOTTOM_PAD = 36;
   const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
@@ -372,7 +347,7 @@ export default function RealEstateCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years and a dashed theory-based extension after an assumed 2030 cycle low — educational rough guide only, not a predictive model or financial advice"
+      aria-label="Classic 18-year real estate cycle schematic with stacked historical framework years and next-lap theory waypoints overlaid on the same loop — educational rough guide only, not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -383,13 +358,22 @@ export default function RealEstateCycleChart() {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <filter id="live-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="2.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        {/* Motion path for Live dot: classic stroke then soft wrap to restart */}
+        <path id="re-live-loop" d={LOOP_PATH} fill="none" />
       </defs>
 
       <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
 
       <text
         x={SVG_W / 2}
-        y="28"
+        y="26"
         textAnchor="middle"
         fill="#e8eef4"
         fontSize="16"
@@ -400,418 +384,309 @@ export default function RealEstateCycleChart() {
       </text>
       <text
         x={SVG_W / 2}
-        y="46"
+        y="44"
         textAnchor="middle"
         fill="#8b9bb4"
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        {`As of ${nowLabel} · schematic · ~18 / 18.6y framing · stacked years = classic series · dashed = theory extension · not a forecast · NFA`}
+        Schematic · ~18 / 18.6y framing · stacked years = classic series · muted = next-lap theory overlay · not a forecast · NFA
       </text>
 
       {/* Shift chart geometry down into the padded canvas; title stays in the top band */}
       <g transform={`translate(0, ${TOP_PAD})`}>
-      {/* Soft 7–7–4 guide bands (classic series only) */}
-      <rect
-        x={recovery.x}
-        y="58"
-        width={midSlow.x - recovery.x}
-        height="290"
-        fill="#3dcc9a"
-        opacity="0.05"
-      />
-      <rect
-        x={midSlow.x}
-        y="58"
-        width={peak.x - midSlow.x}
-        height="290"
-        fill="#d4a017"
-        opacity="0.06"
-      />
-      <rect
-        x={peak.x}
-        y="58"
-        width={next.x - peak.x}
-        height="290"
-        fill="#ef6b6b"
-        opacity="0.05"
-      />
-      {/* Muted theory-extension band after assumed 2030 low */}
-      <rect
-        x={next.x}
-        y="58"
-        width={fcLow.x - next.x + 24}
-        height="290"
-        fill="#5b6b82"
-        opacity="0.06"
-      />
-
-      {/* Subtle horizontal grid */}
-      {[90, 130, 170, 210, 250, 290, 330].map((y) => (
-        <line
-          key={y}
-          x1="56"
-          y1={y}
-          x2={fcLow.x + 24}
-          y2={y}
-          stroke="#1a1a1a"
-          strokeWidth="1"
-        />
-      ))}
-
-      {/* Junction marker — assumed 2030 low / start of theory extension */}
-      <line
-        x1={next.x}
-        y1="58"
-        x2={next.x}
-        y2="348"
-        stroke="#3a4558"
-        strokeWidth="1"
-        strokeDasharray="3 4"
-      />
-      <text
-        x={next.x + 8}
-        y="72"
-        textAnchor="start"
-        fill="#8b9bb4"
-        fontSize="9"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="700"
-      >
-        Theory extension →
-      </text>
-
-      {/* Classic jagged cycle line — straight segments like the classic infographic */}
-      <path
-        d={LINE_PATH}
-        fill="none"
-        stroke="#e8eef7"
-        strokeWidth="3.5"
-        strokeLinejoin="miter"
-        strokeLinecap="square"
-        filter="url(#re-glow)"
-      />
-
-      {/* Theory forecast segment — dashed / muted, distinct from classic series */}
-      <path
-        d={FORECAST_PATH}
-        fill="none"
-        stroke="#8fa0b8"
-        strokeWidth="2.75"
-        strokeLinejoin="miter"
-        strokeLinecap="square"
-        strokeDasharray="7 5"
-        opacity="0.92"
-      />
-
-      {/* Vertex dots (land boom uses gold marker instead) */}
-      {POINTS.filter((p) => p.id !== "landBoom").map((p) => (
-        <circle
-          key={p.id}
-          cx={p.x}
-          cy={p.y}
-          r={p.id === "peak" ? 5.5 : 4}
-          fill="#0a0a0a"
-          stroke={p.id === "peak" || p.id === "next" ? "#d4a017" : "#e8eef7"}
-          strokeWidth={p.id === "peak" || p.id === "next" ? 2.25 : 1.75}
-        />
-      ))}
-
-      {/* Forecast vertex dots — muted */}
-      {FORECAST_POINTS.map((p) => (
-        <circle
-          key={p.id}
-          cx={p.x}
-          cy={p.y}
-          r={p.id === "fcPeak" ? 5 : 3.75}
-          fill="#0a0a0a"
-          stroke="#8fa0b8"
-          strokeWidth={p.id === "fcPeak" ? 2 : 1.6}
-        />
-      ))}
-
-      {/* Land Boom gold marker — label left of marker so peak stack stays clear */}
-      <g>
-        <circle
-          cx={landBoom.x}
-          cy={landBoom.y}
-          r="9"
-          fill="#d4a017"
-          stroke="#f5d56a"
-          strokeWidth="2"
-        />
-        <circle cx={landBoom.x} cy={landBoom.y} r="3.5" fill="#0a0a0a" />
-        <text
-          x={landBoom.x - 16}
-          y={landBoom.y - 18}
-          textAnchor="end"
-          fill="#d4a017"
-          fontSize="12"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-        >
-          Land Boom
-        </text>
-        <text
-          x={landBoom.x - 16}
-          y={landBoom.y - 4}
-          textAnchor="end"
-          fill="#f0d78c"
-          fontSize="11"
-          fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-          fontWeight="700"
-        >
-          2024
-        </text>
-      </g>
-
-      {/* NOW marker — kept clear of peak year stack; as-of date is live */}
-      <g aria-label={`NOW marker as of ${nowLabel} on the classic timeline`}>
-        {/* Leader up-left so badge sits off the peak stack and off the line */}
-        <line
-          x1={nowPos.x}
-          y1={nowPos.y - 8}
-          x2={overlayX}
-          y2={nowPos.y - 48}
-          stroke="#5ec8ff"
-          strokeWidth="1.5"
-          strokeDasharray="3 3"
-        />
-        <circle
-          cx={nowPos.x}
-          cy={nowPos.y}
-          r="6"
-          fill="#0a0a0a"
-          stroke="#5ec8ff"
-          strokeWidth="2.25"
-        />
-        <circle cx={nowPos.x} cy={nowPos.y} r="2.25" fill="#5ec8ff" />
+        {/* Soft 7–7–4 guide bands (classic series) */}
         <rect
-          x={nowPos.x - 64}
-          y={nowPos.y - 66}
-          width="56"
-          height="18"
-          rx="4"
-          fill="#122033"
-          stroke="#5ec8ff"
-          strokeWidth="1"
+          x={recovery.x}
+          y="58"
+          width={midSlow.x - recovery.x}
+          height="290"
+          fill="#3dcc9a"
+          opacity="0.05"
+        />
+        <rect
+          x={midSlow.x}
+          y="58"
+          width={peak.x - midSlow.x}
+          height="290"
+          fill="#d4a017"
+          opacity="0.06"
+        />
+        <rect
+          x={peak.x}
+          y="58"
+          width={next.x - peak.x}
+          height="290"
+          fill="#ef6b6b"
+          opacity="0.05"
+        />
+
+        {/* Subtle horizontal grid */}
+        {[90, 130, 170, 210, 250, 290, 330].map((y) => (
+          <line
+            key={y}
+            x1="56"
+            y1={y}
+            x2={next.x + 28}
+            y2={y}
+            stroke="#1a1a1a"
+            strokeWidth="1"
+          />
+        ))}
+
+        {/* Soft wrap hint: dashed return under the plot (reset to start of loop) */}
+        <path
+          d={`M ${next.x} ${next.y} L ${next.x + 28} ${348} L ${recovery.x - 18} ${348} L ${recovery.x} ${recovery.y}`}
+          fill="none"
+          stroke="#5a6a80"
+          strokeWidth="1.75"
+          strokeDasharray="5 5"
+          opacity="0.55"
+          strokeLinejoin="round"
         />
         <text
-          x={nowPos.x - 36}
-          y={nowPos.y - 53}
+          x={(recovery.x + next.x) / 2}
+          y={362}
           textAnchor="middle"
-          fill="#5ec8ff"
-          fontSize="11"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="800"
-        >
-          NOW
-        </text>
-        {/* Date caption below the line with clearance — not on the stroke */}
-        <text
-          x={overlayX}
-          y={nowPos.y + 28}
-          textAnchor="end"
-          fill="#9eb0c8"
-          fontSize="10"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="600"
-        >
-          {`As of ${nowLabel}`}
-        </text>
-        <text
-          x={overlayX}
-          y={nowPos.y + 40}
-          textAnchor="end"
           fill="#6b7a90"
           fontSize="8"
           fontFamily="system-ui, sans-serif"
+          fontWeight="600"
         >
-          live placement · schematic framework
+          Next lap resets onto the same loop →
         </text>
-      </g>
 
-      {/* Year stacks (land boom year rendered with marker) */}
-      {(
-        [
-          "recovery",
-          "midPeak",
-          "midSlow",
-          "peak",
-          "downturn",
-          "next",
-        ] as const
-      ).map((id) => {
-        const pt = POINTS.find((p) => p.id === id)!;
-        return (
-          <YearColumn key={id} x={pt.x} pointY={pt.y} stack={YEAR_STACKS[id]} />
-        );
-      })}
+        {/* Classic jagged cycle line — straight segments like the classic infographic */}
+        <path
+          d={LINE_PATH}
+          fill="none"
+          stroke="#e8eef7"
+          strokeWidth="3.5"
+          strokeLinejoin="miter"
+          strokeLinecap="square"
+          filter="url(#re-glow)"
+        />
 
-      {/* Forecast year labels — spaced to avoid peak-line / caption crossover */}
-      <ForecastLabel
-        x={fcMid.x}
-        y={fcMid.y}
-        year={fcMid.year}
-        caption={fcMid.caption}
-        placement="above"
-        dx={-4}
-      />
-      <ForecastLabel
-        x={fcMidSlow.x}
-        y={fcMidSlow.y}
-        year={fcMidSlow.year}
-        caption={fcMidSlow.caption}
-        placement="below"
-        dx={10}
-      />
-      <ForecastLabel
-        x={fcPeak.x}
-        y={fcPeak.y}
-        year={fcPeak.year}
-        caption={fcPeak.caption}
-        placement="above"
-        dx={42}
-      />
-      <ForecastLabel
-        x={fcLow.x}
-        y={fcLow.y}
-        year={fcLow.year}
-        caption={fcLow.caption}
-        placement="below"
-        dx={-6}
-      />
-
-      {/* Mid-cycle peak caption — left of vertex so year stack stays clear */}
-      <text
-        x={midPeak.x - 52}
-        y={midPeak.y + 4}
-        textAnchor="end"
-        fill="#8b9bb4"
-        fontSize="9"
-        fontFamily="system-ui, sans-serif"
-      >
-        Mid-cycle peak
-      </text>
-
-      {/* Phase labels under the plot */}
-      <text
-        x={recovery.x}
-        y={398}
-        textAnchor="middle"
-        fill="#a8b4c8"
-        fontSize="10"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="600"
-      >
-        Recovery
-      </text>
-      <text
-        x={midSlow.x}
-        y={398}
-        textAnchor="middle"
-        fill="#a8b4c8"
-        fontSize="10"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="600"
-      >
-        Mid-cycle slowdown
-      </text>
-      <text
-        x={downturn.x}
-        y={398}
-        textAnchor="middle"
-        fill="#a8b4c8"
-        fontSize="10"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="600"
-      >
-        Major land-driven downturn
-      </text>
-      <text
-        x={(next.x + fcLow.x) / 2}
-        y={398}
-        textAnchor="middle"
-        fill="#8b9bb4"
-        fontSize="10"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="600"
-      >
-        Next-cycle theory (schematic)
-      </text>
-
-      {/* 7 · 7 · 4 span arrows (classic series) */}
-      <SpanArrow x1={recovery.x} x2={midSlow.x} y={422} label="~7 years" />
-      <SpanArrow x1={midSlow.x} x2={peak.x} y={422} label="~7 years" />
-      <SpanArrow x1={peak.x} x2={next.x} y={422} label="~4 years" />
-      {/* Theory span — muted */}
-      <g opacity="0.85">
-        <line
-          x1={next.x}
-          y1={422}
-          x2={fcLow.x}
-          y2={422}
+        {/* Muted dashed echo of the classic stroke = theory next-lap overlay on same shape */}
+        <path
+          d={LINE_PATH}
+          fill="none"
           stroke="#8fa0b8"
           strokeWidth="2"
-          strokeDasharray="5 4"
+          strokeLinejoin="miter"
+          strokeLinecap="square"
+          strokeDasharray="6 5"
+          opacity="0.45"
         />
+
+        {/* Vertex dots (land boom uses gold marker instead) */}
+        {POINTS.filter((p) => p.id !== "landBoom").map((p) => (
+          <circle
+            key={p.id}
+            cx={p.x}
+            cy={p.y}
+            r={p.id === "peak" ? 5.5 : 4}
+            fill="#0a0a0a"
+            stroke={p.id === "peak" || p.id === "next" ? "#d4a017" : "#e8eef7"}
+            strokeWidth={p.id === "peak" || p.id === "next" ? 2.25 : 1.75}
+          />
+        ))}
+
+        {/* Land Boom gold marker — label left of marker so peak stack stays clear */}
+        <g>
+          <circle
+            cx={landBoom.x}
+            cy={landBoom.y}
+            r="9"
+            fill="#d4a017"
+            stroke="#f5d56a"
+            strokeWidth="2"
+          />
+          <circle cx={landBoom.x} cy={landBoom.y} r="3.5" fill="#0a0a0a" />
+          <text
+            x={landBoom.x - 16}
+            y={landBoom.y - 18}
+            textAnchor="end"
+            fill="#d4a017"
+            fontSize="12"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="700"
+          >
+            Land Boom
+          </text>
+          <text
+            x={landBoom.x - 16}
+            y={landBoom.y - 4}
+            textAnchor="end"
+            fill="#f0d78c"
+            fontSize="11"
+            fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+            fontWeight="700"
+          >
+            2024
+          </text>
+        </g>
+
+        {/* Year stacks (land boom year rendered with marker) */}
+        {(
+          [
+            "recovery",
+            "midPeak",
+            "midSlow",
+            "peak",
+            "downturn",
+            "next",
+          ] as const
+        ).map((id) => {
+          const pt = POINTS.find((p) => p.id === id)!;
+          return (
+            <YearColumn key={id} x={pt.x} pointY={pt.y} stack={YEAR_STACKS[id]} />
+          );
+        })}
+
+        {/* Next-lap theory waypoints — same loop verts, muted / dashed */}
+        {THEORY_OVERLAY.map((t) => {
+          const pt = POINTS.find((p) => p.id === t.id)!;
+          return (
+            <TheoryOverlayLabel
+              key={t.year}
+              x={pt.x}
+              y={pt.y}
+              year={t.year}
+              caption={t.caption}
+              placement={t.placement}
+              dx={t.dx}
+              dy={t.dy}
+            />
+          );
+        })}
+
+        {/* Mid-cycle peak caption — left of vertex so year stack stays clear */}
         <text
-          x={(next.x + fcLow.x) / 2}
-          y={438}
+          x={midPeak.x - 52}
+          y={midPeak.y + 4}
+          textAnchor="end"
+          fill="#8b9bb4"
+          fontSize="9"
+          fontFamily="system-ui, sans-serif"
+        >
+          Mid-cycle peak
+        </text>
+
+        {/* Green Live dot — travels the classic path + wrap, full loop ≈ 10s */}
+        <g aria-label="Live marker animating along the cycle path" filter="url(#live-glow)">
+          <animateMotion dur="10s" repeatCount="indefinite" calcMode="linear">
+            <mpath xlinkHref="#re-live-loop" />
+          </animateMotion>
+          <circle r="5.5" fill="#2fd67b" stroke="#9dffc4" strokeWidth="1.5" />
+          <circle r="2" fill="#0a0a0a" opacity="0.55" />
+          <rect
+            x="8"
+            y="-18"
+            width="34"
+            height="14"
+            rx="3"
+            fill="#0f2418"
+            stroke="#2fd67b"
+            strokeWidth="1"
+          />
+          <text
+            x="25"
+            y="-8"
+            textAnchor="middle"
+            fill="#7dffb0"
+            fontSize="9"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="800"
+          >
+            Live
+          </text>
+        </g>
+
+        {/* Phase labels under the plot */}
+        <text
+          x={recovery.x}
+          y={398}
           textAnchor="middle"
-          fill="#8fa0b8"
+          fill="#a8b4c8"
           fontSize="10"
           fontFamily="system-ui, sans-serif"
           fontWeight="600"
         >
-          ~18y theory stretch (rough guide)
+          Recovery
         </text>
-      </g>
+        <text
+          x={midSlow.x}
+          y={398}
+          textAnchor="middle"
+          fill="#a8b4c8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          Mid-cycle slowdown
+        </text>
+        <text
+          x={downturn.x}
+          y={398}
+          textAnchor="middle"
+          fill="#a8b4c8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          Major land-driven downturn
+        </text>
 
-      <text
-        x={SVG_W / 2}
-        y={472}
-        textAnchor="middle"
-        fill="#6b7a90"
-        fontSize="9"
-        fontFamily="system-ui, sans-serif"
-      >
-        Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions.
-        NOW is live as-of placement on that schematic timeline, not a forecast.
-      </text>
+        {/* 7 · 7 · 4 span arrows (classic series) */}
+        <SpanArrow x1={recovery.x} x2={midSlow.x} y={422} label="~7 years" />
+        <SpanArrow x1={midSlow.x} x2={peak.x} y={422} label="~7 years" />
+        <SpanArrow x1={peak.x} x2={next.x} y={422} label="~4 years" />
 
-      {/* Prominent theory disclaimer — AU English, NFA tone */}
-      <rect
-        x="48"
-        y="488"
-        width={SVG_W - 96}
-        height="42"
-        rx="6"
-        fill="#121820"
-        stroke="#3a4558"
-        strokeWidth="1"
-      />
-      <text
-        x={SVG_W / 2}
-        y="506"
-        textAnchor="middle"
-        fill="#d0d8e4"
-        fontSize="10"
-        fontFamily="system-ui, sans-serif"
-        fontWeight="700"
-      >
-        Theory extension (dashed): rough guide based on real estate cycle theory — not a predictive model.
-      </text>
-      <text
-        x={SVG_W / 2}
-        y="520"
-        textAnchor="middle"
-        fill="#9eb0c8"
-        fontSize="9"
-        fontFamily="system-ui, sans-serif"
-      >
-        Not to be relied on for market timing. Research / educational purposes only. Not financial advice (NFA).
-      </text>
+        <text
+          x={SVG_W / 2}
+          y={458}
+          textAnchor="middle"
+          fill="#6b7a90"
+          fontSize="9"
+          fontFamily="system-ui, sans-serif"
+        >
+          Underlined years (2026 / 2028 / 2030) are framework dates in the classic series — not predictions.
+          Muted years (2037 / 2039 / 2044 / 2048) are next-lap theory overlays on the same loop.
+        </text>
+
+        {/* Prominent theory disclaimer — AU English, NFA tone */}
+        <rect
+          x="40"
+          y="474"
+          width={SVG_W - 80}
+          height="48"
+          rx="6"
+          fill="#121820"
+          stroke="#3a4558"
+          strokeWidth="1"
+        />
+        <text
+          x={SVG_W / 2}
+          y="494"
+          textAnchor="middle"
+          fill="#d0d8e4"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="700"
+        >
+          Next-lap theory overlay (muted): rough guide on the repeating cycle shape — not a predictive model.
+        </text>
+        <text
+          x={SVG_W / 2}
+          y="510"
+          textAnchor="middle"
+          fill="#9eb0c8"
+          fontSize="9"
+          fontFamily="system-ui, sans-serif"
+        >
+          Not to be relied on for market timing. Research / educational purposes only. Not financial advice (NFA).
+        </text>
       </g>
     </svg>
   );
