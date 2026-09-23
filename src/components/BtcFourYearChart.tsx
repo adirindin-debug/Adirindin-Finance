@@ -91,7 +91,7 @@ const DEFAULT_SELECTED: SeriesId[] = [...ALL_SERIES_IDS];
 
 const W = 920;
 const H = 420;
-const PAD = { top: 40, right: 28, bottom: 48, left: 58 };
+const PAD = { top: 40, right: 28, bottom: 36, left: 58 };
 
 function fmtPct(n: number, digits = 1) {
   const sign = n > 0 ? "+" : "";
@@ -852,7 +852,7 @@ export function BtcFourYearChart() {
                 <text
                   key={p.t}
                   x={x}
-                  y={H - 30}
+                  y={H - 14}
                   fill="#8b9bb4"
                   fontSize="10"
                   fontFamily="system-ui, sans-serif"
@@ -860,34 +860,6 @@ export function BtcFourYearChart() {
                 >
                   {fmtDate(p.t)}
                 </text>
-              );
-            })}
-
-            {selectedSeries
-              .map((s, i) => {
-              const style = SERIES_STYLE[s.id];
-              const x = PAD.left + (i % 4) * 220;
-              const yOff = i >= 4 ? -14 : 0;
-              return (
-                <g key={s.id} transform={`translate(${x}, ${H - 12 + yOff})`}>
-                  <line
-                    x1={0}
-                    y1={-3}
-                    x2={16}
-                    y2={-3}
-                    stroke={style.color}
-                    strokeWidth="2.5"
-                  />
-                  <text
-                    x={22}
-                    y={0}
-                    fill="#c8d0dc"
-                    fontSize="10"
-                    fontFamily="system-ui, sans-serif"
-                  >
-                    {style.short} ({s.ticker})
-                  </text>
-                </g>
               );
             })}
 
@@ -990,6 +962,26 @@ export function BtcFourYearChart() {
               </ul>
             </div>
           )}
+          {/* Legend outside SVG so x-axis dates never collide with chips */}
+          <div
+            className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 border-t border-white/[0.06] bg-black px-4 pb-3 pt-2.5"
+            aria-hidden
+          >
+            {selectedSeries.map((s) => {
+              const style = SERIES_STYLE[s.id];
+              return (
+                <div key={s.id} className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-[2px] w-4 rounded-full"
+                    style={{ background: style.color }}
+                  />
+                  <span className="text-[10px] leading-none text-[#c8d0dc]">
+                    {style.short} ({s.ticker})
+                  </span>
+                </div>
+              );
+            })}
+          </div>
           </div>
         )}
         {status === "ready" && chartMode === "bar" && barLayout && activeYScale && (
