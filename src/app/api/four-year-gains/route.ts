@@ -1,7 +1,7 @@
 /**
  * Relative % from the start of each window for BTC, equities, MSCI World proxy,
  * US/AU housing, and US M2.
- * Query: ?window=1y|3y|4y|5y|10y|all  (default: 4y — keeps existing route callers working)
+ * Query: ?window=1y|3y|4y|5y|10y|20y|all  (default: 4y — keeps existing route callers working)
  * Yahoo Finance chart API + FRED CSV/API (server-side; UA required). Educational — NFA.
  *
  * Series sources (documented for maintainers):
@@ -47,7 +47,7 @@ export type SeriesId =
   | "auhouses"
   | "m2";
 
-type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "all";
+type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "20y" | "all";
 
 type ClosePoint = { t: number; c: number };
 type PctPoint = { t: number; pct: number };
@@ -116,7 +116,7 @@ const SERIES: SeriesMeta[] = [
   {
     // FRED QAUN628BIS — BIS nominal AU residential property prices (quarterly).
     id: "auhouses",
-    label: "AU homes",
+    label: "AU real estate",
     ticker: "QAUN628BIS",
     source: "fred",
     fredId: "QAUN628BIS",
@@ -142,9 +142,10 @@ const WINDOW_YEARS: Record<Exclude<WindowKey, "all">, number> = {
   "4y": 4,
   "5y": 5,
   "10y": 10,
+  "20y": 20,
 };
 
-const VALID_WINDOWS = new Set<string>(["1y", "3y", "4y", "5y", "10y", "all"]);
+const VALID_WINDOWS = new Set<string>(["1y", "3y", "4y", "5y", "10y", "20y", "all"]);
 
 const SERIES_ORDER: SeriesId[] = [
   "btc",
@@ -643,7 +644,7 @@ function windowMeta(key: WindowKey) {
       windowSec: null as number | null,
       title: "All-time index relative %",
       definition:
-        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI ACWI, Case-Shiller, AU homes, US M2) join when selected; shorter history is marked partial. Bitcoin is omitted from the ALL line (Yahoo daily BTC-USD only from Sep 2014) and kept on the bars / chips as its own all-time return. Educational only — not financial advice (NFA).",
+        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI ACWI, Case-Shiller, AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is omitted from the ALL line (Yahoo daily BTC-USD only from Sep 2014) and kept on the bars / chips as its own all-time return. Educational only — not financial advice (NFA).",
     };
   }
   const years = WINDOW_YEARS[key];
@@ -657,7 +658,7 @@ function windowMeta(key: WindowKey) {
     windowDays: days,
     windowSec: sec,
     title: `Relative % over ${years} year${years === 1 ? "" : "s"}`,
-    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date across selected series (BTC-USD, equities, MSCI ACWI, Case-Shiller, AU homes, US M2 % change). End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
+    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date across selected series (BTC-USD, equities, MSCI ACWI, Case-Shiller, AU real estate, US M2 % change). End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
   };
 }
 
@@ -838,7 +839,7 @@ export async function GET(request: Request) {
       displayTo: nowSec,
       commonStart: displayCutoff != null ? isoDate(displayCutoff) : null,
       seriesStarts: Object.keys(seriesStarts).length ? seriesStarts : undefined,
-      availableWindows: ["1y", "3y", "4y", "5y", "10y", "all"],
+      availableWindows: ["1y", "3y", "4y", "5y", "10y", "20y", "all"],
       source:
         "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL); mirrors/bundled CSV if FRED times out",
       seriesOrigins: Object.keys(originById).length ? originById : undefined,

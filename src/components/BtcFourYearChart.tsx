@@ -10,7 +10,7 @@ import {
 } from "react";
 
 type SeriesId = "btc" | "ndx" | "spx" | "aord" | "msci" | "case" | "auhouses" | "m2";
-type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "all";
+type WindowKey = "1y" | "3y" | "4y" | "5y" | "10y" | "20y" | "all";
 type ChartMode = "line" | "bar";
 
 type PctPoint = { t: number; pct: number };
@@ -58,7 +58,7 @@ const SERIES_STYLE: Record<
   aord: { color: "#e8873a", short: "AORD", chip: "All Ords" },
   msci: { color: "#a78bfa", short: "MSCI", chip: "MSCI World" },
   case: { color: "#f472b6", short: "CASE", chip: "US real estate" },
-  auhouses: { color: "#38bdf8", short: "AU", chip: "AU homes" },
+  auhouses: { color: "#38bdf8", short: "AU", chip: "AU real estate" },
   m2: {
     color: "#94a3b8",
     short: "M2",
@@ -87,6 +87,7 @@ const WINDOWS: { key: WindowKey; label: string }[] = [
   { key: "4y", label: "4Y" },
   { key: "5y", label: "5Y" },
   { key: "10y", label: "10Y" },
+  { key: "20y", label: "20Y" },
   { key: "all", label: "ALL" },
 ];
 
@@ -398,6 +399,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
       "4y": "4-year",
       "5y": "5-year",
       "10y": "10-year",
+      "20y": "20-year",
     }[windowKey] as string);
   const days = payload?.windowDays;
   const daysBit = days != null ? `~${days}d` : windowKey;
@@ -741,7 +743,7 @@ export function BtcFourYearChart() {
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <p className="text-sm text-muted">{copy.loading}</p>
             <p className="text-xs text-muted/70">
-              BTC · S&amp;P 500 · Case-Shiller · equities · MSCI · AU homes · US M2
+              BTC · S&amp;P 500 · Case-Shiller · equities · MSCI · AU real estate · US M2
             </p>
           </div>
         )}
@@ -1155,7 +1157,7 @@ export function BtcFourYearChart() {
         <strong className="font-medium text-muted">Bar mode:</strong> latest %
         for the selected window as grouped bars (same end value as the line).
         Data via Yahoo Finance (BTC-USD, ^NDX, ^GSPC, ^AORD, ACWI) and FRED
-        (CSUSHPISA Case-Shiller, QAUN628BIS AU homes, M2SL). Monthly/quarterly
+        (CSUSHPISA Case-Shiller, QAUN628BIS AU real estate, M2SL). Monthly/quarterly
         series are step-forward-filled to the shared axis. Partial series may
         appear if history is short or a feed fails. Bonds not included yet.
         For the full BTC+MSTR cycle desk, open{" "}
