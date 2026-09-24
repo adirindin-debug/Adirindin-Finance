@@ -2,7 +2,7 @@
  * BTC 4 year cycle theory schematic (educational diagram).
  * Nike-tick silhouette: simple ~3-year rise, then ~1-year drop onto the
  * next trough. Green Live marker is calendar-dated (Melbourne) along the
- * path and wraps onto the same loop after the framework ~Jul 2026 low.
+ * path and wraps onto the same loop after ~1 year down from the theory peak.
  * No stacked calendar years on the diagram — phase labels only.
  * Research only — not prices, not predictive, NFA.
  */
@@ -33,29 +33,34 @@ function endOfYearMs(year: number): number {
 
 /**
  * Classic lap (internal Live timing only — not drawn as year labels).
- * Ends at Jul 1 2026 framework low (desk map marker) — schematic, not a prediction.
+ * Equal 4y timing from theory peak ~Oct 6 2025: ~3y up / ~1y down.
+ * Next low = peak + 1y (~Oct 6 2026). Schematic timing theory — NFA.
  */
+const THEORY_PEAK_MS = dateUtcMs(2025, 10, 6);
+const THEORY_LOW_MS = dateUtcMs(2022, 10, 6); /* peak − 3y */
+const THEORY_NEXT_LOW_MS = dateUtcMs(2026, 10, 6); /* peak + 1y */
+
 const YEAR_WAYPOINTS: DatedWaypoint[] = [
-  { at: endOfYearMs(2022), points: [TROUGH] },
+  { at: THEORY_LOW_MS, points: [TROUGH] },
   {
-    at: dateUtcMs(2025, 10, 6),
+    at: THEORY_PEAK_MS,
     points: [TROUGH, MID_UP, PEAK],
   },
   {
-    at: dateUtcMs(2026, 7, 1),
+    at: THEORY_NEXT_LOW_MS,
     points: [PEAK, NEXT_TROUGH],
   },
 ];
 
-/** Next lap on the same Nike-tick loop after the framework low. */
+/** Next lap on the same Nike-tick loop after peak + 1y. */
 const NEXT_LAP_WAYPOINTS: DatedWaypoint[] = [
-  { at: dateUtcMs(2026, 7, 1), points: [TROUGH] },
+  { at: THEORY_NEXT_LOW_MS, points: [TROUGH] },
   {
-    at: endOfYearMs(2029),
+    at: dateUtcMs(2029, 10, 6), /* +3y ascent */
     points: [TROUGH, MID_UP, PEAK],
   },
   {
-    at: endOfYearMs(2030),
+    at: dateUtcMs(2030, 10, 6), /* +1y descent */
     points: [PEAK, NEXT_TROUGH],
   },
 ];
@@ -74,11 +79,11 @@ function melbourneYmd(nowMs: number = Date.now()): { y: number; m: number; d: nu
   };
 }
 
-/** True once Melbourne calendar is past the framework Jul 1 2026 low. */
-function isPast2026Low(nowMs: number = Date.now()): boolean {
+/** True once Melbourne calendar is past theory next-low (peak + 1y). */
+function isPastTheoryNextLow(nowMs: number = Date.now()): boolean {
   const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  return now > dateUtcMs(2026, 7, 1);
+  return now > THEORY_NEXT_LOW_MS;
 }
 
 function dist(a: Pt, b: Pt): number {
@@ -143,7 +148,7 @@ function livePositionOnWaypoints(now: number, waypoints: DatedWaypoint[]): Pt {
 function livePositionFromNow(nowMs: number = Date.now()): Pt {
   const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  if (now > dateUtcMs(2026, 7, 1)) {
+  if (now > THEORY_NEXT_LOW_MS) {
     return livePositionOnWaypoints(now, NEXT_LAP_WAYPOINTS);
   }
   return livePositionOnWaypoints(now, YEAR_WAYPOINTS);
@@ -201,7 +206,7 @@ export default function BtcFourYearCycleChart() {
   const SVG_H = CHART_H + TOP_PAD + BOTTOM_PAD;
 
   const live = livePositionFromNow();
-  void isPast2026Low(); /* reserved if we re-add lap-aware accents later */
+  void isPastTheoryNextLow(); /* reserved if we re-add lap-aware accents later */
   const liveLabelDx = -36;
   const liveLabelDy = 22;
 

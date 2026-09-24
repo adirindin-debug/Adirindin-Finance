@@ -151,7 +151,7 @@ export default function BtcCyclePage() {
           <p className="mt-1.5 text-xs leading-relaxed text-[#9eb0c8] sm:text-sm">
             The Nike-tick silhouette is a{" "}
             <strong className="font-medium text-[#d0d8e4]">rough ~3 years up / ~1 year down</strong>
-            {" "}framing on one geometric loop. After the framework cycle low, the green Live
+            {" "}framing on one geometric loop. After ~1 year down from the theory peak, the green Live
             marker{" "}
             <strong className="font-medium text-[#d0d8e4]">resets onto the same loop</strong>
             {" "}(next lap) — not a linear runway past the right edge. This is{" "}
