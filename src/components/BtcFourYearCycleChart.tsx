@@ -331,15 +331,7 @@ export default function BtcFourYearCycleChart() {
           width={LATE_BULL_X1 - LATE_BULL_X0}
           height="280"
           fill={LATE_BULL_ORANGE}
-          opacity="0.13"
-        />
-        <rect
-          x={LATE_BULL_X0}
-          y="40"
-          width={3}
-          height="280"
-          fill={LATE_BULL_ORANGE}
-          opacity="0.45"
+          opacity="0.06"
         />
         <text
           x={(LATE_BULL_X0 + LATE_BULL_X1) / 2}
@@ -349,6 +341,7 @@ export default function BtcFourYearCycleChart() {
           fontSize="11"
           fontFamily="system-ui, sans-serif"
           fontWeight="700"
+          opacity="0.85"
         >
           Late bull
         </text>
