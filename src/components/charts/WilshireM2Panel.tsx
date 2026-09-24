@@ -24,7 +24,7 @@ type Payload = {
   errors?: string[];
 };
 
-type TfKey = "1Y" | "4Y" | "10Y" | "ALL";
+type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
 
 type HoverState = {
   svgX: number;
@@ -34,7 +34,8 @@ type HoverState = {
 
 const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
   { key: "1Y", label: "1Y", days: 365 },
-  { key: "4Y", label: "4Y", days: 365 * 4 },
+  { key: "3Y", label: "3Y", days: 365 * 3 },
+  { key: "5Y", label: "5Y", days: 365 * 5 },
   { key: "10Y", label: "10Y", days: 365 * 10 },
   { key: "ALL", label: "ALL", days: null },
 ];
@@ -89,7 +90,7 @@ function nearestPoint(points: Point[], t: number): Point | null {
 export function WilshireM2Panel() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tf, setTf] = useState<TfKey>("10Y");
+  const [tf, setTf] = useState<TfKey>("ALL");
   const [hover, setHover] = useState<HoverState | null>(null);
   const mainSvgRef = useRef<SVGSVGElement | null>(null);
 

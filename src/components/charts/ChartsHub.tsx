@@ -54,7 +54,7 @@ function fmtRatio(n: number): string {
 
 function lastSpark(
   points: Array<{ t: number; v: number }> | undefined,
-  max = 48,
+  max = 72,
 ): SparkPoint[] | undefined {
   if (!points?.length) return undefined;
   return points.slice(-max);
@@ -231,9 +231,9 @@ function Sparkline({
   const min = Math.min(...vals);
   const max = Math.max(...vals);
   const span = max - min || 1;
-  const w = 100;
-  const h = 20;
-  const padY = 2;
+  const w = 320;
+  const h = 140;
+  const padY = 8;
   const d = points
     .map((p, i) => {
       const x = (i / (points.length - 1)) * w;
@@ -241,21 +241,24 @@ function Sparkline({
       return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
+  // Soft fill under the line for at-a-glance presence on large tiles.
+  const area = `${d} L${w.toFixed(1)},${h} L0,${h} Z`;
   return (
     <svg
-      width={w}
-      height={h}
       viewBox={`0 0 ${w} ${h}`}
-      className="mt-2 opacity-80"
+      preserveAspectRatio="none"
+      className="h-[140px] w-full opacity-90"
       aria-hidden
     >
+      <path d={area} fill={color} fillOpacity="0.12" />
       <path
         d={d}
         fill="none"
         stroke={color}
-        strokeWidth="1.5"
+        strokeWidth="2.25"
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );
@@ -285,7 +288,7 @@ function ChartTile({
   return (
     <Link
       href={def.href}
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm transition duration-200 hover:border-accent hover:bg-accent/5 hover:shadow-md hover:shadow-accent/20 sm:p-3.5"
+      className="group relative flex min-h-[280px] flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition duration-200 hover:border-accent hover:bg-accent/5 hover:shadow-md hover:shadow-accent/20 sm:min-h-[300px] sm:p-5"
     >
       <span
         aria-hidden
@@ -296,7 +299,7 @@ function ChartTile({
         className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/0 via-transparent to-accent/0 opacity-0 transition duration-200 group-hover:from-accent/10 group-hover:opacity-100"
       />
       <div className="relative flex items-start justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground group-hover:text-accent">
+        <h3 className="text-base font-semibold text-foreground group-hover:text-accent sm:text-lg">
           {def.title}
         </h3>
         {status === "ok" ? (
@@ -310,7 +313,7 @@ function ChartTile({
         ) : null}
       </div>
       <p
-        className="relative mt-2 font-mono text-[1.65rem] font-bold leading-none tracking-tight text-foreground sm:text-3xl"
+        className="relative mt-1.5 font-mono text-[1.75rem] font-bold leading-none tracking-tight text-foreground sm:text-3xl"
         style={
           live?.headlineColor && status === "ok"
             ? { color: live.headlineColor }
@@ -320,7 +323,7 @@ function ChartTile({
         {headline}
       </p>
       <p
-        className="relative mt-1.5 text-xs text-muted"
+        className="relative mt-1 text-xs text-muted sm:text-sm"
         style={
           live?.secondaryColor && status === "ok"
             ? { color: live.secondaryColor }
@@ -330,14 +333,16 @@ function ChartTile({
         {secondary}
       </p>
       {live?.spark && live.spark.length >= 2 && status === "ok" ? (
-        <div className="relative">
+        <div className="relative mt-3 flex-1">
           <Sparkline
             points={live.spark}
             color={live.headlineColor ?? "#3b82c4"}
           />
         </div>
-      ) : null}
-      <span className="relative mt-auto inline-flex pt-2 text-xs font-medium text-accent group-hover:underline">
+      ) : (
+        <div className="relative mt-3 flex-1" aria-hidden />
+      )}
+      <span className="relative mt-auto inline-flex pt-3 text-xs font-medium text-accent group-hover:underline sm:text-sm">
         Open chart →
       </span>
     </Link>
@@ -403,7 +408,7 @@ export function ChartsHub() {
   }, []);
 
   return (
-    <div className="mt-8 space-y-8">
+    <div className="mt-8 space-y-10">
       {CATEGORIES.map((cat) => (
         <section key={cat.id} aria-labelledby={`charts-cat-${cat.id}`}>
           <h2
@@ -412,7 +417,7 @@ export function ChartsHub() {
           >
             {cat.label}
           </h2>
-          <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
             {cat.tiles.map((tile) => (
               <ChartTile key={tile.id} def={tile} live={lives[tile.id]} />
             ))}

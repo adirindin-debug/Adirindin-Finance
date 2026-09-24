@@ -23,7 +23,7 @@ type Payload = {
   note?: string;
 };
 
-type TfKey = "1Y" | "4Y" | "10Y" | "ALL";
+type TfKey = "7D" | "30D" | "90D" | "1Y" | "3Y" | "5Y" | "ALL";
 
 type DragState = {
   kind: "main" | "brush-move" | "brush-left" | "brush-right";
@@ -33,9 +33,12 @@ type DragState = {
 };
 
 const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
+  { key: "7D", label: "7D", days: 7 },
+  { key: "30D", label: "30D", days: 30 },
+  { key: "90D", label: "90D", days: 90 },
   { key: "1Y", label: "1Y", days: 365 },
-  { key: "4Y", label: "4Y", days: 365 * 4 },
-  { key: "10Y", label: "10Y", days: 365 * 10 },
+  { key: "3Y", label: "3Y", days: 1095 },
+  { key: "5Y", label: "5Y", days: 1825 },
   { key: "ALL", label: "ALL", days: null },
 ];
 
@@ -143,7 +146,7 @@ export function FearGreedPanel({
 }: FearGreedPanelProps = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tf, setTf] = useState<TfKey>("10Y");
+  const [tf, setTf] = useState<TfKey>("1Y");
   /** Zoom window within the selected timeframe, in unix seconds. */
   const [zoom, setZoom] = useState<{ t0: number; t1: number } | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
