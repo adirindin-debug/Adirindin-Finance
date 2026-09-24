@@ -1,114 +1,28 @@
 /**
- * Classic “BTC 4 year cycle theory” schematic (educational diagram).
- * Jagged phase line with stacked historical/framework years. Next-lap
- * theory years sit on the classic columns (future above older) — a
- * reset/wrap onto the same loop after the framework ~Jul 2026 low, not a
- * linear runway. Green Live marker is calendar-dated (Melbourne): classic
- * lap through the 2026 low, then wraps to cycleLow and walks the same
- * geometric loop on next-lap theory years (~2026→2030), parking at nextLow
- * after end-2030. Outward pulse — not a decorative tour.
- * Active-cycle years render bold yellow (current lap before the 2026 low;
- * next-lap theory years after). Research only — not prices, not predictive, NFA.
+ * BTC 4 year cycle theory schematic (educational diagram).
+ * Nike-tick silhouette: simple ~3-year rise, then ~1-year drop onto the
+ * next trough. Green Live marker is calendar-dated (Melbourne) along the
+ * path and wraps onto the same loop after the framework ~Jul 2026 low.
+ * No stacked calendar years on the diagram — phase labels only.
+ * Research only — not prices, not predictive, NFA.
  */
 
-type YearStack = {
-  years: string[];
-  placement: "above" | "below";
-  /** Horizontal offset from vertex (keeps stacks from colliding) */
-  dx?: number;
-  /** Extra vertical clearance from the vertex */
-  dyClear?: number;
-};
+type Pt = { x: number; y: number };
 
-/**
- * Vertex coordinates for the jagged educational cycle line (not price data).
- * Classic ~4y silhouette: trough → early bull → mid dig → ascent (halving zone)
- * → late bull → major peak → bear → next low.
- */
-const POINTS = [
-  { id: "cycleLow", x: 88, y: 305 },
-  { id: "earlyBull", x: 210, y: 168 },
-  /** Mid-cycle dig — sits slightly right of dead centre of the upswing */
-  { id: "midPause", x: 320, y: 222 },
-  /** Halving zone on ascent — geometry kept; gold callouts mark epochs */
-  { id: "halvingZone", x: 410, y: 138 },
-  { id: "lateBull", x: 510, y: 88 },
-  { id: "peak", x: 610, y: 40 },
-  { id: "bear", x: 690, y: 228 },
-  /** Framework ~Jul 2026 low / restart — schematic, not a prediction */
-  { id: "nextLow", x: 760, y: 298 },
-] as const;
+/** Nike-tick vertices (not price data). ~75% width ascending, ~25% descending. */
+const TROUGH: Pt = { x: 88, y: 300 };
+/** Gentle mid-ascent — keeps the rise reading as one continuous uptrend */
+const MID_UP: Pt = { x: 340, y: 168 };
+const PEAK: Pt = { x: 620, y: 48 };
+const NEXT_TROUGH: Pt = { x: 760, y: 300 };
 
-/** Unlabeled steepening inflection late-bull → peak (same idea as RE LAND_ACCEL). */
-const LATE_ACCEL = { x: 560, y: 62 };
-
-const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
-  cycleLow: {
-    /** Next-lap / framework lows above older troughs */
-    years: ["2030", "2026", "2022", "2018", "2015", "2011"],
-    placement: "above",
-  },
-  earlyBull: {
-    years: ["2027", "2023", "2019", "2016"],
-    placement: "above",
-    dx: -6,
-    dyClear: 6,
-  },
-  midPause: {
-    years: ["2028", "2024", "2020"],
-    placement: "below",
-    dx: -4,
-    dyClear: 2,
-  },
-  /** Geometry / Live path only — halving epochs called out separately in gold */
-  halvingZone: {
-    years: [],
-    placement: "above",
-  },
-  lateBull: {
-    years: [],
-    placement: "above",
-  },
-  peak: {
-    years: ["2029", "2025", "2021", "2017", "2013"],
-    placement: "above",
-    dx: 18,
-    dyClear: -2,
-  },
-  bear: {
-    years: ["2026", "2022", "2018"],
-    placement: "below",
-    dx: 4,
-  },
-  nextLow: {
-    years: ["2030", "2026", "2022"],
-    placement: "above",
-    dx: 4,
-  },
-};
-
-const PATH_VERTS = [
-  POINTS[0], // cycleLow
-  POINTS[1], // earlyBull
-  POINTS[2], // midPause
-  POINTS[3], // halvingZone
-  POINTS[4], // lateBull
-  LATE_ACCEL,
-  POINTS[5], // peak
-  POINTS[6], // bear
-  POINTS[7], // nextLow
-] as const;
-
+const PATH_VERTS: Pt[] = [TROUGH, MID_UP, PEAK, NEXT_TROUGH];
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
 const SVG_W = 820;
 
-type Pt = { x: number; y: number };
-
-/** Waypoint keyed by UTC ms (end-of-day or framework date). */
 type DatedWaypoint = { at: number; points: Pt[] };
 
-/** End of calendar day Y-M-D as UTC ms (schematic; Melbourne date used for "now"). */
 function dateUtcMs(y: number, m: number, d: number): number {
   return Date.UTC(y, m - 1, d, 23, 59, 59, 999);
 }
@@ -118,99 +32,34 @@ function endOfYearMs(year: number): number {
 }
 
 /**
- * Classic-lap framework dates. Ends at the Jul 1 2026 framework low
- * (desk map marker) — schematic study date, not a prediction.
+ * Classic lap (internal Live timing only — not drawn as year labels).
+ * Ends at Jul 1 2026 framework low (desk map marker) — schematic, not a prediction.
  */
 const YEAR_WAYPOINTS: DatedWaypoint[] = [
-  { at: endOfYearMs(2022), points: [{ x: POINTS[0].x, y: POINTS[0].y }] },
-  { at: endOfYearMs(2023), points: [{ x: POINTS[1].x, y: POINTS[1].y }] },
+  { at: endOfYearMs(2022), points: [TROUGH] },
   {
-    at: endOfYearMs(2024),
-    points: [
-      { x: POINTS[1].x, y: POINTS[1].y },
-      { x: POINTS[2].x, y: POINTS[2].y },
-      { x: POINTS[3].x, y: POINTS[3].y },
-    ],
-  },
-  {
-    /** Framework BTC Top ~Oct 2025 (desk map) */
     at: dateUtcMs(2025, 10, 6),
-    points: [
-      { x: POINTS[3].x, y: POINTS[3].y },
-      { x: POINTS[4].x, y: POINTS[4].y },
-      { x: LATE_ACCEL.x, y: LATE_ACCEL.y },
-      { x: POINTS[5].x, y: POINTS[5].y },
-    ],
+    points: [TROUGH, MID_UP, PEAK],
   },
   {
-    /** Framework Jul 1 2026 low — end of current lap */
     at: dateUtcMs(2026, 7, 1),
-    points: [
-      { x: POINTS[5].x, y: POINTS[5].y },
-      { x: POINTS[6].x, y: POINTS[6].y },
-      { x: POINTS[7].x, y: POINTS[7].y },
-    ],
+    points: [PEAK, NEXT_TROUGH],
   },
 ];
 
-/**
- * Next-lap theory years on the same geometric loop after the ~Jul 2026 reset.
- * Live jumps from nextLow to cycleLow, then walks these waypoints;
- * parks at nextLow after end-2030 (no third lap).
- */
+/** Next lap on the same Nike-tick loop after the framework low. */
 const NEXT_LAP_WAYPOINTS: DatedWaypoint[] = [
-  /** Restart / wrap start — left trough at the framework low date */
-  { at: dateUtcMs(2026, 7, 1), points: [{ x: POINTS[0].x, y: POINTS[0].y }] },
-  { at: endOfYearMs(2027), points: [{ x: POINTS[1].x, y: POINTS[1].y }] },
-  {
-    at: endOfYearMs(2028),
-    points: [
-      { x: POINTS[1].x, y: POINTS[1].y },
-      { x: POINTS[2].x, y: POINTS[2].y },
-      { x: POINTS[3].x, y: POINTS[3].y },
-      { x: POINTS[4].x, y: POINTS[4].y },
-    ],
-  },
+  { at: dateUtcMs(2026, 7, 1), points: [TROUGH] },
   {
     at: endOfYearMs(2029),
-    points: [
-      { x: POINTS[4].x, y: POINTS[4].y },
-      { x: LATE_ACCEL.x, y: LATE_ACCEL.y },
-      { x: POINTS[5].x, y: POINTS[5].y },
-    ],
+    points: [TROUGH, MID_UP, PEAK],
   },
   {
     at: endOfYearMs(2030),
-    points: [
-      { x: POINTS[5].x, y: POINTS[5].y },
-      { x: POINTS[6].x, y: POINTS[6].y },
-      { x: POINTS[7].x, y: POINTS[7].y },
-    ],
+    points: [PEAK, NEXT_TROUGH],
   },
 ];
 
-/** Classic-lap framework years on the current cycle (bold before wrap). */
-const CURRENT_CYCLE_YEARS = new Set([
-  "2022",
-  "2023",
-  "2024",
-  "2025",
-  "2026",
-]);
-
-/** Next-lap theory timing years — bold yellow only after the ~Jul 2026 low. */
-const NEXT_CYCLE_YEARS = new Set(["2027", "2028", "2029", "2030"]);
-
-const ACTIVE_YEAR_FILL = "#ffe14a";
-const INACTIVE_YEAR_FILL = "#e8eef7";
-const MUTED_YEAR_FILL = "#c8d0dc";
-
-/** Framework low date (Melbourne calendar comparison). */
-const FRAMEWORK_LOW = { y: 2026, m: 7, d: 1 };
-
-/**
- * Melbourne-local calendar parts (same zone as Live marker).
- */
 function melbourneYmd(nowMs: number = Date.now()): { y: number; m: number; d: number } {
   const melParts = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Melbourne",
@@ -225,24 +74,17 @@ function melbourneYmd(nowMs: number = Date.now()): { y: number; m: number; d: nu
   };
 }
 
-/**
- * True once Melbourne calendar is past the framework Jul 1 2026 low.
- * Before that, classic current-lap years stay bold yellow; after, next-lap theory years do.
- */
+/** True once Melbourne calendar is past the framework Jul 1 2026 low. */
 function isPast2026Low(nowMs: number = Date.now()): boolean {
   const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  const low = Date.UTC(FRAMEWORK_LOW.y, FRAMEWORK_LOW.m - 1, FRAMEWORK_LOW.d, 12, 0, 0, 0);
-  return now > low;
+  return now > dateUtcMs(2026, 7, 1);
 }
 
 function dist(a: Pt, b: Pt): number {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  return Math.hypot(dx, dy);
+  return Math.hypot(b.x - a.x, b.y - a.y);
 }
 
-/** Interpolate along a polyline by normalised distance t ∈ [0, 1]. */
 function pointAlong(points: Pt[], t: number): Pt {
   if (points.length === 1) return points[0];
   const clamped = Math.min(1, Math.max(0, t));
@@ -267,20 +109,16 @@ function pointAlong(points: Pt[], t: number): Pt {
   return points[points.length - 1];
 }
 
-/**
- * Walk calendar time along dated waypoints. Multi-point destination polylines
- * use path-length interpolation via pointAlong; single-point legs are straight lerps.
- */
 function livePositionOnWaypoints(now: number, waypoints: DatedWaypoint[]): Pt {
   const ends = waypoints.map((w) => w.at);
   if (now <= ends[0]) {
-    return waypoints[0].points[waypoints[0].points.length - 1];
+    const first = waypoints[0];
+    return first.points[first.points.length - 1];
   }
   if (now >= ends[ends.length - 1]) {
     const last = waypoints[waypoints.length - 1];
     return last.points[last.points.length - 1];
   }
-
   for (let i = 0; i < waypoints.length - 1; i++) {
     const t0 = ends[i];
     const t1 = ends[i + 1];
@@ -298,107 +136,19 @@ function livePositionOnWaypoints(now: number, waypoints: DatedWaypoint[]): Pt {
       y: from.y + (to.y - from.y) * frac,
     };
   }
-
   const last = waypoints[waypoints.length - 1];
   return last.points[last.points.length - 1];
 }
 
-/**
- * Melbourne-local Y-M-D → Live (cx, cy) on the cycle path.
- * Through Jul 1 2026: classic YEAR_WAYPOINTS.
- * After: intentional reset to cycleLow, then NEXT_LAP_WAYPOINTS
- * on the same geometric loop; parks at nextLow after end-2030.
- */
 function livePositionFromNow(nowMs: number = Date.now()): Pt {
   const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-
-  if (isPast2026Low(nowMs)) {
+  if (now > dateUtcMs(2026, 7, 1)) {
     return livePositionOnWaypoints(now, NEXT_LAP_WAYPOINTS);
   }
   return livePositionOnWaypoints(now, YEAR_WAYPOINTS);
 }
 
-function YearColumn({
-  x,
-  pointY,
-  stack,
-  past2026Low,
-}: {
-  x: number;
-  pointY: number;
-  stack: YearStack;
-  past2026Low: boolean;
-}) {
-  const lineH = 13;
-  const gap = 1;
-  const n = stack.years.length;
-  const totalH = n * lineH + Math.max(0, n - 1) * gap;
-  const clear = 14 + (stack.dyClear ?? 0);
-  const cx = x + (stack.dx ?? 0);
-  const startY =
-    stack.placement === "above"
-      ? pointY - clear - totalH + lineH
-      : pointY + clear + lineH * 0.35;
-
-  return (
-    <g>
-      {stack.dx != null && Math.abs(stack.dx) >= 12 && (
-        <line
-          x1={x}
-          y1={pointY - (stack.placement === "above" ? 8 : -8)}
-          x2={cx}
-          y2={
-            stack.placement === "above"
-              ? startY + totalH - lineH * 0.2
-              : startY - lineH * 0.35
-          }
-          stroke="#3a4558"
-          strokeWidth="1"
-          strokeDasharray="2 2"
-        />
-      )}
-      {stack.years.map((yr, i) => {
-        const y = startY + i * (lineH + gap);
-        const isCurrentLap = CURRENT_CYCLE_YEARS.has(yr);
-        const isNextLap = NEXT_CYCLE_YEARS.has(yr);
-        let fill = MUTED_YEAR_FILL;
-        let bold = false;
-        if (isCurrentLap) {
-          if (!past2026Low) {
-            fill = ACTIVE_YEAR_FILL;
-            bold = true;
-          } else if (yr === "2026") {
-            fill = INACTIVE_YEAR_FILL;
-            bold = false;
-          } else {
-            fill = MUTED_YEAR_FILL;
-          }
-        } else if (isNextLap && past2026Low) {
-          fill = ACTIVE_YEAR_FILL;
-          bold = true;
-        }
-        return (
-          <text
-            key={`${yr}-${i}`}
-            x={cx}
-            y={y}
-            textAnchor="middle"
-            fill={fill}
-            fontSize={bold ? 11 : 10}
-            fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-            fontWeight={bold ? 700 : 500}
-            textDecoration={bold ? "underline" : undefined}
-          >
-            {yr}
-          </text>
-        );
-      })}
-    </g>
-  );
-}
-
-/** Orange double-headed span under the chart. */
 function SpanArrow({
   x1,
   x2,
@@ -445,29 +195,22 @@ function SpanArrow({
 }
 
 export default function BtcFourYearCycleChart() {
-  const cycleLow = POINTS[0];
-  const earlyBull = POINTS[1];
-  const midPause = POINTS[2];
-  const halvingZone = POINTS[3];
-  const peak = POINTS[5];
-  const bear = POINTS[6];
-  const nextLow = POINTS[7];
-
-  const TOP_PAD = 70;
-  const BOTTOM_PAD = 36;
-  const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
+  const TOP_PAD = 64;
+  const BOTTOM_PAD = 28;
+  const CHART_H = 420;
+  const SVG_H = CHART_H + TOP_PAD + BOTTOM_PAD;
 
   const live = livePositionFromNow();
-  const past2026Low = isPast2026Low();
-  const liveLabelDx = -42;
-  const liveLabelDy = 20;
+  void isPast2026Low(); /* reserved if we re-add lap-aware accents later */
+  const liveLabelDx = -36;
+  const liveLabelDy = 22;
 
   return (
     <svg
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Bitcoin 4-year cycle theory schematic with stacked historical and next-lap theory years on the same loop — educational rough guide only, not a predictive model or financial advice"
+      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Educational rough guide only — not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -485,13 +228,25 @@ export default function BtcFourYearCycleChart() {
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <style>{`
+          @keyframes btc-live-pulse {
+            0% { opacity: 0.55; r: 7; }
+            70% { opacity: 0; r: 22; }
+            100% { opacity: 0; r: 22; }
+          }
+          .btc-live-ring {
+            animation: btc-live-pulse 2.4s ease-out infinite;
+            transform-origin: center;
+            transform-box: fill-box;
+          }
+        `}</style>
       </defs>
 
       <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
 
       <text
         x={SVG_W / 2}
-        y="26"
+        y="24"
         textAnchor="middle"
         fill="#e8eef4"
         fontSize="16"
@@ -502,58 +257,49 @@ export default function BtcFourYearCycleChart() {
       </text>
       <text
         x={SVG_W / 2}
-        y="44"
+        y="42"
         textAnchor="middle"
         fill="#8b9bb4"
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        Schematic · ~4y framing · bold yellow = active cycle years · muted = inactive / next-lap until after Jul 2026 · not a forecast · NFA
+        Schematic · ~3 years up · ~1 year down · Live wraps onto the next lap · not a forecast · NFA
       </text>
 
       <g transform={`translate(0, ${TOP_PAD})`}>
-        {/* Soft ~3y bull / ~1y bear guide bands */}
+        {/* Soft phase bands — green expansion stretch, red reset */}
         <rect
-          x={cycleLow.x}
-          y="58"
-          width={peak.x - cycleLow.x}
-          height="290"
+          x={TROUGH.x}
+          y="40"
+          width={PEAK.x - TROUGH.x}
+          height="280"
           fill="#3dcc9a"
-          opacity="0.05"
-        />
-        <rect
-          x={peak.x}
-          y="58"
-          width={nextLow.x - peak.x}
-          height="290"
-          fill="#ef6b6b"
           opacity="0.06"
         />
-        {/* Soft gold band around halving zone on the ascent */}
         <rect
-          x={midPause.x}
-          y="58"
-          width={halvingZone.x + 40 - midPause.x}
-          height="290"
-          fill="#d4a017"
-          opacity="0.04"
+          x={PEAK.x}
+          y="40"
+          width={NEXT_TROUGH.x - PEAK.x}
+          height="280"
+          fill="#ef6b6b"
+          opacity="0.07"
         />
 
-        {[90, 130, 170, 210, 250, 290, 330].map((y) => (
+        {[80, 120, 160, 200, 240, 280, 320].map((y) => (
           <line
             key={y}
             x1="56"
             y1={y}
-            x2={nextLow.x + 28}
+            x2={NEXT_TROUGH.x + 28}
             y2={y}
             stroke="#1a1a1a"
             strokeWidth="1"
           />
         ))}
 
-        {/* Soft wrap hint: dashed return under the plot */}
+        {/* Dashed wrap under the plot */}
         <path
-          d={`M ${nextLow.x} ${nextLow.y} L ${nextLow.x + 28} ${348} L ${cycleLow.x - 18} ${348} L ${cycleLow.x} ${cycleLow.y}`}
+          d={`M ${NEXT_TROUGH.x} ${NEXT_TROUGH.y} L ${NEXT_TROUGH.x + 24} ${348} L ${TROUGH.x - 16} ${348} L ${TROUGH.x} ${TROUGH.y}`}
           fill="none"
           stroke="#5a6a80"
           strokeWidth="1.75"
@@ -562,7 +308,7 @@ export default function BtcFourYearCycleChart() {
           strokeLinejoin="round"
         />
         <text
-          x={(cycleLow.x + nextLow.x) / 2}
+          x={(TROUGH.x + NEXT_TROUGH.x) / 2}
           y={362}
           textAnchor="middle"
           fill="#6b7a90"
@@ -573,292 +319,96 @@ export default function BtcFourYearCycleChart() {
           Next lap resets onto the same loop →
         </text>
 
+        {/* Nike-tick cycle line */}
         <path
           d={LINE_PATH}
           fill="none"
           stroke="#e8eef7"
           strokeWidth="3.5"
-          strokeLinejoin="miter"
-          strokeLinecap="square"
+          strokeLinejoin="round"
+          strokeLinecap="round"
           filter="url(#btc-glow)"
         />
-
         <path
           d={LINE_PATH}
           fill="none"
           stroke="#8fa0b8"
           strokeWidth="2"
-          strokeLinejoin="miter"
-          strokeLinecap="square"
+          strokeLinejoin="round"
+          strokeLinecap="round"
           strokeDasharray="6 5"
-          opacity="0.45"
+          opacity="0.4"
         />
 
-        {/* Vertex dots — skip unlabeled geometry (halvingZone / lateBull kept for path) */}
-        {POINTS.filter((p) => p.id !== "halvingZone" && p.id !== "lateBull").map(
-          (p) => (
-            <circle
-              key={p.id}
-              cx={p.x}
-              cy={p.y}
-              r={p.id === "peak" ? 5.5 : 4}
-              fill="#0a0a0a"
-              stroke={
-                p.id === "peak" || p.id === "nextLow" || p.id === "cycleLow"
-                  ? "#d4a017"
-                  : "#e8eef7"
-              }
-              strokeWidth={
-                p.id === "peak" || p.id === "nextLow" || p.id === "cycleLow"
-                  ? 2.25
-                  : 1.75
-              }
-            />
-          ),
-        )}
-
+        {/* Key vertices only */}
         {(
           [
-            "cycleLow",
-            "earlyBull",
-            "midPause",
-            "peak",
-            "bear",
-            "nextLow",
+            { p: TROUGH, gold: true, label: "Cycle low", labelDy: 22 },
+            { p: PEAK, gold: true, label: "Cycle peak", labelDy: -16 },
+            { p: NEXT_TROUGH, gold: true, label: "Next low", labelDy: 22 },
           ] as const
-        ).map((id) => {
-          const pt = POINTS.find((p) => p.id === id)!;
-          const stack = YEAR_STACKS[id];
-          if (stack.years.length === 0) return null;
-          return (
-            <YearColumn
-              key={id}
-              x={pt.x}
-              pointY={pt.y}
-              stack={stack}
-              past2026Low={past2026Low}
+        ).map(({ p, gold, label, labelDy }) => (
+          <g key={label}>
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r={gold && label === "Cycle peak" ? 5.5 : 4.5}
+              fill="#0a0a0a"
+              stroke={gold ? "#d4a017" : "#e8eef7"}
+              strokeWidth={gold ? 2.25 : 1.75}
             />
-          );
-        })}
+            <text
+              x={p.x}
+              y={p.y + labelDy}
+              textAnchor="middle"
+              fill="#9eb0c8"
+              fontSize="10"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="600"
+            >
+              {label}
+            </text>
+          </g>
+        ))}
 
-        {/* Gold Halving epoch callouts on the ascent — protocol markers, not trade signals */}
-        <g aria-label="Halving epoch callouts (protocol ~4y) — educational only">
-          <text
-            x={halvingZone.x}
-            y={halvingZone.y - 18}
-            textAnchor="middle"
-            fill="#d4a017"
-            fontSize="10"
-            fontFamily="system-ui, sans-serif"
-            fontWeight="700"
-          >
-            Halving
-          </text>
-          <text
-            x={halvingZone.x}
-            y={halvingZone.y - 6}
-            textAnchor="middle"
-            fill="#b8962e"
-            fontSize="8"
-            fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
-          >
-            ~2012 · 2016 · 2020 · 2024 · ~2028
-          </text>
-          <line
-            x1={halvingZone.x}
-            y1={halvingZone.y - 22}
-            x2={halvingZone.x}
-            y2={halvingZone.y - 4}
-            stroke="#d4a017"
-            strokeWidth="1"
-            strokeDasharray="2 2"
-            opacity="0.7"
-          />
-        </g>
+        <SpanArrow
+          x1={TROUGH.x + 8}
+          x2={PEAK.x - 8}
+          y={390}
+          label="~3 years up"
+        />
+        <SpanArrow
+          x1={PEAK.x + 8}
+          x2={NEXT_TROUGH.x - 4}
+          y={390}
+          label="~1 year down"
+        />
 
-        <text
-          x={earlyBull.x - 52}
-          y={earlyBull.y - 8}
-          textAnchor="end"
-          fill="#8b9bb4"
-          fontSize="9"
-          fontFamily="system-ui, sans-serif"
-        >
-          Early bull
-        </text>
-        <text
-          x={midPause.x + 48}
-          y={midPause.y + 4}
-          textAnchor="start"
-          fill="#8b9bb4"
-          fontSize="9"
-          fontFamily="system-ui, sans-serif"
-        >
-          Mid pause
-        </text>
-
-        {/* Green Live dot — classic lap then next-lap wrap; pulse resonates out */}
-        <g
-          aria-label="Live marker positioned by Melbourne calendar date on the cycle path (classic lap, then next-lap wrap after Jul 2026 framework low)"
-          filter="url(#btc-live-glow)"
-        >
+        {/* Live pulse */}
+        <g filter="url(#btc-live-glow)" aria-label="Live position on cycle path">
           <circle
+            className="btc-live-ring"
             cx={live.x}
             cy={live.y}
-            r="6"
+            r={7}
             fill="none"
-            stroke="#2fd67b"
-            strokeWidth="1.5"
-            opacity="0"
-          >
-            <animate
-              attributeName="r"
-              values="5;20"
-              dur="2.5s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="opacity"
-              values="0.75;0"
-              dur="2.5s"
-              repeatCount="indefinite"
-            />
-          </circle>
-          <circle
-            cx={live.x}
-            cy={live.y}
-            r="6"
-            fill="none"
-            stroke="#7dffb0"
-            strokeWidth="1"
-            opacity="0"
-          >
-            <animate
-              attributeName="r"
-              values="5;20"
-              dur="2.5s"
-              begin="1.25s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="opacity"
-              values="0.55;0"
-              dur="2.5s"
-              begin="1.25s"
-              repeatCount="indefinite"
-            />
-          </circle>
-          <circle
-            cx={live.x}
-            cy={live.y}
-            r="5.5"
-            fill="#2fd67b"
-            stroke="#9dffc4"
-            strokeWidth="1.5"
+            stroke="#3dcc9a"
+            strokeWidth="2"
           />
-          <circle cx={live.x} cy={live.y} r="2" fill="#0a0a0a" opacity="0.55" />
-          <rect
+          <circle cx={live.x} cy={live.y} r={5.5} fill="#3dcc9a" />
+          <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
+          <text
             x={live.x + liveLabelDx}
-            y={live.y + liveLabelDy - 10}
-            width="34"
-            height="14"
-            rx="3"
-            fill="#0f2418"
-            stroke="#2fd67b"
-            strokeWidth="1"
-          />
-          <text
-            x={live.x + liveLabelDx + 17}
             y={live.y + liveLabelDy}
             textAnchor="middle"
-            fill="#7dffb0"
-            fontSize="9"
+            fill="#3dcc9a"
+            fontSize="11"
             fontFamily="system-ui, sans-serif"
-            fontWeight="800"
+            fontWeight="700"
           >
             Live
           </text>
         </g>
-
-        <text
-          x={cycleLow.x}
-          y={398}
-          textAnchor="middle"
-          fill="#a8b4c8"
-          fontSize="10"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="600"
-        >
-          Cycle low
-        </text>
-        <text
-          x={(earlyBull.x + peak.x) / 2}
-          y={398}
-          textAnchor="middle"
-          fill="#a8b4c8"
-          fontSize="10"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="600"
-        >
-          ~3y bull stretch
-        </text>
-        <text
-          x={bear.x}
-          y={398}
-          textAnchor="middle"
-          fill="#a8b4c8"
-          fontSize="10"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="600"
-        >
-          ~1y bear / reset
-        </text>
-
-        <SpanArrow x1={cycleLow.x} x2={peak.x} y={422} label="~3 years bull" />
-        <SpanArrow x1={peak.x} x2={nextLow.x} y={422} label="~1 year bear" />
-
-        <text
-          x={SVG_W / 2}
-          y={458}
-          textAnchor="middle"
-          fill="#6b7a90"
-          fontSize="9"
-          fontFamily="system-ui, sans-serif"
-        >
-          Bold yellow years mark the active cycle (current lap before Jul 2026 low; next-lap theory years after). Framework dates — not predictions.
-        </text>
-
-        <rect
-          x="40"
-          y="474"
-          width={SVG_W - 80}
-          height="48"
-          rx="6"
-          fill="#121820"
-          stroke="#3a4558"
-          strokeWidth="1"
-        />
-        <text
-          x={SVG_W / 2}
-          y="494"
-          textAnchor="middle"
-          fill="#d0d8e4"
-          fontSize="10"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-        >
-          Next-lap theory years on columns (future above older): rough guide on the repeating cycle shape — not a predictive model.
-        </text>
-        <text
-          x={SVG_W / 2}
-          y="510"
-          textAnchor="middle"
-          fill="#9eb0c8"
-          fontSize="9"
-          fontFamily="system-ui, sans-serif"
-        >
-          Not to be relied on for market timing. Research / educational purposes only. Not financial advice (NFA).
-        </text>
       </g>
     </svg>
   );

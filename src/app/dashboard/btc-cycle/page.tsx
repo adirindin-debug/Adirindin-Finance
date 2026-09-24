@@ -16,7 +16,7 @@ const PHASES = [
   {
     name: "~3-year bull",
     years: "~3 years · expansion stretch",
-    width: "55%",
+    width: "60%",
     color: "#3dcc9a",
     summary:
       "Historically, risk-on stretches after major bottoms have often lasted on the order of a few years — roughly framed as about ~3 years of expansion before a larger reset. Liquidity, leverage, and sentiment usually amplify the later part of this stretch. Treat the length as an approximate study aid, not a stopwatch.",
@@ -24,7 +24,7 @@ const PHASES = [
   {
     name: "~1-year bear",
     years: "~1 year · drawdown / reset",
-    width: "22%",
+    width: "25%",
     color: "#ef6b6b",
     summary:
       "Historically the market has often spent on the order of ~365 days in a broader drawdown / reset after a major cycle high — a rough framing only. Depth, shape, and calendar length vary by cycle; this is observation language for study, not a forecast of the next decline.",
@@ -32,7 +32,7 @@ const PHASES = [
   {
     name: "Halving epoch",
     years: "~210,000 blocks · ~4 years",
-    width: "23%",
+    width: "15%",
     color: "#d4a017",
     summary:
       "The Bitcoin protocol cuts the block subsidy roughly every 210,000 blocks (historically about every four years). That supply-epoch event is the usual anchor of “4-year cycle” talk — an educational reference point on the chart, not a trade signal or a promise that price must rhyme with the next cut.",
@@ -133,9 +133,9 @@ export default function BtcCyclePage() {
         </div>
 
         <div className="mt-3 flex justify-between font-mono text-[10px] text-muted sm:text-xs">
-          <span>Cycle low → early / mid bull</span>
-          <span>Halving zone → late bull → peak</span>
-          <span>Bear → next low</span>
+          <span>Cycle low</span>
+          <span>~3 years up → peak</span>
+          <span>~1 year down → next low</span>
         </div>
 
         <BtcFourYearCycleChart />
@@ -149,15 +149,13 @@ export default function BtcCyclePage() {
             Next-lap theory overlay on the same cycle loop
           </p>
           <p className="mt-1.5 text-xs leading-relaxed text-[#9eb0c8] sm:text-sm">
-            Muted markers (~2027 early bull → ~2028 mid / halving zone → ~2029 theory top →
-            ~2030 theory low) are mapped onto the classic schematic as the{" "}
-            <strong className="font-medium text-[#d0d8e4]">next lap of the same loop</strong>
-            {" "}(reset / wrap after the framework ~Jul 2026 low), not a linear runway.
-            They are a{" "}
-            <strong className="font-medium text-[#d0d8e4]">
-              rough guide based on 4-year cycle theory
-            </strong>
-            . This is <strong className="font-medium text-[#d0d8e4]">not a predictive model</strong>,{" "}
+            The Nike-tick silhouette is a{" "}
+            <strong className="font-medium text-[#d0d8e4]">rough ~3 years up / ~1 year down</strong>
+            {" "}framing on one geometric loop. After the framework cycle low, the green Live
+            marker{" "}
+            <strong className="font-medium text-[#d0d8e4]">resets onto the same loop</strong>
+            {" "}(next lap) — not a linear runway past the right edge. This is{" "}
+            <strong className="font-medium text-[#d0d8e4]">not a predictive model</strong>,{" "}
             <strong className="font-medium text-[#d0d8e4]">
               not to be relied on for market timing
             </strong>
@@ -165,8 +163,9 @@ export default function BtcCyclePage() {
             <strong className="font-medium text-[#d0d8e4]">
               research / educational purposes only
             </strong>
-            . The green Live marker is calendar-dated on the path (Melbourne timezone; not a
-            decorative tour). No dollar prices on this schematic. Not financial advice (NFA).
+            . Live is calendar-dated on the path (Melbourne timezone; not a decorative tour).
+            No dollar prices and no stacked calendar years on this schematic. Not financial
+            advice (NFA).
           </p>
         </aside>
       </div>
