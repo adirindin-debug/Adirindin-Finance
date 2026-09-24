@@ -7,6 +7,10 @@
  * Research only — not prices, not predictive, NFA.
  */
 
+"use client";
+
+import { useState } from "react";
+import { halvingHoverRows } from "@/lib/bitcoinHalving";
 type Pt = { x: number; y: number };
 
 /** Nike-tick vertices (not price data). ~75% width ascending, ~25% descending. */
@@ -24,6 +28,10 @@ const HALVING_BLUE = "#4c9fff";
 const LATE_BULL_X0 = HALVING_X1;
 const LATE_BULL_X1 = PEAK.x;
 const LATE_BULL_ORANGE = "#e8873a";
+
+/** Mid of blue halving wash — hover anchor for date card. */
+const HALVING_DOT_X = (HALVING_X0 + HALVING_X1) / 2;
+const HALVING_DOT_Y = 155;
 
 const PATH_VERTS: Pt[] = [TROUGH, MID_UP, PEAK, NEXT_TROUGH];
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -214,17 +222,24 @@ export default function BtcFourYearCycleChart() {
   const CHART_H = 420;
   const SVG_H = CHART_H + TOP_PAD + BOTTOM_PAD;
 
+  const [halvingOpen, setHalvingOpen] = useState(false);
+  const halvingRows = halvingHoverRows();
+
   const live = livePositionFromNow();
   void isPastTheoryNextLow(); /* reserved if we re-add lap-aware accents later */
   const liveLabelDx = -36;
   const liveLabelDy = 22;
 
+  const tipLeftPct = (HALVING_DOT_X / SVG_W) * 100;
+  const tipTopPct = ((HALVING_DOT_Y + TOP_PAD) / SVG_H) * 100;
+
   return (
+    <div className="relative mt-6 w-full">
     <svg
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-      className="mt-6 h-auto w-full overflow-visible"
+      className="h-auto w-full overflow-visible"
       role="img"
-      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Educational rough guide only — not a predictive model or financial advice"
+      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Hover the blue halving dot for protocol dates. Educational rough guide only — not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -325,6 +340,48 @@ export default function BtcFourYearCycleChart() {
         >
           Halving epoch
         </text>
+
+        {/* Hover-only date card anchor — no click required */}
+        <g
+          onMouseEnter={() => setHalvingOpen(true)}
+          onMouseLeave={() => setHalvingOpen(false)}
+          style={{ cursor: "help" }}
+          aria-label="Halving dates — hover to view"
+        >
+          <circle
+            cx={HALVING_DOT_X}
+            cy={HALVING_DOT_Y}
+            r={18}
+            fill="transparent"
+          />
+          <circle
+            cx={HALVING_DOT_X}
+            cy={HALVING_DOT_Y}
+            r={7}
+            fill={HALVING_BLUE}
+            stroke="#e8eef7"
+            strokeWidth={1.75}
+            opacity={0.95}
+          />
+          <circle
+            cx={HALVING_DOT_X}
+            cy={HALVING_DOT_Y}
+            r={2.6}
+            fill="#0a0a0a"
+          />
+          <text
+            x={HALVING_DOT_X}
+            y={HALVING_DOT_Y + 22}
+            textAnchor="middle"
+            fill={HALVING_BLUE}
+            fontSize="8"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="600"
+            opacity={0.9}
+          >
+            hover dates
+          </text>
+        </g>
         <rect
           x={LATE_BULL_X0}
           y="40"
@@ -480,5 +537,35 @@ export default function BtcFourYearCycleChart() {
         </g>
       </g>
     </svg>
+      {halvingOpen ? (
+        <div
+          className="pointer-events-none absolute z-20 w-[min(18rem,90%)] -translate-x-1/2 -translate-y-[108%] rounded-lg border border-[#3a6aa8] bg-[#0d1520]/95 px-3 py-2.5 shadow-lg shadow-black/50 backdrop-blur-sm"
+          style={{ left: `${tipLeftPct}%`, top: `${tipTopPct}%` }}
+          role="tooltip"
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4c9fff]">
+            Halving dates
+          </p>
+          <ul className="mt-2 space-y-1.5">
+            {halvingRows.map((row) => (
+              <li key={row.title} className="flex items-baseline justify-between gap-3">
+                <span className="text-[11px] text-[#9eb0c8]">{row.title}</span>
+                <span
+                  className={`shrink-0 font-mono text-[11px] ${
+                    row.estimated ? "text-[#7eb6ff]" : "text-[#e8eef7]"
+                  }`}
+                >
+                  {row.detail}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-[10px] leading-snug text-[#6b7a90]">
+            Next date is the desk estimate (210,000 blocks × ~10 min) until that
+            epoch lands. Educational only · NFA.
+          </p>
+        </div>
+      ) : null}
+    </div>
   );
 }
