@@ -285,13 +285,32 @@ function ChartTile({
   return (
     <Link
       href={def.href}
-      className="group flex flex-col rounded-xl border border-border bg-card p-3 transition hover:border-accent/50 sm:p-3.5"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-border bg-card p-3 shadow-sm transition duration-200 hover:border-accent hover:bg-accent/5 hover:shadow-md hover:shadow-accent/20 sm:p-3.5"
     >
-      <h3 className="text-sm font-medium text-muted group-hover:text-accent">
-        {def.title}
-      </h3>
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-accent/70 transition group-hover:bg-accent"
+      />
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-br from-accent/0 via-transparent to-accent/0 opacity-0 transition duration-200 group-hover:from-accent/10 group-hover:opacity-100"
+      />
+      <div className="relative flex items-start justify-between gap-2">
+        <h3 className="text-sm font-semibold text-foreground group-hover:text-accent">
+          {def.title}
+        </h3>
+        {status === "ok" ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+            <span
+              className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent"
+              aria-hidden
+            />
+            Live
+          </span>
+        ) : null}
+      </div>
       <p
-        className="mt-2 font-mono text-2xl font-semibold tracking-tight text-foreground sm:text-2xl"
+        className="relative mt-2 font-mono text-[1.65rem] font-bold leading-none tracking-tight text-foreground sm:text-3xl"
         style={
           live?.headlineColor && status === "ok"
             ? { color: live.headlineColor }
@@ -301,7 +320,7 @@ function ChartTile({
         {headline}
       </p>
       <p
-        className="mt-1 text-xs text-muted"
+        className="relative mt-1.5 text-xs text-muted"
         style={
           live?.secondaryColor && status === "ok"
             ? { color: live.secondaryColor }
@@ -311,12 +330,14 @@ function ChartTile({
         {secondary}
       </p>
       {live?.spark && live.spark.length >= 2 && status === "ok" ? (
-        <Sparkline
-          points={live.spark}
-          color={live.headlineColor ?? "#3b82c4"}
-        />
+        <div className="relative">
+          <Sparkline
+            points={live.spark}
+            color={live.headlineColor ?? "#3b82c4"}
+          />
+        </div>
       ) : null}
-      <span className="mt-auto pt-2 inline-flex text-xs font-medium text-accent">
+      <span className="relative mt-auto inline-flex pt-2 text-xs font-medium text-accent group-hover:underline">
         Open chart →
       </span>
     </Link>
@@ -387,7 +408,7 @@ export function ChartsHub() {
         <section key={cat.id} aria-labelledby={`charts-cat-${cat.id}`}>
           <h2
             id={`charts-cat-${cat.id}`}
-            className="text-xs font-semibold uppercase tracking-[0.16em] text-muted"
+            className="text-xs font-semibold uppercase tracking-[0.16em] text-foreground/80"
           >
             {cat.label}
           </h2>

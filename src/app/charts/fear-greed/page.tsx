@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { FearGreedPanel } from "@/components/charts/FearGreedPanel";
+import { ChartsBackLink } from "@/components/charts/ChartsBackLink";
 
 export const metadata: Metadata = {
   title: "Fear & Greed Index",
@@ -11,13 +11,8 @@ export const metadata: Metadata = {
 export default function FearGreedChartPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-        <Link href="/charts" className="hover:underline">
-          ← Charts
-        </Link>
-        {" · "}Sentiment
-      </p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+      <ChartsBackLink category="Sentiment" />
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Fear &amp; Greed Index
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">

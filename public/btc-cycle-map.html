@@ -65,10 +65,11 @@
       font-family: inherit; line-height: 1.2;
     }
     .controls.move-tf { justify-content: flex-end; max-width: 100%; }
-    .controls.move-tf button { padding: 3px 8px; font-size: 10.5px; }
     .controls button.on, .controls button:hover { color: var(--text); border-color: #3a5273; background: #122033; }
     .controls button.mstr-btn { border-color: rgba(240,163,107,0.35); color: var(--mstr); }
     .controls button.mstr-btn.on { background: rgba(240,163,107,0.14); border-color: var(--mstr); color: #ffd2a8; }
+    .controls button.uncouple-btn { border-color: rgba(76,159,255,0.35); color: var(--blue); }
+    .controls button.uncouple-btn.on { background: rgba(76,159,255,0.14); border-color: var(--blue); color: #a8d4ff; }
     footer { margin-top: 12px; color: var(--dim); font-size: 12px; line-height: 1.55; }
     footer .read { color: var(--muted); }
     .err { color: var(--red); font-size: 12px; margin: 8px 0; display: none; }
@@ -139,7 +140,7 @@
       <div class="panel">
         <div class="panel-head">
           <div><strong>Full cycle map</strong> · tops &amp; bottoms · scroll/drag to zoom</div>
-          <div class="controls">
+          <div class="controls cycle-tf">
             <button type="button" data-xrange="all" class="on">All</button>
             <button type="button" data-xrange="2017">2017+</button>
             <button type="button" data-xrange="4y">4Y</button>
@@ -153,25 +154,21 @@
       </div>
       <div class="panel">
         <div class="panel-head">
-          <div><strong>This move</strong> · <span id="moveRangeLbl">May 2026 → now</span></div>
+          <div><strong>MA / move desk</strong> · 50w &amp; 200w guides · <span id="moveRangeLbl">All → now</span></div>
           <div class="controls move-tf">
+            <button type="button" data-xrange="all" class="on">All</button>
+            <button type="button" data-xrange="2017">2017+</button>
+            <button type="button" data-xrange="4y">4Y</button>
+            <button type="button" data-xrange="reset">Reset</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
-            <button data-days="30" type="button">30D</button>
-            <button data-days="60" type="button">60D</button>
-            <button data-days="90" type="button">90D</button>
-            <button data-days="120" class="on" type="button">120D</button>
-            <button data-days="180" type="button">180D</button>
-            <button data-days="365" type="button">1Y</button>
-            <button data-days="730" type="button">2Y</button>
-            <button data-move="ytd" type="button">YTD</button>
-            <button data-move="all" type="button">ALL</button>
+            <button type="button" id="btnUncouple" class="uncouple-btn" title="When coupled, both charts share the same x-range. Uncouple to zoom the MA desk independently.">Uncouple</button>
           </div>
         </div>
         <div id="moveChart"></div>
       </div>
     </div>
     <footer>
-      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 / Oct 6 2025 fixed top; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Scroll-wheel or drag to zoom; use All / 2017+ / 4Y / Reset. MSTR overlay is optional. Educational only — NFA.</div>
+      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 / Oct 6 2025 fixed top; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Both panels share All / 2017+ / 4Y / Reset when coupled (default); drag-zoom also mirrors. Tap Uncouple on the MA/move desk to zoom that chart alone, then Recouple to sync again. MSTR overlay is optional. Educational only — NFA.</div>
       Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. Early BTC weekly (~2010–2013) embedded from blockchain.info market-price; live weekly from Kraken, daily/spot from Coinbase/Kraken. MSTR last print is TradingView (NASDAQ:MSTR); the path is split-adjusted daily/weekly bars stamped to that last so it matches the TV chart. MAs are simple weekly closes.
     </footer>
   </div>
@@ -238,8 +235,8 @@
       ma200: null,
       logScale: true,
       xRangeMode: "all",
-      moveDays: 120,
-      moveMode: "days",
+      moveXRangeMode: "all",
+      chartsCoupled: true,
       live: false,
       showMstr: storageGet(STORE_MSTR) === "1",
       mstrWeekly: [],
@@ -248,6 +245,8 @@
       mstrLive: false,
       mstrSource: "embedded",
     };
+    let syncingRelayout = false;
+    let relayoutBound = false;
     const $ = (id) => document.getElementById(id);
     function fmt(n, d = 0) {
       if (n == null || Number.isNaN(n)) return "—";
@@ -495,13 +494,24 @@
         title: { text: "MSTR", font: { size: 10, color: COL.mstr }, standoff: 6 },
       };
     }
-    function cycleXRange() {
+    function xRangeFor(mode) {
       const future = new Date("2027-01-01T00:00:00Z");
       const first = state.weekly.length ? state.weekly[0].t : new Date("2010-08-01T00:00:00Z");
-      const mode = state.xRangeMode || "all";
-      if (mode === "2017") return [new Date("2017-01-01T00:00:00Z"), future];
-      if (mode === "4y") return [new Date(Date.now() - 4 * 365.25 * 86400000), future];
+      const m = mode || "all";
+      if (m === "2017") return [new Date("2017-01-01T00:00:00Z"), future];
+      if (m === "4y") return [new Date(Date.now() - 4 * 365.25 * 86400000), future];
       return [first, future];
+    }
+    function cycleXRange() {
+      return xRangeFor(state.xRangeMode || "all");
+    }
+    function moveXRangeMode() {
+      return state.chartsCoupled
+        ? (state.xRangeMode || "all")
+        : (state.moveXRangeMode || "all");
+    }
+    function moveXRange() {
+      return xRangeFor(moveXRangeMode());
     }
     function cycleYRange() {
       const xr = cycleXRange();
@@ -535,22 +545,102 @@
       return [Math.max(0, ymin - pad), ymax + pad];
     }
     function moveCutoff() {
-      if (state.moveMode === "ytd") {
-        const now = new Date();
-        return new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
-      }
-      if (state.moveMode === "all") {
-        return state.daily.length ? state.daily[0].t : new Date(0);
-      }
-      return new Date(Date.now() - state.moveDays * 86400000);
+      return moveXRange()[0];
+    }
+    function xrangeLabel(mode) {
+      if (mode === "2017") return "2017+";
+      if (mode === "4y") return "4Y";
+      return "All";
     }
     function updateMoveRangeLbl() {
+      const mode = moveXRangeMode();
       const start = moveCutoff();
-      if (state.moveMode === "all") {
-        $("moveRangeLbl").textContent = "all available → now";
+      const startLbl = start.toLocaleString("en-AU", { month: "short", year: "numeric" });
+      const coupleNote = state.chartsCoupled ? "coupled" : "uncoupled";
+      $("moveRangeLbl").textContent = xrangeLabel(mode) + " · " + startLbl + " → now · " + coupleNote;
+    }
+    function syncXRangeButtons() {
+      const cycleMode = state.xRangeMode || "all";
+      const moveMode = moveXRangeMode();
+      document.querySelectorAll(".cycle-tf [data-xrange]").forEach((b) => {
+        const v = b.dataset.xrange;
+        b.classList.toggle("on", v === cycleMode || (cycleMode === "all" && v === "all"));
+        if (v === "reset") b.classList.remove("on");
+      });
+      document.querySelectorAll(".move-tf [data-xrange]").forEach((b) => {
+        const v = b.dataset.xrange;
+        b.classList.toggle("on", v === moveMode || (moveMode === "all" && v === "all"));
+        if (v === "reset") b.classList.remove("on");
+      });
+    }
+    function syncUncoupleButton() {
+      const btn = $("btnUncouple");
+      if (!btn) return;
+      const uncoupled = !state.chartsCoupled;
+      btn.classList.toggle("on", uncoupled);
+      btn.textContent = uncoupled ? "Recouple" : "Uncouple";
+    }
+    function applyXRangeMode(mode, source) {
+      const normalised = mode === "reset" ? "all" : mode;
+      if (source === "cycle") {
+        state.xRangeMode = normalised;
+        if (state.chartsCoupled) state.moveXRangeMode = normalised;
+      } else {
+        state.moveXRangeMode = normalised;
+        if (state.chartsCoupled) state.xRangeMode = normalised;
+      }
+      syncXRangeButtons();
+      updateMoveRangeLbl();
+      if (state.chartsCoupled || source === "cycle") drawCycle();
+      if (state.chartsCoupled || source === "move") drawMove();
+      paintStats();
+    }
+    function extractRelayoutXRange(ed) {
+      if (!ed) return null;
+      if (ed["xaxis.range[0]"] != null && ed["xaxis.range[1]"] != null) {
+        return [ed["xaxis.range[0]"], ed["xaxis.range[1]"]];
+      }
+      if (Array.isArray(ed["xaxis.range"]) && ed["xaxis.range"].length === 2) {
+        return ed["xaxis.range"];
+      }
+      if (ed.xaxis && Array.isArray(ed.xaxis.range) && ed.xaxis.range.length === 2) {
+        return ed.xaxis.range;
+      }
+      return null;
+    }
+    function mirrorRelayout(fromId, toId, ed) {
+      if (!state.chartsCoupled || syncingRelayout) return;
+      if (ed && ed["xaxis.autorange"] === true) {
+        syncingRelayout = true;
+        try {
+          drawCycle();
+          drawMove();
+        } finally {
+          syncingRelayout = false;
+        }
         return;
       }
-      $("moveRangeLbl").textContent = start.toLocaleString("en-US", { month: "short", year: "numeric" }) + " → now";
+      const range = extractRelayoutXRange(ed);
+      if (!range) return;
+      syncingRelayout = true;
+      Plotly.relayout(toId, { "xaxis.range": range }).then(function () {
+        syncingRelayout = false;
+      }).catch(function () {
+        syncingRelayout = false;
+      });
+    }
+    function bindRelayoutSync() {
+      if (relayoutBound) return;
+      const cycleEl = $("cycleChart");
+      const moveEl = $("moveChart");
+      if (!cycleEl || !moveEl || typeof cycleEl.on !== "function") return;
+      cycleEl.on("plotly_relayout", function (ed) {
+        mirrorRelayout("cycleChart", "moveChart", ed);
+      });
+      moveEl.on("plotly_relayout", function (ed) {
+        mirrorRelayout("moveChart", "cycleChart", ed);
+      });
+      relayoutBound = true;
     }
     function drawCycle() {
       const w = state.weekly;
@@ -647,14 +737,14 @@
     function drawMove() {
       const d = state.daily;
       if (!d.length) return;
-      const cutoff = moveCutoff();
+      const xr = moveXRange();
+      const cutoff = xr[0];
       const rows = d.filter((r) => r.t >= cutoff);
       const x = rows.map((r) => r.t);
       const y = rows.map((r) => r.c);
       const ma50 = FRAMEWORK.pinMa50 || state.ma50;
       const ma200 = FRAMEWORK.pinMa200 || state.ma200;
       const lastX = x[x.length - 1] || new Date();
-      const endX = new Date(lastX.getTime() + 18 * 86400000);
       const mstrRows = state.mstrDaily.filter((r) => r.t >= cutoff);
       const overlay = state.showMstr && mstrRows.length;
       const traces = [{
@@ -704,10 +794,13 @@
       const ymin = lo - pad;
       const ymax = hi + pad;
       const layout = plotLayout({
-        uirevision: "move-" + (state.moveMode || "days") + "-" + state.moveDays,
+        dragmode: "zoom",
+        uirevision: "move-" + moveXRangeMode() + (state.chartsCoupled ? "-c" : "-u"),
         xaxis: {
-          gridcolor: COL.grid, range: [cutoff, endX],
+          gridcolor: COL.grid, range: xr,
+          rangeslider: { visible: false },
           tickfont: { size: 10, color: COL.font },
+          fixedrange: false,
           autorange: false,
         },
         yaxis: {
@@ -740,7 +833,7 @@
       const mPct = ((m1 - m0) / m0) * 100;
       const extra = mPct - bPct;
       const sign = extra >= 0 ? "+" : "";
-      return "live · " + sign + extra.toFixed(1) + "pp vs BTC this window";
+      return "live · " + sign + extra.toFixed(1) + "pp vs BTC in window";
     }
     function paintStats() {
       const px = state.price;
@@ -834,42 +927,24 @@
     }
     $("btnLog").onclick = () => { state.logScale = true; $("btnLog").classList.add("on"); $("btnLin").classList.remove("on"); drawCycle(); };
     $("btnLin").onclick = () => { state.logScale = false; $("btnLin").classList.add("on"); $("btnLog").classList.remove("on"); drawCycle(); };
-    document.querySelectorAll("[data-xrange]").forEach((btn) => {
-      btn.onclick = () => {
-        document.querySelectorAll("[data-xrange]").forEach((b) => b.classList.remove("on"));
-        btn.classList.add("on");
-        const mode = btn.dataset.xrange;
-        state.xRangeMode = mode === "reset" ? "all" : mode;
-        if (mode === "reset") {
-          document.querySelectorAll("[data-xrange]").forEach((b) => b.classList.toggle("on", b.dataset.xrange === "all"));
-        }
-        drawCycle();
-      };
+    document.querySelectorAll(".cycle-tf [data-xrange]").forEach((btn) => {
+      btn.onclick = () => applyXRangeMode(btn.dataset.xrange, "cycle");
     });
-    function clearMoveButtons() {
-      document.querySelectorAll("[data-days], [data-move]").forEach((b) => b.classList.remove("on"));
-    }
-    document.querySelectorAll("[data-days]").forEach((btn) => {
-      btn.onclick = () => {
-        clearMoveButtons();
-        btn.classList.add("on");
-        state.moveMode = "days";
-        state.moveDays = +btn.dataset.days;
-        updateMoveRangeLbl();
-        drawMove();
-        paintStats();
-      };
+    document.querySelectorAll(".move-tf [data-xrange]").forEach((btn) => {
+      btn.onclick = () => applyXRangeMode(btn.dataset.xrange, "move");
     });
-    document.querySelectorAll("[data-move]").forEach((btn) => {
-      btn.onclick = () => {
-        clearMoveButtons();
-        btn.classList.add("on");
-        state.moveMode = btn.dataset.move;
-        updateMoveRangeLbl();
-        drawMove();
-        paintStats();
-      };
-    });
+    $("btnUncouple").onclick = () => {
+      state.chartsCoupled = !state.chartsCoupled;
+      if (state.chartsCoupled) {
+        state.moveXRangeMode = state.xRangeMode || "all";
+      }
+      syncUncoupleButton();
+      syncXRangeButtons();
+      updateMoveRangeLbl();
+      drawCycle();
+      drawMove();
+      paintStats();
+    };
     document.querySelectorAll("[data-mstr-toggle]").forEach((btn) => {
       btn.onclick = () => setMstr(!state.showMstr);
     });
@@ -885,6 +960,10 @@
         syncMstrButtons();
         await refreshHistory();
         await refreshSpot();
+        syncXRangeButtons();
+        syncUncoupleButton();
+        updateMoveRangeLbl();
+        bindRelayoutSync();
         setLive(true, "LIVE");
         showErr("");
       } catch (e) {

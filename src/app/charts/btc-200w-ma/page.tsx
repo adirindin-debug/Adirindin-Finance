@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Btc200wMaPanel } from "@/components/charts/Btc200wMaPanel";
+import { ChartsBackLink } from "@/components/charts/ChartsBackLink";
 
 export const metadata: Metadata = {
   title: "Bitcoin 200-week MA",
@@ -11,13 +11,8 @@ export const metadata: Metadata = {
 export default function Btc200wMaChartPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-        <Link href="/charts" className="hover:underline">
-          ← Charts
-        </Link>
-        {" · "}Crypto markets
-      </p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+      <ChartsBackLink category="Crypto markets" />
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         BTC 200-week MA
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
