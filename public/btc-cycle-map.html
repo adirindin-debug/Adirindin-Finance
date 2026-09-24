@@ -65,6 +65,8 @@
       font-family: inherit; line-height: 1.2;
     }
     .controls.move-tf { justify-content: flex-end; max-width: 100%; }
+    .controls.move-tf button { padding: 3px 8px; font-size: 10.5px; }
+    body.coupled .move-short { display: none; }
     .controls button.on, .controls button:hover { color: var(--text); border-color: #3a5273; background: #122033; }
     .controls button.mstr-btn { border-color: rgba(240,163,107,0.35); color: var(--mstr); }
     .controls button.mstr-btn.on { background: rgba(240,163,107,0.14); border-color: var(--mstr); color: #ffd2a8; }
@@ -90,7 +92,7 @@
     body.embed header .sub, body.embed footer { display: none; }
   </style>
 </head>
-<body>
+<body class="coupled">
   <div class="wrap">
     <header>
       <div>
@@ -143,9 +145,9 @@
           <div class="controls cycle-tf">
             <button type="button" data-xrange="1y">1Y</button>
             <button type="button" data-xrange="3y">3Y</button>
-            <button type="button" data-xrange="4y">4Y</button>
+            <button type="button" data-xrange="4y" class="on">4Y</button>
             <button type="button" data-xrange="10y">10Y</button>
-            <button type="button" data-xrange="all" class="on">All</button>
+            <button type="button" data-xrange="all">All</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
             <button id="btnLog" class="on" type="button">Log</button>
             <button id="btnLin" type="button">Linear</button>
@@ -157,20 +159,27 @@
         <div class="panel-head">
           <div><strong>MA / move desk</strong> · 50w &amp; 200w guides · <span id="moveRangeLbl">All → now</span></div>
           <div class="controls move-tf">
+            <button type="button" class="move-short" data-days="30">30D</button>
+            <button type="button" class="move-short" data-days="60">60D</button>
+            <button type="button" class="move-short" data-days="90">90D</button>
+            <button type="button" class="move-short" data-days="120">120D</button>
+            <button type="button" class="move-short" data-days="180">180D</button>
             <button type="button" data-xrange="1y">1Y</button>
+            <button type="button" class="move-short" data-days="730">2Y</button>
+            <button type="button" class="move-short" data-move="ytd">YTD</button>
             <button type="button" data-xrange="3y">3Y</button>
-            <button type="button" data-xrange="4y">4Y</button>
+            <button type="button" data-xrange="4y" class="on">4Y</button>
             <button type="button" data-xrange="10y">10Y</button>
-            <button type="button" data-xrange="all" class="on">All</button>
+            <button type="button" data-xrange="all">All</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
-            <button type="button" id="btnUncouple" class="uncouple-btn" title="When coupled, both charts share the same x-range. Uncouple to zoom the MA desk independently.">Uncouple</button>
+            <button type="button" id="btnUncouple" class="uncouple-btn" title="When coupled, both charts share the same x-range. Uncouple to zoom the MA desk independently. When uncoupled, short windows (30D–180D, 2Y, YTD) appear for the MA desk only.">Uncouple</button>
           </div>
         </div>
         <div id="moveChart"></div>
       </div>
     </div>
     <footer>
-      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 historical tops; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). BTC Top tracks the ATH from the chart series (daily closes preferred, weekly fallback; spot overrides if higher). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Both panels share 1Y / 3Y / 4Y / 10Y / All when coupled (default); drag-zoom also mirrors. Tap Uncouple on the MA/move desk to zoom that chart alone, then Recouple to sync again. MSTR overlay is optional. Educational only — NFA.</div>
+      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 historical tops; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). BTC Top tracks the ATH from the chart series (daily closes preferred, weekly fallback; spot overrides if higher). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Both panels open on 4Y and share 1Y / 3Y / 4Y / 10Y / All when coupled (default); drag-zoom also mirrors. Tap Uncouple on the MA/move desk to zoom that chart alone — short windows 30D / 60D / 90D / 120D / 180D / 2Y / YTD reappear for the MA desk; Recouple syncs again and hides the short chips. MSTR overlay is optional. Educational only — NFA.</div>
       Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. Early BTC weekly (~2010–2013) embedded from blockchain.info market-price; live weekly from Kraken, daily/spot from Coinbase/Kraken. MSTR last print is TradingView (NASDAQ:MSTR); the path is split-adjusted daily/weekly bars stamped to that last so it matches the TV chart. MAs are simple weekly closes.
     </footer>
   </div>
@@ -236,9 +245,11 @@
       ma50: null,
       ma200: null,
       logScale: true,
-      xRangeMode: "all",
-      moveXRangeMode: "all",
+      xRangeMode: "4y",
+      moveXRangeMode: "4y",
       chartsCoupled: true,
+      ma50Series: [],
+      ma200Series: [],
       live: false,
       showMstr: storageGet(STORE_MSTR) === "1",
       mstrWeekly: [],
@@ -378,8 +389,60 @@
       out.sort(function (a, b) { return a.t - b.t; });
       return out;
     }
+    function sleep(ms) {
+      return new Promise(function (r) { setTimeout(r, ms); });
+    }
+    function yahooBtcWeeklyUrls() {
+      const period1 = Math.floor(Date.UTC(2014, 8, 1) / 1000);
+      const period2 = Math.floor(Date.now() / 1000);
+      const path = "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD?interval=1wk"
+        + "&period1=" + period1 + "&period2=" + period2;
+      const path2 = path.replace("query1.", "query2.");
+      return [
+        path,
+        path2,
+        "https://corsproxy.io/?" + encodeURIComponent(path),
+        "https://api.allorigins.win/raw?url=" + encodeURIComponent(path),
+      ];
+    }
+    function parseYahooBtcWeekly(j) {
+      const r = j && j.chart && j.chart.result && j.chart.result[0];
+      if (!r) throw new Error("bad Yahoo BTC weekly");
+      const ts = r.timestamp || [];
+      const q = (r.indicators && r.indicators.quote && r.indicators.quote[0]) || {};
+      const rows = [];
+      for (let i = 0; i < ts.length; i++) {
+        const c = q.close && q.close[i] != null ? +q.close[i] : null;
+        if (c == null || !isFinite(c) || c <= 0) continue;
+        rows.push({ t: new Date(ts[i] * 1000), o: c, h: c, l: c, c: c });
+      }
+      if (rows.length < 50) throw new Error("Yahoo BTC weekly too short");
+      return rows;
+    }
+    async function fetchWeeklyFromApi() {
+      try {
+        const j = await getJSON("/api/btc-200w-ma");
+        if (!j || !j.ok || !j.points || j.points.length < 50) return null;
+        /* points start after the 200w warm-up; still useful as Yahoo/Kraken backup */
+        return j.points.map(function (p) {
+          return { t: new Date(p.t * 1000), o: p.price, h: p.price, l: p.price, c: p.price };
+        });
+      } catch (e) {
+        return null;
+      }
+    }
     async function fetchWeekly() {
       const early = unpackEarlyWeekly();
+      try {
+        const j = await getJSONAny(yahooBtcWeeklyUrls());
+        return mergeWeekly(early, parseYahooBtcWeekly(j));
+      } catch (e1) {
+        /* fall through */
+      }
+      try {
+        const apiRows = await fetchWeeklyFromApi();
+        if (apiRows && apiRows.length) return mergeWeekly(early, apiRows);
+      } catch (e2) { /* fall through */ }
       try {
         const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=10080");
         const key = Object.keys(j.result).find((k) => k !== "last");
@@ -393,32 +456,46 @@
       }
     }
     async function fetchDaily() {
-      /* Coinbase caps ~300 candles/call — chunk enough history for 2Y / ALL. */
+      /* Coinbase caps ~300 candles/call — chunk from ~2015-07-01 (BTC start) to now. */
+      const COINBASE_START_SEC = Math.floor(Date.UTC(2015, 6, 1) / 1000);
       const endSec = Math.floor(Date.now() / 1000);
-      const startSec = endSec - Math.ceil(800 * 86400);
-      const chunk = 280 * 86400;
+      const startSec = COINBASE_START_SEC;
+      const chunkSec = 280 * 86400;
+      const CHUNK_PAUSE_MS = 320;
       try {
         const out = [];
-        for (let s = startSec; s < endSec; s += chunk) {
-          const e = Math.min(s + chunk, endSec);
+        let chunks = 0;
+        /* Walk newest→oldest so a mid-run 429 still leaves recent multi-year history. */
+        for (let e = endSec; e > startSec; e -= chunkSec) {
+          const s = Math.max(e - chunkSec, startSec);
+          if (chunks > 0) await sleep(CHUNK_PAUSE_MS);
           const url = "https://api.exchange.coinbase.com/products/BTC-USD/candles"
             + "?granularity=86400"
             + "&start=" + new Date(s * 1000).toISOString()
             + "&end=" + new Date(e * 1000).toISOString();
-          const rows = await getJSON(url);
-          for (let i = 0; i < rows.length; i++) {
-            const r = rows[i];
-            out.push({ t: new Date(r[0] * 1000), l: +r[1], h: +r[2], o: +r[3], c: +r[4] });
+          try {
+            const rows = await getJSON(url);
+            for (let i = 0; i < rows.length; i++) {
+              const r = rows[i];
+              const c = +r[4];
+              if (!isFinite(c) || c <= 0) continue;
+              out.push({ t: new Date(r[0] * 1000), l: +r[1], h: +r[2], o: +r[3], c: c });
+            }
+          } catch (chunkErr) {
+            /* skip failed chunk; continue so partial history still loads */
           }
+          chunks += 1;
         }
         out.sort((a, b) => a.t - b.t);
         const seen = new Set();
-        return out.filter(function (p) {
+        const deduped = out.filter(function (p) {
           const k = p.t.toISOString().slice(0, 10);
           if (seen.has(k)) return false;
           seen.add(k);
           return true;
         });
+        if (deduped.length >= 200) return deduped;
+        throw new Error("Coinbase daily too short (" + deduped.length + ")");
       } catch (e) {
         const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440");
         const key = Object.keys(j.result).find((k) => k !== "last");
@@ -432,6 +509,18 @@
       let s = 0;
       for (let i = arr.length - n; i < arr.length; i++) s += arr[i];
       return s / n;
+    }
+    /** Rolling SMA over weekly closes → [{t, v}, ...] (nulls omitted until warm-up). */
+    function smaSeriesFromWeekly(weekly, n) {
+      const out = [];
+      if (!weekly || weekly.length < n) return out;
+      let sum = 0;
+      for (let i = 0; i < weekly.length; i++) {
+        sum += weekly[i].c;
+        if (i >= n) sum -= weekly[i - n].c;
+        if (i >= n - 1) out.push({ t: weekly[i].t, v: sum / n });
+      }
+      return out;
     }
     function plotLayout(extra) {
       return Object.assign({
@@ -496,11 +585,26 @@
         title: { text: "MSTR", font: { size: 10, color: COL.mstr }, standoff: 6 },
       };
     }
+    function normaliseXMode(mode) {
+      let m = mode || "4y";
+      if (m === "reset" || m === "2017") m = "all";
+      return m;
+    }
     function xRangeFor(mode) {
       const future = new Date("2027-01-01T00:00:00Z");
       const first = state.weekly.length ? state.weekly[0].t : new Date("2010-08-01T00:00:00Z");
-      let m = mode || "all";
-      if (m === "reset" || m === "2017") m = "all";
+      const m = normaliseXMode(mode);
+      const dayModes = {
+        "30d": 30, "60d": 60, "90d": 90, "120d": 120, "180d": 180,
+        "2y": 730,
+      };
+      if (dayModes[m] != null) {
+        return [new Date(Date.now() - dayModes[m] * 86400000), future];
+      }
+      if (m === "ytd") {
+        const now = new Date();
+        return [new Date(Date.UTC(now.getUTCFullYear(), 0, 1)), future];
+      }
       const years = { "1y": 1, "3y": 3, "4y": 4, "10y": 10 };
       if (years[m] != null) {
         return [new Date(Date.now() - years[m] * 365.25 * 86400000), future];
@@ -508,24 +612,35 @@
       return [first, future];
     }
     function cycleXRange() {
-      return xRangeFor(state.xRangeMode || "all");
+      return xRangeFor(state.xRangeMode || "4y");
     }
     function moveXRangeMode() {
       return state.chartsCoupled
-        ? (state.xRangeMode || "all")
-        : (state.moveXRangeMode || "all");
+        ? (state.xRangeMode || "4y")
+        : (state.moveXRangeMode || "4y");
     }
     function moveXRange() {
       return xRangeFor(moveXRangeMode());
+    }
+    function valuesInWindow(rows, x0, x1, pick) {
+      const out = [];
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        const t = r.t instanceof Date ? r.t : new Date(r.t);
+        if (t >= x0 && t <= x1) {
+          const v = pick(r);
+          if (v != null && isFinite(v) && v > 0) out.push(v);
+        }
+      }
+      return out;
     }
     function cycleYRange() {
       const xr = cycleXRange();
       const x0 = xr[0], x1 = xr[1];
       const prices = [];
-      for (let i = 0; i < state.weekly.length; i++) {
-        const d = state.weekly[i];
-        if (d.t >= x0 && d.t <= x1) prices.push(d.c);
-      }
+      prices.push.apply(prices, valuesInWindow(state.weekly, x0, x1, function (d) { return d.c; }));
+      /* Daily fills recent ATH spikes the weekly close may miss */
+      prices.push.apply(prices, valuesInWindow(state.daily, x0, x1, function (d) { return d.c; }));
       for (let i = 0; i < CYCLE_EVENTS.length; i++) {
         const e = CYCLE_EVENTS[i];
         const eT = e.t instanceof Date ? e.t : new Date(e.t);
@@ -539,26 +654,64 @@
       let ymin = Math.min.apply(null, prices);
       let ymax = Math.max.apply(null, prices);
       if (state.logScale) {
-        ymin = Math.max(ymin / 1.55, 0.05);
-        ymax = Math.max(ymax * 1.45, ymin * 2);
-        /* Keep a little headroom above live BTC Top when it is in-window */
+        ymin = Math.max(ymin / 1.7, 0.05);
+        ymax = Math.max(ymax * 1.65, ymin * 2);
+        /* Headroom above live BTC Top / NOW annotations so top labels are not clipped */
         const topD = new Date(FRAMEWORK.btcTopDate);
-        if (!Number.isNaN(topD.getTime()) && topD >= x0 && topD <= x1) {
-          ymax = Math.max(ymax, FRAMEWORK.btcTop * 1.2);
+        if (!Number.isNaN(topD.getTime()) && topD >= x0 && topD <= x1 && FRAMEWORK.btcTop) {
+          ymax = Math.max(ymax, FRAMEWORK.btcTop * 1.35);
         }
+        if (state.price) ymax = Math.max(ymax, state.price * 1.28);
         return [Math.log10(ymin), Math.log10(ymax)];
       }
-      const pad = Math.max((ymax - ymin) * 0.1, ymax * 0.04, 1500);
-      return [Math.max(0, ymin - pad), ymax + pad];
+      const pad = Math.max((ymax - ymin) * 0.16, ymax * 0.08, 2500);
+      return [Math.max(0, ymin - pad), ymax + pad * 1.25];
     }
     function moveCutoff() {
       return moveXRange()[0];
     }
+    /** Daily rows in window; stitch weekly closes left of daily history so All/10Y is not empty. */
+    function movePriceRows(cutoff) {
+      const daily = state.daily || [];
+      const weekly = state.weekly || [];
+      if (!daily.length && !weekly.length) return [];
+      const dailyStart = daily.length ? daily[0].t : null;
+      const fromDaily = daily.filter(function (r) { return r.t >= cutoff; });
+      if (!dailyStart || cutoff >= dailyStart) return fromDaily;
+      const weeklyPre = weekly.filter(function (r) {
+        return r.t >= cutoff && r.t < dailyStart;
+      }).map(function (r) {
+        return { t: r.t, c: r.c, o: r.o, h: r.h, l: r.l };
+      });
+      return weeklyPre.concat(fromDaily);
+    }
+    function moveYRange(xr, priceRows) {
+      const x0 = xr[0], x1 = xr[1];
+      const levels = [];
+      for (let i = 0; i < priceRows.length; i++) {
+        if (priceRows[i].c > 0) levels.push(priceRows[i].c);
+      }
+      levels.push.apply(levels, valuesInWindow(state.ma50Series, x0, x1, function (d) { return d.v; }));
+      levels.push.apply(levels, valuesInWindow(state.ma200Series, x0, x1, function (d) { return d.v; }));
+      const ma50 = FRAMEWORK.pinMa50 || state.ma50;
+      const ma200 = FRAMEWORK.pinMa200 || state.ma200;
+      if (ma50) levels.push(ma50);
+      if (ma200) levels.push(ma200);
+      if (state.price) levels.push(state.price);
+      if (!levels.length) return [0, 160000];
+      const lo = Math.min.apply(null, levels);
+      const hi = Math.max.apply(null, levels);
+      const pad = Math.max((hi - lo) * 0.14, hi * 0.06, 2000);
+      /* Extra headroom so NOW annotation / side labels are not clipped */
+      return [Math.max(0, lo - pad), hi + pad * 1.35];
+    }
     function xrangeLabel(mode) {
-      const labels = { "1y": "1Y", "3y": "3Y", "4y": "4Y", "10y": "10Y", all: "All" };
-      let m = mode || "all";
-      if (m === "reset" || m === "2017") m = "all";
-      return labels[m] || "All";
+      const labels = {
+        "30d": "30D", "60d": "60D", "90d": "90D", "120d": "120D", "180d": "180D",
+        "1y": "1Y", "2y": "2Y", ytd: "YTD",
+        "3y": "3Y", "4y": "4Y", "10y": "10Y", all: "All",
+      };
+      return labels[normaliseXMode(mode)] || "All";
     }
     function updateMoveRangeLbl() {
       const mode = moveXRangeMode();
@@ -567,8 +720,11 @@
       const coupleNote = state.chartsCoupled ? "coupled" : "uncoupled";
       $("moveRangeLbl").textContent = xrangeLabel(mode) + " · " + startLbl + " → now · " + coupleNote;
     }
+    function syncCoupledClass() {
+      document.body.classList.toggle("coupled", !!state.chartsCoupled);
+    }
     function syncXRangeButtons() {
-      const cycleMode = state.xRangeMode || "all";
+      const cycleMode = state.xRangeMode || "4y";
       const moveMode = moveXRangeMode();
       document.querySelectorAll(".cycle-tf [data-xrange]").forEach((b) => {
         b.classList.toggle("on", b.dataset.xrange === cycleMode);
@@ -576,6 +732,16 @@
       document.querySelectorAll(".move-tf [data-xrange]").forEach((b) => {
         b.classList.toggle("on", b.dataset.xrange === moveMode);
       });
+      document.querySelectorAll(".move-tf [data-days]").forEach((b) => {
+        const mode = b.dataset.days + "d";
+        /* 730 days → "2y" alias */
+        const alias = (+b.dataset.days === 730) ? "2y" : ((+b.dataset.days === 365) ? "1y" : mode);
+        b.classList.toggle("on", !state.chartsCoupled && (moveMode === alias || moveMode === mode));
+      });
+      document.querySelectorAll(".move-tf [data-move]").forEach((b) => {
+        b.classList.toggle("on", !state.chartsCoupled && moveMode === b.dataset.move);
+      });
+      syncCoupledClass();
     }
     function syncUncoupleButton() {
       const btn = $("btnUncouple");
@@ -583,9 +749,10 @@
       const uncoupled = !state.chartsCoupled;
       btn.classList.toggle("on", uncoupled);
       btn.textContent = uncoupled ? "Recouple" : "Uncouple";
+      syncCoupledClass();
     }
     function applyXRangeMode(mode, source) {
-      const normalised = (mode === "reset" || mode === "2017") ? "all" : mode;
+      const normalised = normaliseXMode(mode);
       if (source === "cycle") {
         state.xRangeMode = normalised;
         if (state.chartsCoupled) state.moveXRangeMode = normalised;
@@ -597,6 +764,14 @@
       updateMoveRangeLbl();
       if (state.chartsCoupled || source === "cycle") drawCycle();
       if (state.chartsCoupled || source === "move") drawMove();
+      paintStats();
+    }
+    function applyMoveShortMode(mode) {
+      if (state.chartsCoupled) return; /* short chips only when uncoupled */
+      state.moveXRangeMode = normaliseXMode(mode);
+      syncXRangeButtons();
+      updateMoveRangeLbl();
+      drawMove();
       paintStats();
     }
     function extractRelayoutXRange(ed) {
@@ -703,7 +878,7 @@
       }
       const layout = plotLayout({
         dragmode: "zoom",
-        uirevision: "cycle-" + (state.xRangeMode || "all") + (state.logScale ? "-log" : "-lin"),
+        uirevision: "cycle-" + (state.xRangeMode || "4y") + (state.logScale ? "-log" : "-lin"),
         xaxis: {
           gridcolor: COL.grid,
           range: cycleXRange(),
@@ -739,26 +914,48 @@
       });
     }
     function drawMove() {
-      const d = state.daily;
-      if (!d.length) return;
       const xr = moveXRange();
       const cutoff = xr[0];
-      const rows = d.filter((r) => r.t >= cutoff);
+      const rows = movePriceRows(cutoff);
+      if (!rows.length && !state.weekly.length) return;
       const x = rows.map((r) => r.t);
       const y = rows.map((r) => r.c);
       const ma50 = FRAMEWORK.pinMa50 || state.ma50;
       const ma200 = FRAMEWORK.pinMa200 || state.ma200;
-      const lastX = x[x.length - 1] || new Date();
+      const lastX = x.length ? x[x.length - 1] : new Date();
       const mstrRows = state.mstrDaily.filter((r) => r.t >= cutoff);
       const overlay = state.showMstr && mstrRows.length;
+      const x0 = xr[0], x1 = xr[1];
+      const ma50Win = (state.ma50Series || []).filter(function (p) { return p.t >= x0 && p.t <= x1; });
+      const ma200Win = (state.ma200Series || []).filter(function (p) { return p.t >= x0 && p.t <= x1; });
       const traces = [{
         type: "scatter", mode: "lines",
         x, y, name: "BTC",
         line: { color: COL.line, width: 2.2 },
         fill: overlay ? "none" : "tozeroy",
         fillcolor: "rgba(76,159,255,0.07)",
-        hovertemplate: "%{x|%d %b}<br>BTC $%{y:,.0f}<extra></extra>",
+        hovertemplate: "%{x|%d %b %Y}<br>BTC $%{y:,.0f}<extra></extra>",
       }];
+      if (ma50Win.length) {
+        traces.push({
+          type: "scatter", mode: "lines",
+          x: ma50Win.map(function (p) { return p.t; }),
+          y: ma50Win.map(function (p) { return p.v; }),
+          name: "50w MA",
+          line: { color: COL.gold, width: 1.6 },
+          hovertemplate: "%{x|%b %Y}<br>50w MA $%{y:,.0f}<extra></extra>",
+        });
+      }
+      if (ma200Win.length) {
+        traces.push({
+          type: "scatter", mode: "lines",
+          x: ma200Win.map(function (p) { return p.t; }),
+          y: ma200Win.map(function (p) { return p.v; }),
+          name: "200w MA",
+          line: { color: COL.cyan, width: 1.6 },
+          hovertemplate: "%{x|%b %Y}<br>200w MA $%{y:,.0f}<extra></extra>",
+        });
+      }
       if (overlay) traces.push(mstrTrace(mstrRows, "MSTR"));
       if (state.price) {
         traces.push({
@@ -771,11 +968,11 @@
       const shapes = [];
       const annotations = [];
       if (ma50) {
-        shapes.push(hline(ma50, COL.gold));
+        shapes.push(hline(ma50, "rgba(212,160,23,0.45)", "dot"));
         annotations.push(sideLabel(ma50, "50-WEEK MA  " + kfmt(ma50) + "  confirmation", COL.gold));
       }
       if (ma200) {
-        shapes.push(hline(ma200, COL.cyan));
+        shapes.push(hline(ma200, "rgba(110,200,232,0.45)", "dot"));
         annotations.push(sideLabel(ma200, "200-WEEK MA  " + kfmt(ma200) + "  cycle floor", COL.cyan));
       }
       if (state.price) {
@@ -788,15 +985,7 @@
           arrowwidth: 1,
         });
       }
-      const levels = y.slice();
-      if (ma50) levels.push(ma50);
-      if (ma200) levels.push(ma200);
-      if (state.price) levels.push(state.price);
-      const lo = Math.min.apply(null, levels);
-      const hi = Math.max.apply(null, levels);
-      const pad = Math.max((hi - lo) * 0.08, 1500);
-      const ymin = lo - pad;
-      const ymax = hi + pad;
+      const yRange = moveYRange(xr, rows);
       const layout = plotLayout({
         dragmode: "zoom",
         uirevision: "move-" + moveXRangeMode() + (state.chartsCoupled ? "-c" : "-u"),
@@ -808,14 +997,14 @@
           autorange: false,
         },
         yaxis: {
-          gridcolor: COL.grid, tickprefix: "$", range: [ymin, ymax],
+          gridcolor: COL.grid, tickprefix: "$", range: yRange,
           tickfont: { size: 10, color: COL.font },
           autorange: false,
         },
         shapes, annotations,
-        margin: { l: 58, r: overlay ? 64 : 210, t: 28, b: 36 },
-        showlegend: overlay,
-        legend: overlay ? {
+        margin: { l: 58, r: overlay ? 64 : 210, t: 36, b: 36 },
+        showlegend: overlay || ma50Win.length > 0,
+        legend: (overlay || ma50Win.length > 0) ? {
           x: 0.01, y: 0.98, bgcolor: "rgba(11,21,36,0.7)",
           bordercolor: "rgba(28,44,66,0.8)", borderwidth: 1,
           font: { size: 10, color: COL.font },
@@ -828,7 +1017,7 @@
       if (!state.showMstr) return "Strategy Inc · tap overlay";
       if (!state.mstrLive) return "cached to " + EMBEDDED_MSTR.asOf + " · live feed down";
       const cutoff = moveCutoff();
-      const btc = state.daily.filter((r) => r.t >= cutoff);
+      const btc = movePriceRows(cutoff);
       const mstr = state.mstrDaily.filter((r) => r.t >= cutoff);
       if (btc.length < 2 || mstr.length < 2) return (state.mstrSource || "live") + " · overlay on";
       const b0 = btc[0].c, b1 = btc[btc.length - 1].c;
@@ -964,6 +1153,8 @@
       const closes = weekly.map((w) => w.c);
       state.ma50 = sma(closes, 50);
       state.ma200 = sma(closes, 200);
+      state.ma50Series = smaSeriesFromWeekly(weekly, 50);
+      state.ma200Series = smaSeriesFromWeekly(weekly, 200);
       updateLiveBtcTop();
       drawCycle();
       drawMove();
@@ -993,10 +1184,24 @@
     document.querySelectorAll(".move-tf [data-xrange]").forEach((btn) => {
       btn.onclick = () => applyXRangeMode(btn.dataset.xrange, "move");
     });
+    document.querySelectorAll(".move-tf [data-days]").forEach((btn) => {
+      btn.onclick = () => {
+        const days = +btn.dataset.days;
+        let mode;
+        if (days === 730) mode = "2y";
+        else if (days === 365) mode = "1y";
+        else mode = days + "d";
+        applyMoveShortMode(mode);
+      };
+    });
+    document.querySelectorAll(".move-tf [data-move]").forEach((btn) => {
+      btn.onclick = () => applyMoveShortMode(btn.dataset.move);
+    });
     $("btnUncouple").onclick = () => {
       state.chartsCoupled = !state.chartsCoupled;
       if (state.chartsCoupled) {
-        state.moveXRangeMode = state.xRangeMode || "all";
+        /* Recouple copies top mode to bottom and hides short chips */
+        state.moveXRangeMode = state.xRangeMode || "4y";
       }
       syncUncoupleButton();
       syncXRangeButtons();
@@ -1018,6 +1223,9 @@
         setLive(false, "Loading history…");
         loadEmbeddedMstr();
         syncMstrButtons();
+        syncCoupledClass();
+        syncXRangeButtons();
+        syncUncoupleButton();
         await refreshHistory();
         await refreshSpot();
         syncXRangeButtons();
