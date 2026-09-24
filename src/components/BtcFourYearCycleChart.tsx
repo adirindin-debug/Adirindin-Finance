@@ -239,8 +239,8 @@ export default function BtcFourYearCycleChart() {
 
   const live = livePositionFromNow();
   void isPastTheoryNextLow(); /* reserved if we re-add lap-aware accents later */
-  const liveLabelDx = -36;
-  const liveLabelDy = 22;
+  const liveLabelDx = -42;
+  const liveLabelDy = 20;
 
   const tipPoint =
     tip === "halving"
@@ -574,14 +574,24 @@ export default function BtcFourYearCycleChart() {
           />
           <circle cx={live.x} cy={live.y} r={5.5} fill="#3dcc9a" />
           <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
-          <text
+          <rect
             x={live.x + liveLabelDx}
+            y={live.y + liveLabelDy - 10}
+            width="34"
+            height="14"
+            rx="3"
+            fill="#0f2418"
+            stroke="#3dcc9a"
+            strokeWidth="1"
+          />
+          <text
+            x={live.x + liveLabelDx + 17}
             y={live.y + liveLabelDy}
             textAnchor="middle"
-            fill="#3dcc9a"
-            fontSize="11"
+            fill="#7dffb0"
+            fontSize="9"
             fontFamily="system-ui, sans-serif"
-            fontWeight="700"
+            fontWeight="800"
           >
             Live
           </text>
