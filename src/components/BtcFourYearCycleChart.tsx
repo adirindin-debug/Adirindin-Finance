@@ -11,8 +11,8 @@ type Pt = { x: number; y: number };
 
 /** Nike-tick vertices (not price data). ~75% width ascending, ~25% descending. */
 const TROUGH: Pt = { x: 88, y: 300 };
-/** Mid bend late and low — long slow climb, then short steep run into the peak */
-const MID_UP: Pt = { x: 520, y: 248 };
+/** Mid bend — slightly left/up for a cleaner slow-then-steep Nike geometry */
+const MID_UP: Pt = { x: 470, y: 215 };
 const PEAK: Pt = { x: 620, y: 48 };
 const NEXT_TROUGH: Pt = { x: 760, y: 300 };
 
