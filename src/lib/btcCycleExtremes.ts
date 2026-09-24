@@ -19,16 +19,11 @@ export const CYCLE_TOPS: ReadonlyArray<CycleExtremeRow> = [
 
 /**
  * Cycle bottoms (chronological).
- * Dec 2018: Anthony listed Saturday December 2018 without a day number — do not invent one.
  */
 export const CYCLE_BOTTOMS: ReadonlyArray<CycleExtremeRow> = [
   { title: "Cycle bottom", detail: "Fri 29 Nov 2013" },
   { title: "Cycle bottom", detail: "Wed 14 Jan 2015" },
-  {
-    title: "Cycle bottom",
-    detail: "Sat · Dec 2018 (day TBD)",
-    incomplete: true,
-  },
+  { title: "Cycle bottom", detail: "Sat 15 Dec 2018" },
   { title: "Cycle bottom", detail: "Mon 21 Nov 2022" },
   { title: "Current bottom", detail: "Wed 1 Jul 2026" },
 ];
