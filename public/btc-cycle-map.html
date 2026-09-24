@@ -274,18 +274,53 @@
       if (n == null) return "—";
       return "$" + fmt(n, d != null ? d : (n >= 1000 ? 0 : 2));
     }
-    async function getJSON(url) {
-      const r = await fetch(url, { cache: "no-store" });
-      if (!r.ok) throw new Error(url + " " + r.status);
-      return r.json();
+    async function getJSON(url, timeoutMs) {
+      const ms = timeoutMs == null ? 15000 : timeoutMs;
+      const ctrl = new AbortController();
+      const timer = setTimeout(function () { ctrl.abort(); }, ms);
+      try {
+        const r = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+        if (!r.ok) throw new Error(url + " " + r.status);
+        return await r.json();
+      } catch (e) {
+        if (e && e.name === "AbortError") throw new Error(url + " timeout");
+        throw e;
+      } finally {
+        clearTimeout(timer);
+      }
     }
-    async function getJSONAny(urls) {
+    async function getJSONAny(urls, timeoutMs) {
       let last = null;
       for (const url of urls) {
-        try { return await getJSON(url); }
+        try { return await getJSON(url, timeoutMs); }
         catch (e) { last = e; }
       }
       throw last || new Error("all sources failed");
+    }
+    function unpackHistoryBars(pairs) {
+      return (pairs || []).map(function (row) {
+        return {
+          t: new Date(row[0] + "T00:00:00Z"),
+          o: +row[1], h: +row[2], l: +row[3], c: +row[4],
+        };
+      }).filter(function (r) { return isFinite(r.c) && r.c > 0; });
+    }
+    async function fetchHistoryFromApi() {
+      const j = await getJSON("/api/btc-history", 45000);
+      if (!j || !j.ok) throw new Error((j && j.error) || "btc-history unavailable");
+      const weekly = unpackHistoryBars(j.weekly);
+      const daily = unpackHistoryBars(j.daily);
+      if (weekly.length < 50 && daily.length < 200) {
+        throw new Error("btc-history too short");
+      }
+      return {
+        weekly: weekly,
+        daily: daily,
+        spot: j.spot != null ? +j.spot : null,
+        source: j.source || "api",
+        stale: !!j.stale,
+        warnings: j.warnings || [],
+      };
     }
     function yahooChartUrls(interval, range) {
       const path = "https://query1.finance.yahoo.com/v8/finance/chart/MSTR?interval="
@@ -330,7 +365,7 @@
     async function fetchMstr() {
       if (!state.mstrWeekly.length) loadEmbeddedMstr();
       try {
-        const j = await getJSON("/api/mstr-history");
+        const j = await getJSON("/api/mstr-history", 20000);
         if (j && j.ok && j.weekly && j.weekly.length) {
           state.mstrWeekly = unpackMstr(j.weekly);
           if (j.daily && j.daily.length) state.mstrDaily = unpackMstr(j.daily);
@@ -364,10 +399,14 @@
     }
     async function fetchSpot() {
       try {
-        const j = await getJSON("https://api.coinbase.com/v2/prices/BTC-USD/spot");
+        const j = await getJSON("/api/btc-info", 8000);
+        if (j && j.ok && j.btcPrice != null) return Number(j.btcPrice);
+      } catch (e) { /* fall through */ }
+      try {
+        const j = await getJSON("https://api.coinbase.com/v2/prices/BTC-USD/spot", 8000);
         return Number(j.data.amount);
       } catch (e) {
-        const j = await getJSON("https://api.kraken.com/0/public/Ticker?pair=XBTUSD");
+        const j = await getJSON("https://api.kraken.com/0/public/Ticker?pair=XBTUSD", 8000);
         const row = j.result[Object.keys(j.result)[0]];
         return Number(row.c[0]);
       }
@@ -421,7 +460,7 @@
     }
     async function fetchWeeklyFromApi() {
       try {
-        const j = await getJSON("/api/btc-200w-ma");
+        const j = await getJSON("/api/btc-200w-ma", 30000);
         if (!j || !j.ok || !j.points || j.points.length < 50) return null;
         /* points start after the 200w warm-up; still useful as Yahoo/Kraken backup */
         return j.points.map(function (p) {
@@ -432,19 +471,18 @@
       }
     }
     async function fetchWeekly() {
+      /* Browser fallbacks only — primary path is /api/btc-history via refreshHistory. */
       const early = unpackEarlyWeekly();
-      try {
-        const j = await getJSONAny(yahooBtcWeeklyUrls());
-        return mergeWeekly(early, parseYahooBtcWeekly(j));
-      } catch (e1) {
-        /* fall through */
-      }
       try {
         const apiRows = await fetchWeeklyFromApi();
         if (apiRows && apiRows.length) return mergeWeekly(early, apiRows);
       } catch (e2) { /* fall through */ }
       try {
-        const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=10080");
+        const j = await getJSONAny(yahooBtcWeeklyUrls(), 10000);
+        return mergeWeekly(early, parseYahooBtcWeekly(j));
+      } catch (e1) { /* fall through */ }
+      try {
+        const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=10080", 12000);
         const key = Object.keys(j.result).find((k) => k !== "last");
         const live = j.result[key].map((r) => ({
           t: new Date(r[0] * 1000),
@@ -456,7 +494,8 @@
       }
     }
     async function fetchDaily() {
-      /* Coinbase caps ~300 candles/call — chunk from ~2015-07-01 (BTC start) to now. */
+      /* Browser fallbacks only — primary path is /api/btc-history via refreshHistory. */
+      /* Coinbase caps ~300 candles/call — chunk from ~2015-07-01 (BTC start) to now. Soft timeouts per chunk. */
       const COINBASE_START_SEC = Math.floor(Date.UTC(2015, 6, 1) / 1000);
       const endSec = Math.floor(Date.now() / 1000);
       const startSec = COINBASE_START_SEC;
@@ -474,7 +513,7 @@
             + "&start=" + new Date(s * 1000).toISOString()
             + "&end=" + new Date(e * 1000).toISOString();
           try {
-            const rows = await getJSON(url);
+            const rows = await getJSON(url, 10000);
             for (let i = 0; i < rows.length; i++) {
               const r = rows[i];
               const c = +r[4];
@@ -482,9 +521,11 @@
               out.push({ t: new Date(r[0] * 1000), l: +r[1], h: +r[2], o: +r[3], c: c });
             }
           } catch (chunkErr) {
-            /* skip failed chunk; continue so partial history still loads */
+            /* skip failed/timed-out chunk; continue so partial history still loads */
           }
           chunks += 1;
+          /* Cap browser-side chunking so 429 loops cannot hang forever */
+          if (chunks >= 8 && out.length >= 200) break;
         }
         out.sort((a, b) => a.t - b.t);
         const seen = new Set();
@@ -497,7 +538,7 @@
         if (deduped.length >= 200) return deduped;
         throw new Error("Coinbase daily too short (" + deduped.length + ")");
       } catch (e) {
-        const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440");
+        const j = await getJSON("https://api.kraken.com/0/public/OHLC?pair=XBTUSD&interval=1440", 12000);
         const key = Object.keys(j.result).find((k) => k !== "last");
         return j.result[key].map((r) => ({
           t: new Date(r[0] * 1000), o: +r[1], h: +r[2], l: +r[3], c: +r[4],
@@ -1121,11 +1162,34 @@
       box.textContent = msg;
     }
     async function refreshHistory() {
-      const [weekly, daily] = await Promise.all([
-        fetchWeekly(),
-        fetchDaily(),
-        fetchMstr(),
-      ]);
+      let weekly = null;
+      let daily = null;
+      let histNote = "";
+      try {
+        const hist = await fetchHistoryFromApi();
+        weekly = (hist.weekly && hist.weekly.length >= 50)
+          ? mergeWeekly(unpackEarlyWeekly(), hist.weekly)
+          : null;
+        daily = (hist.daily && hist.daily.length >= 200) ? hist.daily : null;
+        if (hist.spot != null && isFinite(hist.spot)) state.price = hist.spot;
+        if (hist.stale) histNote = " (cached)";
+        if (hist.warnings && hist.warnings.length) {
+          console.warn("btc-history warnings", hist.warnings);
+        }
+      } catch (e) {
+        console.warn("btc-history primary failed", e);
+      }
+      const tasks = [fetchMstr()];
+      if (!weekly) tasks.push(fetchWeekly().then(function (w) { weekly = w; }));
+      if (!daily) tasks.push(fetchDaily().then(function (d) { daily = d; }));
+      await Promise.all(tasks);
+      if (!weekly || weekly.length < 20) throw new Error("weekly history empty");
+      if (!daily || daily.length < 20) {
+        daily = weekly.map(function (w) {
+          return { t: w.t, o: w.o, h: w.h, l: w.l, c: w.c };
+        });
+        histNote += " · daily from weekly";
+      }
       state.weekly = weekly;
       state.daily = daily;
       const closes = weekly.map((w) => w.c);
@@ -1138,6 +1202,7 @@
       drawMove();
       updateMoveRangeLbl();
       paintStats();
+      return histNote;
     }
     async function refreshSpot() {
       const px = await fetchSpot();
@@ -1204,14 +1269,20 @@
         syncCoupledClass();
         syncXRangeButtons();
         syncUncoupleButton();
-        await refreshHistory();
-        await refreshSpot();
+        const histNote = await refreshHistory();
+        try { await refreshSpot(); } catch (spotErr) { console.warn(spotErr); }
         syncXRangeButtons();
         syncUncoupleButton();
         updateMoveRangeLbl();
         bindRelayoutSync();
-        setLive(true, "LIVE");
-        showErr("");
+        const hasCharts = state.weekly.length >= 20 && state.daily.length >= 20;
+        if (hasCharts) {
+          setLive(true, "LIVE" + (histNote || ""));
+          showErr("");
+        } else {
+          setLive(false, "History incomplete");
+          showErr("History loaded partially. Charts may be limited." + (histNote || ""));
+        }
       } catch (e) {
         setLive(false, "Feed error");
         showErr("Could not reach the live feed. Check connection / ad-blockers. " + e.message);
