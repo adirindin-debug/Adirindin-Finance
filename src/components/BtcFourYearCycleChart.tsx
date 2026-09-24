@@ -29,9 +29,12 @@ const LATE_BULL_X0 = HALVING_X1;
 const LATE_BULL_X1 = PEAK.x;
 const LATE_BULL_ORANGE = "#e8873a";
 
-/** Mid of blue halving wash — hover anchor for date card. */
+/** Mid of blue halving wash — hover tip sits on the Nike-tick ascent. */
 const HALVING_DOT_X = (HALVING_X0 + HALVING_X1) / 2;
-const HALVING_DOT_Y = 155;
+const HALVING_ON_ASCENT_T =
+  (HALVING_DOT_X - TROUGH.x) / (MID_UP.x - TROUGH.x);
+const HALVING_DOT_Y =
+  TROUGH.y + HALVING_ON_ASCENT_T * (MID_UP.y - TROUGH.y);
 
 const PATH_VERTS: Pt[] = [TROUGH, MID_UP, PEAK, NEXT_TROUGH];
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -341,47 +344,6 @@ export default function BtcFourYearCycleChart() {
           Halving epoch
         </text>
 
-        {/* Hover-only date card anchor — no click required */}
-        <g
-          onMouseEnter={() => setHalvingOpen(true)}
-          onMouseLeave={() => setHalvingOpen(false)}
-          style={{ cursor: "help" }}
-          aria-label="Halving dates — hover to view"
-        >
-          <circle
-            cx={HALVING_DOT_X}
-            cy={HALVING_DOT_Y}
-            r={18}
-            fill="transparent"
-          />
-          <circle
-            cx={HALVING_DOT_X}
-            cy={HALVING_DOT_Y}
-            r={7}
-            fill={HALVING_BLUE}
-            stroke="#e8eef7"
-            strokeWidth={1.75}
-            opacity={0.95}
-          />
-          <circle
-            cx={HALVING_DOT_X}
-            cy={HALVING_DOT_Y}
-            r={2.6}
-            fill="#0a0a0a"
-          />
-          <text
-            x={HALVING_DOT_X}
-            y={HALVING_DOT_Y + 22}
-            textAnchor="middle"
-            fill={HALVING_BLUE}
-            fontSize="8"
-            fontFamily="system-ui, sans-serif"
-            fontWeight="600"
-            opacity={0.9}
-          >
-            hover dates
-          </text>
-        </g>
         <rect
           x={LATE_BULL_X0}
           y="40"
@@ -465,6 +427,48 @@ export default function BtcFourYearCycleChart() {
           strokeDasharray="6 5"
           opacity="0.4"
         />
+
+        {/* Hover-only date card anchor — no click required */}
+        <g
+          onMouseEnter={() => setHalvingOpen(true)}
+          onMouseLeave={() => setHalvingOpen(false)}
+          style={{ cursor: "help" }}
+          aria-label="Halving dates — hover to view"
+        >
+          <circle
+            cx={HALVING_DOT_X}
+            cy={HALVING_DOT_Y}
+            r={18}
+            fill="transparent"
+          />
+          <circle
+            cx={HALVING_DOT_X}
+            cy={HALVING_DOT_Y}
+            r={7}
+            fill={HALVING_BLUE}
+            stroke="#e8eef7"
+            strokeWidth={1.75}
+            opacity={0.95}
+          />
+          <circle
+            cx={HALVING_DOT_X}
+            cy={HALVING_DOT_Y}
+            r={2.6}
+            fill="#0a0a0a"
+          />
+          <text
+            x={HALVING_DOT_X}
+            y={HALVING_DOT_Y + 20}
+            textAnchor="middle"
+            fill={HALVING_BLUE}
+            fontSize="8"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="600"
+            opacity={0.9}
+          >
+            hover dates
+          </text>
+        </g>
 
         {/* Key vertices only */}
         {(
