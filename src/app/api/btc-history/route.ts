@@ -1,9 +1,10 @@
 /**
  * Same-origin BTC history for the cycle map (weekly + daily + spot).
  * Browser→Yahoo hits CORS; browser→Coinbase candles often 429; public CORS
- * proxies 403. Fetches server-side: Yahoo first, Coinbase (chunked + 429
- * backoff) fallback, Kraken last. Soft-fails to last-good in-memory cache.
- * Educational — NFA.
+ * proxies 403. Fetches server-side: Yahoo first, then splices pre-Yahoo
+ * closes from blockchain.info (fills ~2010–Sep 2014 gap Yahoo skips),
+ * Coinbase (chunked + 429 backoff) / Kraken fallbacks. Soft-fails to
+ * last-good in-memory cache. Educational — NFA.
  */
 
 export const runtime = "nodejs";
@@ -16,6 +17,8 @@ const CB = "https://api.exchange.coinbase.com";
 const YAHOO_1 = "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD";
 const YAHOO_2 = "https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD";
 const YAHOO_PERIOD1 = Math.floor(Date.UTC(2014, 8, 1) / 1000);
+const BC_MARKET_PRICE =
+  "https://api.blockchain.info/charts/market-price?timespan=all&format=json&sampled=false";
 const COINBASE_START_MS = Date.UTC(2015, 6, 1);
 const CHUNK_DAYS = 280;
 const CHUNK_PAUSE_MS = 320;
@@ -298,6 +301,37 @@ async function krakenBars(interval: 1440 | 10080): Promise<Bar[]> {
   return bars;
 }
 
+
+/** Close-only daily bars from blockchain.info (covers pre-Yahoo BTC). */
+async function blockchainDailyBars(): Promise<Bar[]> {
+  const json = (await fetchJson(BC_MARKET_PRICE, 20_000)) as {
+    values?: Array<{ x?: number; y?: number }>;
+  };
+  const values = json.values ?? [];
+  const bars: Bar[] = [];
+  for (const p of values) {
+    const t = p.x;
+    const c = p.y;
+    if (typeof t !== "number" || typeof c !== "number") continue;
+    if (!Number.isFinite(t) || !Number.isFinite(c) || c <= 0) continue;
+    bars.push({ t, o: c, h: c, l: c, c });
+  }
+  if (bars.length < 200) {
+    throw new Error(`blockchain.info too short (${bars.length})`);
+  }
+  return bars;
+}
+
+/** Prepend early bars that fall strictly before the live series start. */
+function spliceBefore(live: Bar[], early: Bar[]): Bar[] {
+  if (!early.length) return live;
+  if (!live.length) return early.slice();
+  const cut = live[0]!.t;
+  const pre = early.filter((b) => b.t < cut);
+  if (!pre.length) return live;
+  return pre.concat(live);
+}
+
 async function coinbaseSpot(): Promise<number | null> {
   try {
     const ticker = (await fetchJson(`${CB}/products/BTC-USD/ticker`, 8_000)) as {
@@ -351,6 +385,24 @@ export async function GET() {
   } catch (e) {
     warnings.push(
       e instanceof Error ? `Yahoo daily: ${e.message}` : "Yahoo daily failed",
+    );
+  }
+
+
+  try {
+    const earlyDaily = await blockchainDailyBars();
+    const beforeDaily = daily.length;
+    const beforeWeekly = weekly.length;
+    daily = spliceBefore(daily, earlyDaily);
+    weekly = spliceBefore(weekly, dailyToWeekly(earlyDaily));
+    if (daily.length > beforeDaily || weekly.length > beforeWeekly) {
+      sourceParts.push("blockchain.info early");
+    }
+  } catch (e) {
+    warnings.push(
+      e instanceof Error
+        ? `blockchain.info early: ${e.message}`
+        : "blockchain.info early failed",
     );
   }
 
