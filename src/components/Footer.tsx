@@ -27,9 +27,6 @@ export function Footer() {
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Link href="/tools" className="hover:text-accent">
-            Tools
-          </Link>
           <Link href="/charts" className="hover:text-accent">
             Charts
           </Link>
@@ -38,6 +35,9 @@ export function Footer() {
           </Link>
           <Link href="/tools/real-estate-cycle" className="hover:text-accent">
             RE cycle
+          </Link>
+          <Link href="/tools" className="hover:text-accent">
+            Tools
           </Link>
           <Link href="/disclaimer" className="hover:text-accent">
             Disclaimer

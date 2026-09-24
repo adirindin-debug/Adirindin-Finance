@@ -4,10 +4,10 @@ import { usePathname } from "next/navigation";
 
 const nav = [
   { href: "/", label: "Home" },
-  { href: "/tools", label: "Tools" },
   { href: "/charts", label: "Charts" },
   { href: "/dashboard/btc-cycle", label: "BTC cycle" },
   { href: "/tools/real-estate-cycle", label: "RE cycle" },
+  { href: "/tools", label: "Tools" },
   { href: "/contact", label: "Contact" },
 ];
 
