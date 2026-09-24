@@ -23,7 +23,7 @@ type Payload = {
   note?: string;
 };
 
-type TfKey = "7D" | "30D" | "90D" | "1Y" | "3Y" | "5Y" | "ALL";
+type TfKey = "1Y" | "4Y" | "10Y" | "ALL";
 
 type DragState = {
   kind: "main" | "brush-move" | "brush-left" | "brush-right";
@@ -33,12 +33,9 @@ type DragState = {
 };
 
 const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
-  { key: "7D", label: "7D", days: 7 },
-  { key: "30D", label: "30D", days: 30 },
-  { key: "90D", label: "90D", days: 90 },
   { key: "1Y", label: "1Y", days: 365 },
-  { key: "3Y", label: "3Y", days: 1095 },
-  { key: "5Y", label: "5Y", days: 1825 },
+  { key: "4Y", label: "4Y", days: 365 * 4 },
+  { key: "10Y", label: "10Y", days: 365 * 10 },
   { key: "ALL", label: "ALL", days: null },
 ];
 
@@ -146,7 +143,7 @@ export function FearGreedPanel({
 }: FearGreedPanelProps = {}) {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tf, setTf] = useState<TfKey>("1Y");
+  const [tf, setTf] = useState<TfKey>("10Y");
   /** Zoom window within the selected timeframe, in unix seconds. */
   const [zoom, setZoom] = useState<{ t0: number; t1: number } | null>(null);
   const [drag, setDrag] = useState<DragState | null>(null);
@@ -490,12 +487,42 @@ export function FearGreedPanel({
     "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            {title}
-          </h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+              {title}
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+                role="group"
+                aria-label={timeframeAriaLabel}
+              >
+                {TIMEFRAMES.map((w) => (
+                  <button
+                    key={w.key}
+                    type="button"
+                    className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
+                    aria-pressed={tf === w.key}
+                    onClick={() => setTf(w.key)}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+              {isZoomed && (
+                <button
+                  type="button"
+                  onClick={resetZoom}
+                  className="rounded-md border border-border bg-navy/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-accent hover:border-accent hover:bg-accent-soft"
+                >
+                  Reset zoom
+                </button>
+              )}
+            </div>
+          </div>
           <p className="mt-1 text-sm text-muted">
             {subtitle}
           </p>
@@ -518,7 +545,7 @@ export function FearGreedPanel({
         {current && (
           <div className="text-right">
             <p
-              className="font-mono text-4xl font-semibold tabular-nums"
+              className="font-mono text-3xl font-semibold tabular-nums sm:text-4xl"
               style={{ color: current.color }}
             >
               {current.value}
@@ -536,41 +563,7 @@ export function FearGreedPanel({
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-            Window
-          </span>
-          <div
-            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
-            role="group"
-            aria-label={timeframeAriaLabel}
-          >
-            {TIMEFRAMES.map((w) => (
-              <button
-                key={w.key}
-                type="button"
-                className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
-                aria-pressed={tf === w.key}
-                onClick={() => setTf(w.key)}
-              >
-                {w.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {isZoomed && (
-          <button
-            type="button"
-            onClick={resetZoom}
-            className="rounded-md border border-border bg-navy/60 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-accent hover:border-accent hover:bg-accent-soft"
-          >
-            Reset zoom
-          </button>
-        )}
-      </div>
-
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto">
         {loading && (
           <p className="py-16 text-center text-sm text-muted">
             Loading Fear &amp; Greed…

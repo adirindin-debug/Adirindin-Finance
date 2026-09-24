@@ -231,8 +231,8 @@ function Sparkline({
   const min = Math.min(...vals);
   const max = Math.max(...vals);
   const span = max - min || 1;
-  const w = 120;
-  const h = 28;
+  const w = 100;
+  const h = 20;
   const padY = 2;
   const d = points
     .map((p, i) => {
@@ -246,7 +246,7 @@ function Sparkline({
       width={w}
       height={h}
       viewBox={`0 0 ${w} ${h}`}
-      className="mt-3 opacity-80"
+      className="mt-2 opacity-80"
       aria-hidden
     >
       <path
@@ -285,13 +285,13 @@ function ChartTile({
   return (
     <Link
       href={def.href}
-      className="group flex flex-col rounded-xl border border-border bg-card p-4 transition hover:border-accent/50 sm:p-5"
+      className="group flex flex-col rounded-xl border border-border bg-card p-3 transition hover:border-accent/50 sm:p-3.5"
     >
       <h3 className="text-sm font-medium text-muted group-hover:text-accent">
         {def.title}
       </h3>
       <p
-        className="mt-3 font-mono text-3xl font-semibold tracking-tight text-foreground sm:text-4xl"
+        className="mt-2 font-mono text-2xl font-semibold tracking-tight text-foreground sm:text-2xl"
         style={
           live?.headlineColor && status === "ok"
             ? { color: live.headlineColor }
@@ -316,7 +316,7 @@ function ChartTile({
           color={live.headlineColor ?? "#3b82c4"}
         />
       ) : null}
-      <span className="mt-auto pt-4 inline-flex text-sm font-medium text-accent">
+      <span className="mt-auto pt-2 inline-flex text-xs font-medium text-accent">
         Open chart →
       </span>
     </Link>
@@ -391,7 +391,7 @@ export function ChartsHub() {
           >
             {cat.label}
           </h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             {cat.tiles.map((tile) => (
               <ChartTile key={tile.id} def={tile} live={lives[tile.id]} />
             ))}

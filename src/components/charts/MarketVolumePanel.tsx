@@ -29,7 +29,7 @@ type Payload = {
   errors?: string[];
 };
 
-type TfKey = "7D" | "30D" | "90D" | "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
+type TfKey = "1Y" | "4Y" | "10Y" | "ALL";
 
 type HoverState = {
   svgX: number;
@@ -38,13 +38,9 @@ type HoverState = {
 };
 
 const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
-  { key: "7D", label: "7D", days: 7 },
-  { key: "30D", label: "30D", days: 30 },
-  { key: "90D", label: "90D", days: 90 },
   { key: "1Y", label: "1Y", days: 365 },
-  { key: "3Y", label: "3Y", days: 1095 },
-  { key: "5Y", label: "5Y", days: 1825 },
-  { key: "10Y", label: "10Y", days: 3650 },
+  { key: "4Y", label: "4Y", days: 365 * 4 },
+  { key: "10Y", label: "10Y", days: 365 * 10 },
   { key: "ALL", label: "ALL", days: null },
 ];
 
@@ -101,7 +97,7 @@ function nearestPoint(points: Point[], t: number): Point | null {
 export function MarketVolumePanel() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tf, setTf] = useState<TfKey>("1Y");
+  const [tf, setTf] = useState<TfKey>("10Y");
   const [hover, setHover] = useState<HoverState | null>(null);
   const mainSvgRef = useRef<SVGSVGElement | null>(null);
 
@@ -238,12 +234,44 @@ export function MarketVolumePanel() {
     "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Crypto total-market volume (7-day MA)
-          </h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+              Crypto total-market volume (7-day MA)
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+                role="group"
+                aria-label="Market volume timeframe"
+              >
+                {TIMEFRAMES.map((w) => (
+                  <button
+                    key={w.key}
+                    type="button"
+                    className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
+                    aria-pressed={tf === w.key}
+                    onClick={() => setTf(w.key)}
+                  >
+                    {w.label}
+                  </button>
+                ))}
+              </div>
+              <a
+                href={
+                  data?.theBlockUrl ??
+                  "https://www.theblock.co/data/crypto-markets/spot/total-exchange-volume-daily"
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-md border border-border bg-navy/60 px-2.5 py-1.5 text-xs text-accent hover:border-accent hover:bg-accent-soft sm:text-sm"
+              >
+                Compare on The Block →
+              </a>
+            </div>
+          </div>
           <p className="mt-1 max-w-xl text-sm text-muted">{subtitle}</p>
         </div>
         {data?.currentVolumeUsd != null && (
@@ -261,43 +289,7 @@ export function MarketVolumePanel() {
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-            Window
-          </span>
-          <div
-            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
-            role="group"
-            aria-label="Market volume timeframe"
-          >
-            {TIMEFRAMES.map((w) => (
-              <button
-                key={w.key}
-                type="button"
-                className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
-                aria-pressed={tf === w.key}
-                onClick={() => setTf(w.key)}
-              >
-                {w.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <a
-          href={
-            data?.theBlockUrl ??
-            "https://www.theblock.co/data/crypto-markets/spot/total-exchange-volume-daily"
-          }
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center rounded-md border border-border bg-navy/60 px-3 py-2 text-sm text-accent hover:border-accent hover:bg-accent-soft"
-        >
-          Compare on The Block →
-        </a>
-      </div>
-
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto">
         {loading && (
           <p className="py-16 text-center text-sm text-muted">
             Loading market volume…

@@ -47,7 +47,7 @@ type Payload = {
   error?: string;
 };
 
-type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
+type TfKey = "1Y" | "4Y" | "10Y" | "ALL";
 
 type HoverState = {
   svgX: number;
@@ -58,8 +58,7 @@ type HoverState = {
 
 const TIMEFRAMES: { key: TfKey; label: string; days: number | null }[] = [
   { key: "1Y", label: "1Y", days: 365 },
-  { key: "3Y", label: "3Y", days: 365 * 3 },
-  { key: "5Y", label: "5Y", days: 365 * 5 },
+  { key: "4Y", label: "4Y", days: 365 * 4 },
   { key: "10Y", label: "10Y", days: 365 * 10 },
   { key: "ALL", label: "ALL", days: null },
 ];
@@ -144,7 +143,7 @@ function logTicks(vmin: number, vmax: number): number[] {
 export function Btc200wMaPanel() {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tf, setTf] = useState<TfKey>("ALL");
+  const [tf, setTf] = useState<TfKey>("10Y");
   const [hover, setHover] = useState<HoverState | null>(null);
   const mainSvgRef = useRef<SVGSVGElement | null>(null);
 
@@ -340,18 +339,60 @@ export function Btc200wMaPanel() {
   const above = headline != null && headline.pctFromMa >= 0;
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5 sm:p-6">
+    <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Bitcoin · 200-week MA
-          </h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+              Bitcoin · 200-week MA
+            </h2>
+            <div
+              className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+              role="group"
+              aria-label="Bitcoin 200-week MA timeframe"
+            >
+              {TIMEFRAMES.map((w) => (
+                <button
+                  key={w.key}
+                  type="button"
+                  className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
+                  aria-pressed={tf === w.key}
+                  onClick={() => setTf(w.key)}
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <p className="mt-1 max-w-xl text-sm text-muted">
             Weekly Bitcoin USD close versus its 200-week simple moving average —
             a long-cycle reference often watched in crypto. Early years may use
             a stitched composite USD average before Yahoo BTC-USD. Educational
             only (NFA).
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ background: PRICE_COLOR }}
+                aria-hidden
+              />
+              BTC price
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="inline-block h-2 w-2 rounded-full"
+                style={{ background: MA_COLOR }}
+                aria-hidden
+              />
+              200W MA
+            </span>
+            {chart?.useLog && (
+              <span className="rounded border border-border/80 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">
+                log y
+              </span>
+            )}
+          </div>
         </div>
         {headline && (
           <div className="text-right">
@@ -375,55 +416,7 @@ export function Btc200wMaPanel() {
         )}
       </div>
 
-      <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-            Window
-          </span>
-          <div
-            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
-            role="group"
-            aria-label="Bitcoin 200-week MA timeframe"
-          >
-            {TIMEFRAMES.map((w) => (
-              <button
-                key={w.key}
-                type="button"
-                className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
-                aria-pressed={tf === w.key}
-                onClick={() => setTf(w.key)}
-              >
-                {w.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: PRICE_COLOR }}
-              aria-hidden
-            />
-            BTC price
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: MA_COLOR }}
-              aria-hidden
-            />
-            200W MA
-          </span>
-          {chart?.useLog && (
-            <span className="rounded border border-border/80 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide">
-              log y
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-3 overflow-x-auto">
         {loading && (
           <p className="py-16 text-center text-sm text-muted">
             Loading Bitcoin 200-week MA…
