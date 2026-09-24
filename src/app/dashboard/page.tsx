@@ -10,11 +10,11 @@ export const metadata: Metadata = {
 const tools = [
   {
     href: "/dashboard/btc-cycle",
-    title: "BTC + MSTR 4-Year Cycle Map",
+    title: "BTC 4 year cycle theory",
     blurb:
-      "Detailed live Bitcoin price with halving-anchored cycle framing and an optional Strategy (MSTR) overlay. Full observation desk for study — not a forecast. (Also on the home scroll desk.)",
-    meta: "Detailed tool · live feeds · black theme · @Dirindin533",
-    cta: "Open detailed BTC cycle map",
+      "Stylised educational schematic of the rough ~4-year Bitcoin cycle (Live-dot loop, year stacks, halving epochs). Theory framing for study — not a forecast. Live price map lives under Charts.",
+    meta: "Theory schematic · Live wrap · black theme · @Dirindin533",
+    cta: "Open BTC cycle theory",
   },
   {
     href: "/tools/real-estate-cycle",
@@ -32,7 +32,7 @@ export default function DashboardHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Cycle desk</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Detailed educational cycle maps for study. The home page scrolls the same charts in one desk; cards below open the focused BTC+MSTR and RE tools. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
+        Educational cycle desks for study. Cards below open the BTC 4-year theory schematic and the RE cycle tool; the live BTC price map sits under Charts. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
         Anthony / Adirindin (@Dirindin533).
       </p>
 
@@ -52,9 +52,9 @@ export default function DashboardHubPage() {
       </div>
 
       <p className="mt-8 text-xs text-muted">
-        Prefer the standalone chart?{" "}
-        <Link href="/btc-cycle-map.html" className="text-accent hover:underline">
-          Open full-page BTC cycle map
+        Prefer the live price map?{" "}
+        <Link href="/charts/btc-cycle-map" className="text-accent hover:underline">
+          Open Charts · BTC cycle map
         </Link>
         . Full chart scroll lives on the{" "}
         <Link href="/" className="text-accent hover:underline">

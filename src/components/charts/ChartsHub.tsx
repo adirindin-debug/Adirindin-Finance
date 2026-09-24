@@ -143,6 +143,27 @@ function parseBtc200w(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
+/** Live BTC spot for the cycle-map tile (same /api/btc-200w-ma feed). */
+function parseBtcCycleMap(json: unknown): Omit<TileLive, "status"> | null {
+  const data = json as {
+    ok?: boolean;
+    current?: {
+      price?: number;
+    };
+    points?: Array<{ t: number; price: number }>;
+  };
+  const price = data?.current?.price;
+  if (!data?.ok || price == null || !Number.isFinite(price)) {
+    return null;
+  }
+  const spark = lastSpark(data.points?.map((p) => ({ t: p.t, v: p.price })));
+  return {
+    headline: fmtCompactUsd(price),
+    secondary: "50w / 200w desk",
+    spark,
+  };
+}
+
 function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
   const data = json as {
     ok?: boolean;
@@ -199,6 +220,13 @@ const CATEGORIES: Category[] = [
         title: "BTC 200-week MA",
         endpoint: "/api/btc-200w-ma",
         parse: parseBtc200w,
+      },
+      {
+        id: "btc-cycle-map",
+        href: "/charts/btc-cycle-map",
+        title: "BTC cycle map",
+        endpoint: "/api/btc-200w-ma",
+        parse: parseBtcCycleMap,
       },
     ],
   },
