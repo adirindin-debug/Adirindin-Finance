@@ -15,19 +15,27 @@ export const metadata: Metadata = {
 const PHASES = [
   {
     name: "~3-year bull",
-    years: "~3 years · expansion stretch",
-    width: "55%",
+    years: "~ early / mid expansion",
+    width: "40%",
     color: "#3dcc9a",
     summary:
-      "Historically, risk-on stretches after major bottoms have often lasted on the order of a few years — roughly framed as about ~3 years of expansion before a larger reset. Liquidity, leverage, and sentiment usually amplify the later part of this stretch. Treat the length as an approximate study aid, not a stopwatch.",
+      "Historically, risk-on stretches after major bottoms have often lasted on the order of a few years — roughly framed as about ~3 years of expansion before a larger reset. The earlier part of that stretch is the quieter rebuild / expansion zone on the schematic. Treat the length as an approximate study aid, not a stopwatch.",
   },
   {
     name: "Halving epoch",
     years: "~210,000 blocks · mid-cycle zone",
-    width: "20%",
+    width: "18%",
     color: "#4c9fff",
     summary:
       "The Bitcoin protocol cuts the block subsidy roughly every 210,000 blocks (historically about every four years). That supply-epoch event is the usual anchor of “4-year cycle” talk — shown as a blue mid-ascent zone on the schematic, an educational reference point, not a trade signal or a promise that price must rhyme with the next cut.",
+  },
+  {
+    name: "Late bull",
+    years: "post-halving → peak",
+    width: "17%",
+    color: "#e8873a",
+    summary:
+      "After the halving-epoch zone and before the red drawdown, observers often talk about a late-bull stretch where price action tends to get more crowded, leveraged, and unpredictable. That label is descriptive vocabulary on the orange band only — not a timing model, precise split date, or promise of how wild any given cycle gets.",
   },
   {
     name: "~1-year bear",
@@ -39,21 +47,12 @@ const PHASES = [
   },
 ] as const;
 
-const SEGMENTS = [
-  ...PHASES.map(({ name, years, color, summary }) => ({
-    name,
-    duration: years,
-    color,
-    summary,
-  })),
-  {
-    name: "Early vs late bull (rough)",
-    duration: "within the ~3-year stretch",
-    color: "#4c9fff",
-    summary:
-      "Within a bull stretch, observers often speak loosely of an earlier recovery / rebuild phase and a later, more crowded risk-on phase. Those labels are descriptive vocabulary only — this page does not invent precise split dates, returns, or “typical” drawdown percentages.",
-  },
-] as const;
+const SEGMENTS = PHASES.map(({ name, years, color, summary }) => ({
+  name,
+  duration: years,
+  color,
+  summary,
+}));
 
 export default function BtcCyclePage() {
   return (
@@ -133,9 +132,9 @@ export default function BtcCyclePage() {
         </div>
 
         <div className="mt-3 flex justify-between font-mono text-[10px] text-muted sm:text-xs">
-          <span>Cycle low → expansion</span>
-          <span>Halving epoch (blue)</span>
-          <span>~1 year down → next low</span>
+          <span>Expansion (green)</span>
+          <span>Halving (blue) · Late bull (orange)</span>
+          <span>Drawdown (red)</span>
         </div>
 
         <BtcFourYearCycleChart />

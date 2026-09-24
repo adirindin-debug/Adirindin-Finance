@@ -20,6 +20,10 @@ const NEXT_TROUGH: Pt = { x: 760, y: 300 };
 const HALVING_X0 = TROUGH.x + (PEAK.x - TROUGH.x) * 0.4;
 const HALVING_X1 = TROUGH.x + (PEAK.x - TROUGH.x) * 0.62;
 const HALVING_BLUE = "#4c9fff";
+/** Late bull — after halving epoch, before the red drawdown (schematic). */
+const LATE_BULL_X0 = HALVING_X1;
+const LATE_BULL_X1 = PEAK.x;
+const LATE_BULL_ORANGE = "#e8873a";
 
 const PATH_VERTS: Pt[] = [TROUGH, MID_UP, PEAK, NEXT_TROUGH];
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -277,7 +281,7 @@ export default function BtcFourYearCycleChart() {
       </text>
 
       <g transform={`translate(0, ${TOP_PAD})`}>
-        {/* Soft phase bands — green expansion, blue halving epoch, red reset */}
+        {/* Soft phase bands — green expansion, blue halving, orange late bull, red reset */}
         <rect
           x={TROUGH.x}
           y="40"
@@ -320,6 +324,33 @@ export default function BtcFourYearCycleChart() {
           fontWeight="700"
         >
           Halving epoch
+        </text>
+        <rect
+          x={LATE_BULL_X0}
+          y="40"
+          width={LATE_BULL_X1 - LATE_BULL_X0}
+          height="280"
+          fill={LATE_BULL_ORANGE}
+          opacity="0.13"
+        />
+        <rect
+          x={LATE_BULL_X0}
+          y="40"
+          width={3}
+          height="280"
+          fill={LATE_BULL_ORANGE}
+          opacity="0.45"
+        />
+        <text
+          x={(LATE_BULL_X0 + LATE_BULL_X1) / 2}
+          y="58"
+          textAnchor="middle"
+          fill={LATE_BULL_ORANGE}
+          fontSize="11"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="700"
+        >
+          Late bull
         </text>
         <rect
           x={PEAK.x}
