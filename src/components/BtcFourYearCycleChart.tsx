@@ -11,6 +11,11 @@
 
 import { useState } from "react";
 import { halvingHoverRows } from "@/lib/bitcoinHalving";
+import {
+  CYCLE_EXTREMES_DISCLAIMER,
+  cycleBottomHoverRows,
+  cycleTopHoverRows,
+} from "@/lib/btcCycleExtremes";
 type Pt = { x: number; y: number };
 
 /** Nike-tick vertices (not price data). ~75% width ascending, ~25% descending. */
@@ -225,16 +230,30 @@ export default function BtcFourYearCycleChart() {
   const CHART_H = 420;
   const SVG_H = CHART_H + TOP_PAD + BOTTOM_PAD;
 
-  const [halvingOpen, setHalvingOpen] = useState(false);
+  type TipKind = "halving" | "peaks" | "lows" | null;
+  const [tip, setTip] = useState<TipKind>(null);
+  const [lowsAt, setLowsAt] = useState<"cycle" | "next">("cycle");
   const halvingRows = halvingHoverRows();
+  const peakRows = cycleTopHoverRows();
+  const lowRows = cycleBottomHoverRows();
 
   const live = livePositionFromNow();
   void isPastTheoryNextLow(); /* reserved if we re-add lap-aware accents later */
   const liveLabelDx = -36;
   const liveLabelDy = 22;
 
-  const tipLeftPct = (HALVING_DOT_X / SVG_W) * 100;
-  const tipTopPct = ((HALVING_DOT_Y + TOP_PAD) / SVG_H) * 100;
+  const tipPoint =
+    tip === "halving"
+      ? { x: HALVING_DOT_X, y: HALVING_DOT_Y }
+      : tip === "peaks"
+        ? { x: PEAK.x, y: PEAK.y }
+        : tip === "lows"
+          ? lowsAt === "next"
+            ? NEXT_TROUGH
+            : TROUGH
+          : null;
+  const tipLeftPct = tipPoint ? (tipPoint.x / SVG_W) * 100 : 0;
+  const tipTopPct = tipPoint ? ((tipPoint.y + TOP_PAD) / SVG_H) * 100 : 0;
 
   return (
     <div className="relative mt-6 w-full">
@@ -242,7 +261,7 @@ export default function BtcFourYearCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Hover the blue halving dot for protocol dates. Educational rough guide only — not a predictive model or financial advice"
+      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Hover the blue halving tip or gold cycle low/peak dots for desk dates. Educational rough guide only — not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -430,8 +449,8 @@ export default function BtcFourYearCycleChart() {
 
         {/* Hover-only date card anchor — no click required */}
         <g
-          onMouseEnter={() => setHalvingOpen(true)}
-          onMouseLeave={() => setHalvingOpen(false)}
+          onMouseEnter={() => setTip("halving")}
+          onMouseLeave={() => setTip(null)}
           style={{ cursor: "help" }}
           aria-label="Halving dates — hover to view"
         >
@@ -470,22 +489,50 @@ export default function BtcFourYearCycleChart() {
           </text>
         </g>
 
-        {/* Key vertices only */}
+        {/* Key vertices — hover for desk cycle top/bottom dates */}
         {(
           [
-            { p: TROUGH, gold: true, label: "Cycle low", labelDy: 22 },
-            { p: PEAK, gold: true, label: "Cycle peak", labelDy: -16 },
-            { p: NEXT_TROUGH, gold: true, label: "Next low", labelDy: 22 },
+            {
+              p: TROUGH,
+              label: "Cycle low",
+              labelDy: 22,
+              kind: "lows" as const,
+              lowsWhich: "cycle" as const,
+            },
+            {
+              p: PEAK,
+              label: "Cycle peak",
+              labelDy: -16,
+              kind: "peaks" as const,
+              lowsWhich: null,
+            },
+            {
+              p: NEXT_TROUGH,
+              label: "Next low",
+              labelDy: 22,
+              kind: "lows" as const,
+              lowsWhich: "next" as const,
+            },
           ] as const
-        ).map(({ p, gold, label, labelDy }) => (
-          <g key={label}>
+        ).map(({ p, label, labelDy, kind, lowsWhich }) => (
+          <g
+            key={label}
+            onMouseEnter={() => {
+              if (lowsWhich) setLowsAt(lowsWhich);
+              setTip(kind);
+            }}
+            onMouseLeave={() => setTip(null)}
+            style={{ cursor: "help" }}
+            aria-label={`${label} dates — hover to view`}
+          >
+            <circle cx={p.x} cy={p.y} r={18} fill="transparent" />
             <circle
               cx={p.x}
               cy={p.y}
-              r={gold && label === "Cycle peak" ? 5.5 : 4.5}
+              r={label === "Cycle peak" ? 5.5 : 4.5}
               fill="#0a0a0a"
-              stroke={gold ? "#d4a017" : "#e8eef7"}
-              strokeWidth={gold ? 2.25 : 1.75}
+              stroke="#d4a017"
+              strokeWidth={2.25}
             />
             <text
               x={p.x}
@@ -541,32 +588,75 @@ export default function BtcFourYearCycleChart() {
         </g>
       </g>
     </svg>
-      {halvingOpen ? (
+      {tip ? (
         <div
-          className="pointer-events-none absolute z-20 w-[min(18rem,90%)] -translate-x-1/2 -translate-y-[108%] rounded-lg border border-[#3a6aa8] bg-[#0d1520]/95 px-3 py-2.5 shadow-lg shadow-black/50 backdrop-blur-sm"
+          className={
+            tip === "halving"
+              ? "pointer-events-none absolute z-20 w-[min(18rem,90%)] -translate-x-1/2 -translate-y-[108%] rounded-lg border border-[#3a6aa8] bg-[#0d1520]/95 px-3 py-2.5 shadow-lg shadow-black/50 backdrop-blur-sm"
+              : "pointer-events-none absolute z-20 w-[min(18rem,90%)] -translate-x-1/2 -translate-y-[108%] rounded-lg border border-[#8a6a20] bg-[#14100a]/95 px-3 py-2.5 shadow-lg shadow-black/50 backdrop-blur-sm"
+          }
           style={{ left: `${tipLeftPct}%`, top: `${tipTopPct}%` }}
           role="tooltip"
         >
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4c9fff]">
-            Halving dates
+          <p
+            className={
+              tip === "halving"
+                ? "text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4c9fff]"
+                : "text-[11px] font-semibold uppercase tracking-[0.12em] text-[#d4a017]"
+            }
+          >
+            {tip === "halving"
+              ? "Halving dates"
+              : tip === "peaks"
+                ? "Cycle top dates"
+                : "Cycle bottom dates"}
           </p>
           <ul className="mt-2 space-y-1.5">
-            {halvingRows.map((row) => (
-              <li key={row.title} className="flex items-baseline justify-between gap-3">
-                <span className="text-[11px] text-[#9eb0c8]">{row.title}</span>
-                <span
-                  className={`shrink-0 font-mono text-[11px] ${
-                    row.estimated ? "text-[#7eb6ff]" : "text-[#e8eef7]"
-                  }`}
-                >
-                  {row.detail}
-                </span>
-              </li>
-            ))}
+            {tip === "halving"
+              ? halvingRows.map((row) => (
+                  <li key={row.title} className="flex items-baseline justify-between gap-3">
+                    <span className="text-[11px] text-[#9eb0c8]">{row.title}</span>
+                    <span
+                      className={`shrink-0 font-mono text-[11px] ${
+                        row.estimated ? "text-[#7eb6ff]" : "text-[#e8eef7]"
+                      }`}
+                    >
+                      {row.detail}
+                    </span>
+                  </li>
+                ))
+              : tip === "peaks"
+                ? peakRows.map((row, i) => (
+                    <li
+                      key={`${row.detail}-${i}`}
+                      className="flex items-baseline justify-between gap-3"
+                    >
+                      <span className="text-[11px] text-[#9eb0c8]">{row.title}</span>
+                      <span className="shrink-0 font-mono text-[11px] text-[#e8eef7]">
+                        {row.detail}
+                      </span>
+                    </li>
+                  ))
+                : lowRows.map((row, i) => (
+                    <li
+                      key={`${row.detail}-${i}`}
+                      className="flex items-baseline justify-between gap-3"
+                    >
+                      <span className="text-[11px] text-[#9eb0c8]">{row.title}</span>
+                      <span
+                        className={`shrink-0 font-mono text-[11px] ${
+                          row.incomplete ? "text-[#b8a060]" : "text-[#e8eef7]"
+                        }`}
+                      >
+                        {row.detail}
+                      </span>
+                    </li>
+                  ))}
           </ul>
           <p className="mt-2 text-[10px] leading-snug text-[#6b7a90]">
-            Next date is the desk estimate (210,000 blocks × ~10 min) until that
-            epoch lands. Educational only · NFA.
+            {tip === "halving"
+              ? "Next date is the desk estimate (210,000 blocks × ~10 min) until that epoch lands. Educational only · NFA."
+              : CYCLE_EXTREMES_DISCLAIMER}
           </p>
         </div>
       ) : null}
