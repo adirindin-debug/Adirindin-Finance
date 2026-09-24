@@ -584,10 +584,10 @@
         autosize: true,
       }, extra);
     }
-    function hline(y, color, dash) {
+    function hline(y, color, dash, width) {
       return {
         type: "line", xref: "paper", x0: 0, x1: 1,
-        y0: y, y1: y, line: { color, width: 1.45, dash: dash || "solid" },
+        y0: y, y1: y, line: { color, width: width || 1.85, dash: dash || "solid" },
       };
     }
     function vline(x, color, dash, width) {
@@ -1012,11 +1012,11 @@
       const annotations = [];
       /* Horizontal MA guides at latest values (not rolling curved series) */
       if (ma50) {
-        shapes.push(hline(ma50, "rgba(212,160,23,0.6)", "dot"));
+        shapes.push(hline(ma50, "rgba(232,188,48,0.95)", "solid", 2));
         annotations.push(sideLabel(ma50, "50-WEEK MA  " + kfmt(ma50) + "  confirmation", COL.gold));
       }
       if (ma200) {
-        shapes.push(hline(ma200, "rgba(110,200,232,0.6)", "dot"));
+        shapes.push(hline(ma200, "rgba(130,220,245,0.95)", "solid", 2));
         annotations.push(sideLabel(ma200, "200-WEEK MA  " + kfmt(ma200) + "  cycle floor", COL.cyan));
       }
       if (state.price) {
