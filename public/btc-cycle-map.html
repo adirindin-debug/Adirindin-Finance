@@ -125,9 +125,9 @@
         <div class="hint">cycle floor zone</div>
       </div>
       <div class="stat">
-        <div class="lbl">Fixed BTC top</div>
-        <div class="val" style="color:#ef6b6b">$126.2k</div>
-        <div class="hint">confirmed Oct 2025</div>
+        <div class="lbl">BTC Top</div>
+        <div class="val" style="color:#ef6b6b" id="btcTop">—</div>
+        <div class="hint" id="btcTopHint">—</div>
       </div>
       <div class="stat mstr-stat">
         <div class="lbl">MSTR</div>
@@ -141,10 +141,11 @@
         <div class="panel-head">
           <div><strong>Full cycle map</strong> · tops &amp; bottoms · scroll/drag to zoom</div>
           <div class="controls cycle-tf">
-            <button type="button" data-xrange="all" class="on">All</button>
-            <button type="button" data-xrange="2017">2017+</button>
+            <button type="button" data-xrange="1y">1Y</button>
+            <button type="button" data-xrange="3y">3Y</button>
             <button type="button" data-xrange="4y">4Y</button>
-            <button type="button" data-xrange="reset">Reset</button>
+            <button type="button" data-xrange="10y">10Y</button>
+            <button type="button" data-xrange="all" class="on">All</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
             <button id="btnLog" class="on" type="button">Log</button>
             <button id="btnLin" type="button">Linear</button>
@@ -156,10 +157,11 @@
         <div class="panel-head">
           <div><strong>MA / move desk</strong> · 50w &amp; 200w guides · <span id="moveRangeLbl">All → now</span></div>
           <div class="controls move-tf">
-            <button type="button" data-xrange="all" class="on">All</button>
-            <button type="button" data-xrange="2017">2017+</button>
+            <button type="button" data-xrange="1y">1Y</button>
+            <button type="button" data-xrange="3y">3Y</button>
             <button type="button" data-xrange="4y">4Y</button>
-            <button type="button" data-xrange="reset">Reset</button>
+            <button type="button" data-xrange="10y">10Y</button>
+            <button type="button" data-xrange="all" class="on">All</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
             <button type="button" id="btnUncouple" class="uncouple-btn" title="When coupled, both charts share the same x-range. Uncouple to zoom the MA desk independently.">Uncouple</button>
           </div>
@@ -168,7 +170,7 @@
       </div>
     </div>
     <footer>
-      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 / Oct 6 2025 fixed top; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Both panels share All / 2017+ / 4Y / Reset when coupled (default); drag-zoom also mirrors. Tap Uncouple on the MA/move desk to zoom that chart alone, then Recouple to sync again. MSTR overlay is optional. Educational only — NFA.</div>
+      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 historical tops; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). BTC Top tracks the ATH from the chart series (daily closes preferred, weekly fallback; spot overrides if higher). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Both panels share 1Y / 3Y / 4Y / 10Y / All when coupled (default); drag-zoom also mirrors. Tap Uncouple on the MA/move desk to zoom that chart alone, then Recouple to sync again. MSTR overlay is optional. Educational only — NFA.</div>
       Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. Early BTC weekly (~2010–2013) embedded from blockchain.info market-price; live weekly from Kraken, daily/spot from Coinbase/Kraken. MSTR last print is TradingView (NASDAQ:MSTR); the path is split-adjusted daily/weekly bars stamped to that last so it matches the TV chart. MAs are simple weekly closes.
     </footer>
   </div>
@@ -180,8 +182,8 @@
        ===================================================================== */
     const FRAMEWORK = {
       handle: "@Dirindin533",
-      oct2025Top: 126198,
-      oct2025TopDate: "2025-10-06",
+      btcTop: 126198,
+      btcTopDate: "2025-10-06",
       pinMa50: null,
       pinMa200: null,
       mstrTreasury: "2020-08-11",
@@ -196,7 +198,7 @@
       { t: "2018-12-15", y: 3236, name: "DEC 2018 LOW", kind: "low", color: "#3dcc9a", projected: false },
       { t: "2021-11-10", y: 69000, name: "NOV 2021 TOP", kind: "top", color: "#ef6b6b", projected: false },
       { t: "2022-11-21", y: 15500, name: "NOV 2022 LOW", kind: "low", color: "#3dcc9a", projected: false },
-      { t: "2025-10-06", y: 126198, name: "OCT 2025 TOP", kind: "top", color: "#ef6b6b", projected: false },
+      { id: "btcTop", t: "2025-10-06", y: 126198, name: "BTC TOP", kind: "top", color: "#ef6b6b", projected: false },
       { t: "2026-07-01", y: 55000, name: "JUL 1 2026 LOW", kind: "low", color: "#3dcc9a", projected: false },
     ];
     /* Weekly closes ~2010–Oct 2013 (blockchain.info market-price, sampled weekly). Merged under live Kraken. */
@@ -497,9 +499,12 @@
     function xRangeFor(mode) {
       const future = new Date("2027-01-01T00:00:00Z");
       const first = state.weekly.length ? state.weekly[0].t : new Date("2010-08-01T00:00:00Z");
-      const m = mode || "all";
-      if (m === "2017") return [new Date("2017-01-01T00:00:00Z"), future];
-      if (m === "4y") return [new Date(Date.now() - 4 * 365.25 * 86400000), future];
+      let m = mode || "all";
+      if (m === "reset" || m === "2017") m = "all";
+      const years = { "1y": 1, "3y": 3, "4y": 4, "10y": 10 };
+      if (years[m] != null) {
+        return [new Date(Date.now() - years[m] * 365.25 * 86400000), future];
+      }
       return [first, future];
     }
     function cycleXRange() {
@@ -523,7 +528,8 @@
       }
       for (let i = 0; i < CYCLE_EVENTS.length; i++) {
         const e = CYCLE_EVENTS[i];
-        if (e.t >= x0 && e.t <= x1 && e.y > 0) prices.push(e.y);
+        const eT = e.t instanceof Date ? e.t : new Date(e.t);
+        if (!Number.isNaN(eT.getTime()) && eT >= x0 && eT <= x1 && e.y > 0) prices.push(e.y);
       }
       if (state.price) prices.push(state.price);
       if (!prices.length) {
@@ -535,9 +541,10 @@
       if (state.logScale) {
         ymin = Math.max(ymin / 1.55, 0.05);
         ymax = Math.max(ymax * 1.45, ymin * 2);
-        /* Keep a little headroom above framework top when it is in-window */
-        if (FRAMEWORK.oct2025TopDate >= x0 && FRAMEWORK.oct2025TopDate <= x1) {
-          ymax = Math.max(ymax, FRAMEWORK.oct2025Top * 1.2);
+        /* Keep a little headroom above live BTC Top when it is in-window */
+        const topD = new Date(FRAMEWORK.btcTopDate);
+        if (!Number.isNaN(topD.getTime()) && topD >= x0 && topD <= x1) {
+          ymax = Math.max(ymax, FRAMEWORK.btcTop * 1.2);
         }
         return [Math.log10(ymin), Math.log10(ymax)];
       }
@@ -548,9 +555,10 @@
       return moveXRange()[0];
     }
     function xrangeLabel(mode) {
-      if (mode === "2017") return "2017+";
-      if (mode === "4y") return "4Y";
-      return "All";
+      const labels = { "1y": "1Y", "3y": "3Y", "4y": "4Y", "10y": "10Y", all: "All" };
+      let m = mode || "all";
+      if (m === "reset" || m === "2017") m = "all";
+      return labels[m] || "All";
     }
     function updateMoveRangeLbl() {
       const mode = moveXRangeMode();
@@ -563,14 +571,10 @@
       const cycleMode = state.xRangeMode || "all";
       const moveMode = moveXRangeMode();
       document.querySelectorAll(".cycle-tf [data-xrange]").forEach((b) => {
-        const v = b.dataset.xrange;
-        b.classList.toggle("on", v === cycleMode || (cycleMode === "all" && v === "all"));
-        if (v === "reset") b.classList.remove("on");
+        b.classList.toggle("on", b.dataset.xrange === cycleMode);
       });
       document.querySelectorAll(".move-tf [data-xrange]").forEach((b) => {
-        const v = b.dataset.xrange;
-        b.classList.toggle("on", v === moveMode || (moveMode === "all" && v === "all"));
-        if (v === "reset") b.classList.remove("on");
+        b.classList.toggle("on", b.dataset.xrange === moveMode);
       });
     }
     function syncUncoupleButton() {
@@ -581,7 +585,7 @@
       btn.textContent = uncoupled ? "Recouple" : "Uncouple";
     }
     function applyXRangeMode(mode, source) {
-      const normalised = mode === "reset" ? "all" : mode;
+      const normalised = (mode === "reset" || mode === "2017") ? "all" : mode;
       if (source === "cycle") {
         state.xRangeMode = normalised;
         if (state.chartsCoupled) state.moveXRangeMode = normalised;
@@ -835,7 +839,61 @@
       const sign = extra >= 0 ? "+" : "";
       return "live · " + sign + extra.toFixed(1) + "pp vs BTC in window";
     }
+    function isoDate(d) {
+      if (d instanceof Date) return d.toISOString().slice(0, 10);
+      return String(d).slice(0, 10);
+    }
+    function liveBtcTopEvent() {
+      for (let i = 0; i < CYCLE_EVENTS.length; i++) {
+        if (CYCLE_EVENTS[i].id === "btcTop") return CYCLE_EVENTS[i];
+      }
+      return null;
+    }
+    function athFromSeries(rows) {
+      let best = null;
+      for (let i = 0; i < rows.length; i++) {
+        const r = rows[i];
+        if (r == null || r.c == null || !isFinite(r.c)) continue;
+        if (!best || r.c > best.c) best = r;
+      }
+      return best;
+    }
+    function updateLiveBtcTop() {
+      const series = (state.daily && state.daily.length) ? state.daily : state.weekly;
+      let ath = athFromSeries(series || []);
+      let topY = ath ? ath.c : null;
+      let topT = ath ? ath.t : null;
+      if (state.price != null && isFinite(state.price) && (topY == null || state.price > topY)) {
+        topY = state.price;
+        topT = new Date();
+      }
+      if (topY == null || topT == null) return null;
+      const dateStr = isoDate(topT);
+      FRAMEWORK.btcTop = topY;
+      FRAMEWORK.btcTopDate = dateStr;
+      const ev = liveBtcTopEvent();
+      if (ev) {
+        ev.t = dateStr;
+        ev.y = topY;
+        ev.name = "BTC TOP";
+      }
+      return { y: topY, t: dateStr, date: topT instanceof Date ? topT : new Date(dateStr + "T00:00:00Z") };
+    }
+    function btcTopHintLabel(d) {
+      if (!d) return "—";
+      const dt = d instanceof Date ? d : new Date(d);
+      if (Number.isNaN(dt.getTime())) return "—";
+      return "confirmed " + dt.toLocaleString("en-AU", { month: "short", year: "numeric" });
+    }
     function paintStats() {
+      const liveTop = updateLiveBtcTop();
+      if (liveTop) {
+        $("btcTop").textContent = usd(liveTop.y, 0);
+        $("btcTopHint").textContent = btcTopHintLabel(liveTop.date);
+      } else {
+        $("btcTop").textContent = "—";
+        $("btcTopHint").textContent = "—";
+      }
       const px = state.price;
       $("pxNow").textContent = usd(px, 0);
       if (state.prevPrice && px) {
@@ -906,6 +964,7 @@
       const closes = weekly.map((w) => w.c);
       state.ma50 = sma(closes, 50);
       state.ma200 = sma(closes, 200);
+      updateLiveBtcTop();
       drawCycle();
       drawMove();
       updateMoveRangeLbl();
@@ -921,6 +980,7 @@
         if (last.t.toDateString() === today.toDateString()) last.c = px;
         else state.daily.push({ t: today, c: px, o: px, h: px, l: px });
       }
+      updateLiveBtcTop();
       paintStats();
       drawCycle();
       drawMove();
