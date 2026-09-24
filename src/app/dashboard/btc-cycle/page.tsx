@@ -16,10 +16,18 @@ const PHASES = [
   {
     name: "~3-year bull",
     years: "~3 years · expansion stretch",
-    width: "60%",
+    width: "55%",
     color: "#3dcc9a",
     summary:
       "Historically, risk-on stretches after major bottoms have often lasted on the order of a few years — roughly framed as about ~3 years of expansion before a larger reset. Liquidity, leverage, and sentiment usually amplify the later part of this stretch. Treat the length as an approximate study aid, not a stopwatch.",
+  },
+  {
+    name: "Halving epoch",
+    years: "~210,000 blocks · mid-cycle zone",
+    width: "20%",
+    color: "#4c9fff",
+    summary:
+      "The Bitcoin protocol cuts the block subsidy roughly every 210,000 blocks (historically about every four years). That supply-epoch event is the usual anchor of “4-year cycle” talk — shown as a blue mid-ascent zone on the schematic, an educational reference point, not a trade signal or a promise that price must rhyme with the next cut.",
   },
   {
     name: "~1-year bear",
@@ -28,14 +36,6 @@ const PHASES = [
     color: "#ef6b6b",
     summary:
       "Historically the market has often spent on the order of ~365 days in a broader drawdown / reset after a major cycle high — a rough framing only. Depth, shape, and calendar length vary by cycle; this is observation language for study, not a forecast of the next decline.",
-  },
-  {
-    name: "Halving epoch",
-    years: "~210,000 blocks · ~4 years",
-    width: "15%",
-    color: "#d4a017",
-    summary:
-      "The Bitcoin protocol cuts the block subsidy roughly every 210,000 blocks (historically about every four years). That supply-epoch event is the usual anchor of “4-year cycle” talk — an educational reference point on the chart, not a trade signal or a promise that price must rhyme with the next cut.",
   },
 ] as const;
 
@@ -133,8 +133,8 @@ export default function BtcCyclePage() {
         </div>
 
         <div className="mt-3 flex justify-between font-mono text-[10px] text-muted sm:text-xs">
-          <span>Cycle low</span>
-          <span>~3 years up → peak</span>
+          <span>Cycle low → expansion</span>
+          <span>Halving epoch (blue)</span>
           <span>~1 year down → next low</span>
         </div>
 

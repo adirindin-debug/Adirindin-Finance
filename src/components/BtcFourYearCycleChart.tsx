@@ -16,6 +16,11 @@ const MID_UP: Pt = { x: 520, y: 248 };
 const PEAK: Pt = { x: 620, y: 48 };
 const NEXT_TROUGH: Pt = { x: 760, y: 300 };
 
+/** Soft phase-band x-spans (schematic placement on the ~3y ascent). */
+const HALVING_X0 = TROUGH.x + (PEAK.x - TROUGH.x) * 0.4;
+const HALVING_X1 = TROUGH.x + (PEAK.x - TROUGH.x) * 0.62;
+const HALVING_BLUE = "#4c9fff";
+
 const PATH_VERTS: Pt[] = [TROUGH, MID_UP, PEAK, NEXT_TROUGH];
 const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
@@ -272,7 +277,7 @@ export default function BtcFourYearCycleChart() {
       </text>
 
       <g transform={`translate(0, ${TOP_PAD})`}>
-        {/* Soft phase bands — green expansion stretch, red reset */}
+        {/* Soft phase bands — green expansion, blue halving epoch, red reset */}
         <rect
           x={TROUGH.x}
           y="40"
@@ -281,6 +286,41 @@ export default function BtcFourYearCycleChart() {
           fill="#3dcc9a"
           opacity="0.06"
         />
+        <rect
+          x={HALVING_X0}
+          y="40"
+          width={HALVING_X1 - HALVING_X0}
+          height="280"
+          fill={HALVING_BLUE}
+          opacity="0.14"
+        />
+        <rect
+          x={HALVING_X0}
+          y="40"
+          width={3}
+          height="280"
+          fill={HALVING_BLUE}
+          opacity="0.45"
+        />
+        <rect
+          x={HALVING_X1 - 3}
+          y="40"
+          width={3}
+          height="280"
+          fill={HALVING_BLUE}
+          opacity="0.45"
+        />
+        <text
+          x={(HALVING_X0 + HALVING_X1) / 2}
+          y="58"
+          textAnchor="middle"
+          fill={HALVING_BLUE}
+          fontSize="11"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="700"
+        >
+          Halving epoch
+        </text>
         <rect
           x={PEAK.x}
           y="40"
