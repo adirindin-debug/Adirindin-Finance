@@ -186,7 +186,7 @@
   <script>
     /* =====================================================================
        Drop this file on adirindinfinance.com (or .com.au).
-       Embed: <iframe src="/btc-cycle-map.html?embed=1" style="width:100%;height:980px;border:0"></iframe>
+       Embed: <iframe src="/btc-cycle-map.html?embed=1" style="width:100%;height:1120px;border:0"></iframe>
        Edit FRAMEWORK if you want pinned TradingView levels instead of live MAs.
        ===================================================================== */
     const FRAMEWORK = {
@@ -546,7 +546,7 @@
     function hline(y, color, dash) {
       return {
         type: "line", xref: "paper", x0: 0, x1: 1,
-        y0: y, y1: y, line: { color, width: 1.2, dash: dash || "solid" },
+        y0: y, y1: y, line: { color, width: 1.45, dash: dash || "solid" },
       };
     }
     function vline(x, color, dash, width) {
@@ -686,13 +686,11 @@
       return weeklyPre.concat(fromDaily);
     }
     function moveYRange(xr, priceRows) {
-      const x0 = xr[0], x1 = xr[1];
       const levels = [];
       for (let i = 0; i < priceRows.length; i++) {
         if (priceRows[i].c > 0) levels.push(priceRows[i].c);
       }
-      levels.push.apply(levels, valuesInWindow(state.ma50Series, x0, x1, function (d) { return d.v; }));
-      levels.push.apply(levels, valuesInWindow(state.ma200Series, x0, x1, function (d) { return d.v; }));
+      /* Flat MA levels only (not historical curved series) so y-scale fits price + hlines */
       const ma50 = FRAMEWORK.pinMa50 || state.ma50;
       const ma200 = FRAMEWORK.pinMa200 || state.ma200;
       if (ma50) levels.push(ma50);
@@ -703,7 +701,7 @@
       const hi = Math.max.apply(null, levels);
       const pad = Math.max((hi - lo) * 0.14, hi * 0.06, 2000);
       /* Extra headroom so NOW annotation / side labels are not clipped */
-      return [Math.max(0, lo - pad), hi + pad * 1.35];
+      return [Math.max(0, lo - pad), hi + pad * 1.5];
     }
     function xrangeLabel(mode) {
       const labels = {
@@ -857,7 +855,7 @@
           type: "scatter", mode: "markers+text",
           x: [new Date()], y: [state.price],
           text: ["NOW " + kfmt(state.price)],
-          textposition: "middle right",
+          textposition: "middle left",
           textfont: { size: 11, color: COL.now, family: "system-ui, sans-serif" },
           marker: { size: 10, color: "#f8fbff", line: { color: COL.line, width: 2 } },
           hovertemplate: "BTC NOW<br>$%{y:,.0f}<extra></extra>",
@@ -896,7 +894,7 @@
           range: cycleYRange(),
         },
         shapes, annotations,
-        margin: { l: 62, r: overlay ? 64 : 72, t: 12, b: 40 },
+        margin: { l: 62, r: overlay ? 72 : 96, t: 12, b: 40 },
         showlegend: overlay,
         legend: overlay ? {
           x: 0.01, y: 0.98, bgcolor: "rgba(11,21,36,0.7)",
@@ -925,9 +923,6 @@
       const lastX = x.length ? x[x.length - 1] : new Date();
       const mstrRows = state.mstrDaily.filter((r) => r.t >= cutoff);
       const overlay = state.showMstr && mstrRows.length;
-      const x0 = xr[0], x1 = xr[1];
-      const ma50Win = (state.ma50Series || []).filter(function (p) { return p.t >= x0 && p.t <= x1; });
-      const ma200Win = (state.ma200Series || []).filter(function (p) { return p.t >= x0 && p.t <= x1; });
       const traces = [{
         type: "scatter", mode: "lines",
         x, y, name: "BTC",
@@ -936,26 +931,6 @@
         fillcolor: "rgba(76,159,255,0.07)",
         hovertemplate: "%{x|%d %b %Y}<br>BTC $%{y:,.0f}<extra></extra>",
       }];
-      if (ma50Win.length) {
-        traces.push({
-          type: "scatter", mode: "lines",
-          x: ma50Win.map(function (p) { return p.t; }),
-          y: ma50Win.map(function (p) { return p.v; }),
-          name: "50w MA",
-          line: { color: COL.gold, width: 1.6 },
-          hovertemplate: "%{x|%b %Y}<br>50w MA $%{y:,.0f}<extra></extra>",
-        });
-      }
-      if (ma200Win.length) {
-        traces.push({
-          type: "scatter", mode: "lines",
-          x: ma200Win.map(function (p) { return p.t; }),
-          y: ma200Win.map(function (p) { return p.v; }),
-          name: "200w MA",
-          line: { color: COL.cyan, width: 1.6 },
-          hovertemplate: "%{x|%b %Y}<br>200w MA $%{y:,.0f}<extra></extra>",
-        });
-      }
       if (overlay) traces.push(mstrTrace(mstrRows, "MSTR"));
       if (state.price) {
         traces.push({
@@ -967,12 +942,13 @@
       }
       const shapes = [];
       const annotations = [];
+      /* Horizontal MA guides at latest values (not rolling curved series) */
       if (ma50) {
-        shapes.push(hline(ma50, "rgba(212,160,23,0.45)", "dot"));
+        shapes.push(hline(ma50, "rgba(212,160,23,0.6)", "dot"));
         annotations.push(sideLabel(ma50, "50-WEEK MA  " + kfmt(ma50) + "  confirmation", COL.gold));
       }
       if (ma200) {
-        shapes.push(hline(ma200, "rgba(110,200,232,0.45)", "dot"));
+        shapes.push(hline(ma200, "rgba(110,200,232,0.6)", "dot"));
         annotations.push(sideLabel(ma200, "200-WEEK MA  " + kfmt(ma200) + "  cycle floor", COL.cyan));
       }
       if (state.price) {
@@ -986,9 +962,11 @@
         });
       }
       const yRange = moveYRange(xr, rows);
+      const moveH = ($("moveChart") && $("moveChart").clientHeight) || 340;
       const layout = plotLayout({
         dragmode: "zoom",
         uirevision: "move-" + moveXRangeMode() + (state.chartsCoupled ? "-c" : "-u"),
+        height: moveH,
         xaxis: {
           gridcolor: COL.grid, range: xr,
           rangeslider: { visible: false },
@@ -1003,8 +981,8 @@
         },
         shapes, annotations,
         margin: { l: 58, r: overlay ? 64 : 210, t: 36, b: 36 },
-        showlegend: overlay || ma50Win.length > 0,
-        legend: (overlay || ma50Win.length > 0) ? {
+        showlegend: !!overlay,
+        legend: overlay ? {
           x: 0.01, y: 0.98, bgcolor: "rgba(11,21,36,0.7)",
           bordercolor: "rgba(28,44,66,0.8)", borderwidth: 1,
           font: { size: 10, color: COL.font },

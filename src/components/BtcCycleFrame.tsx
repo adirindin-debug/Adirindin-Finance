@@ -12,7 +12,7 @@ export function BtcCycleFrame({ compact = false }: Props) {
         <iframe
           src="/btc-cycle-map.html?embed=1"
           className="w-full border-0"
-          style={{ height: compact ? 1320 : 1260, background: "#000" }}
+          style={{ height: compact ? 1180 : 1120, background: "#000" }}
           title="BTC 4-Year Cycle Map"
           allow="fullscreen"
           loading={compact ? "lazy" : undefined}
