@@ -18,11 +18,11 @@ const tools = [
   },
   {
     href: "/property-prices",
-    title: "Property prices",
+    title: "Australian Property Prices",
     blurb:
       "Australian property price desk for observing metro and regional markets. Framing and data exploration only — not a valuation or recommendation.",
     meta: "AU property · price desk · educational",
-    cta: "Open property prices",
+    cta: "Open Australian Property Prices",
   },
 ];
 

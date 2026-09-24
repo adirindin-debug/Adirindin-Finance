@@ -35,7 +35,7 @@ export function PropertyPricesDesk() {
         <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-balance text-3xl font-semibold tracking-tight text-foreground">
-              Property prices
+              Australian Property Prices
             </h1>
             <p className="mt-3 max-w-3xl text-sm text-muted">
               Australian property pricing estimates only — educational purposes,
@@ -185,7 +185,7 @@ function ChartPanel() {
   const [range, setRange] = useState<RangeKey>("20");
   const [overlay, setOverlay] = useState<OverlayKey>("australia");
   return (
-    <Panel title="Property prices" kicker="hover for $ and % · NFA">
+    <Panel title="Australian Property Prices" kicker="hover for $ and % · NFA">
       <div className="mb-3">
         <FieldLabel>Window</FieldLabel>
         <div

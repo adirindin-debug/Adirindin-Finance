@@ -291,7 +291,7 @@ export function PriceChart(props: {
               viewBox={`0 0 ${W} ${H}`}
               className="h-72 w-full cursor-crosshair md:h-96"
               role="img"
-              aria-label="Property prices"
+              aria-label="Australian Property Prices"
               onMouseMove={onMove}
               onMouseLeave={() => setHover(null)}
             >

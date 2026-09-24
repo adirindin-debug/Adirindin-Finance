@@ -15,7 +15,7 @@ export default function PropertyPricesError({
         Tools · Real estate
       </p>
       <h1 className="mt-2 text-3xl font-semibold text-foreground">
-        Property prices didn’t load
+        Australian Property Prices didn’t load
       </h1>
       <p className="mt-3 max-w-xl text-sm text-muted">
         {error.message || "The chart threw while drawing. The rest of the site is fine."}
