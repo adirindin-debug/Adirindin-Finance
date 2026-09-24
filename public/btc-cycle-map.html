@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>BTC 4-Year Cycle Map · @Dirindin533</title>
-  <meta name="description" content="Live Bitcoin 4-year cycle map with optional Strategy (MSTR) overlay. Observation only, not financial advice." />
+  <meta name="description" content="Live Bitcoin 4-year cycle map with optional MSTR / ETH / SOL overlays. Observation only, not financial advice." />
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" onload="window.__plotlyReady=true"></script>
   <style>
     :root {
@@ -21,6 +21,8 @@
       --cyan: #6ec8e8;
       --handle: #e0a21a;
       --mstr: #f0a36b;
+      --eth: #a78bfa;
+      --sol: #14f195;
       --ok: #3dcc9a;
       --bad: #ef6b6b;
     }
@@ -40,9 +42,11 @@
       70% { box-shadow: 0 0 0 8px rgba(61,204,154,0); }
       100% { box-shadow: 0 0 0 0 rgba(61,204,154,0); }
     }
-    .stats { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; margin-bottom: 14px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin-bottom: 14px; }
     .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-width: 0; }
     .stat.mstr-stat { border-color: rgba(240,163,107,0.35); }
+    .stat.eth-stat { border-color: rgba(167,139,250,0.35); }
+    .stat.sol-stat { border-color: rgba(20,241,149,0.35); }
     .stat .lbl { color: var(--dim); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; }
     .stat .val { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 18px; font-weight: 600; margin-top: 4px; white-space: nowrap; }
     .stat .hint { color: var(--muted); font-size: 11px; margin-top: 2px; }
@@ -51,6 +55,8 @@
     .gold { color: var(--gold); }
     .cyan { color: var(--cyan); }
     .mstrc { color: var(--mstr); }
+    .ethc { color: var(--eth); }
+    .solc { color: var(--sol); }
     .charts { display: grid; gap: 8px; }
     .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
     .panel-head { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px 0; color: var(--muted); font-size: 12px; gap: 10px; flex-wrap: wrap; }
@@ -70,13 +76,17 @@
     .controls button.on, .controls button:hover { color: var(--text); border-color: #3a5273; background: #122033; }
     .controls button.mstr-btn { border-color: rgba(240,163,107,0.35); color: var(--mstr); }
     .controls button.mstr-btn.on { background: rgba(240,163,107,0.14); border-color: var(--mstr); color: #ffd2a8; }
+    .controls button.eth-btn { border-color: rgba(167,139,250,0.35); color: var(--eth); }
+    .controls button.eth-btn.on { background: rgba(167,139,250,0.14); border-color: var(--eth); color: #ddd6fe; }
+    .controls button.sol-btn { border-color: rgba(20,241,149,0.35); color: var(--sol); }
+    .controls button.sol-btn.on { background: rgba(20,241,149,0.14); border-color: var(--sol); color: #bbf7d0; }
     .controls button.uncouple-btn { border-color: rgba(76,159,255,0.35); color: var(--blue); }
     .controls button.uncouple-btn.on { background: rgba(76,159,255,0.14); border-color: var(--blue); color: #a8d4ff; }
     footer { margin-top: 12px; color: var(--dim); font-size: 12px; line-height: 1.55; }
     footer .read { color: var(--muted); }
     .err { color: var(--red); font-size: 12px; margin: 8px 0; display: none; }
     @media (max-width: 1100px) {
-      .stats { grid-template-columns: repeat(4, 1fr); }
+      .stats { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
     }
     @media (max-width: 980px) {
       #cycleChart { height: 300px; }
@@ -136,6 +146,16 @@
         <div class="val mstrc" id="mstrNow">—</div>
         <div class="hint" id="mstrHint">Strategy Inc · overlay off</div>
       </div>
+      <div class="stat eth-stat">
+        <div class="lbl">ETH</div>
+        <div class="val ethc" id="ethNow">—</div>
+        <div class="hint" id="ethHint">Ethereum · overlay off</div>
+      </div>
+      <div class="stat sol-stat">
+        <div class="lbl">SOL</div>
+        <div class="val solc" id="solNow">—</div>
+        <div class="hint" id="solHint">Solana · overlay off</div>
+      </div>
     </div>
     <div class="err" id="errBox"></div>
     <div class="charts">
@@ -149,6 +169,8 @@
             <button type="button" data-xrange="10y">10Y</button>
             <button type="button" data-xrange="all">All</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
+            <button type="button" class="eth-btn" data-eth-toggle>ETH overlay</button>
+            <button type="button" class="sol-btn" data-sol-toggle>SOL overlay</button>
             <button id="btnLog" class="on" type="button">Log</button>
             <button id="btnLin" type="button">Linear</button>
           </div>
@@ -172,6 +194,8 @@
             <button type="button" data-xrange="10y">10Y</button>
             <button type="button" data-xrange="all">All</button>
             <button type="button" class="mstr-btn" data-mstr-toggle>MSTR overlay</button>
+            <button type="button" class="eth-btn" data-eth-toggle>ETH overlay</button>
+            <button type="button" class="sol-btn" data-sol-toggle>SOL overlay</button>
             <button type="button" id="btnUncouple" class="uncouple-btn" title="When coupled, both charts share the same x-range. Uncouple to zoom the MA desk independently. When uncoupled, short windows (30D–180D, 2Y, YTD) appear for the MA desk only.">Uncouple</button>
           </div>
         </div>
@@ -179,8 +203,8 @@
       </div>
     </div>
     <footer>
-      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 historical tops; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). BTC Top tracks the ATH from the chart series (daily closes preferred, weekly fallback; spot overrides if higher). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Both panels open on 4Y and share 1Y / 3Y / 4Y / 10Y / All when coupled (default); drag-zoom also mirrors. Tap Uncouple on the MA/move desk to zoom that chart alone — short windows 30D / 60D / 90D / 120D / 180D / 2Y / YTD reappear for the MA desk; Recouple syncs again and hides the short chips. MSTR overlay is optional. Educational only — NFA.</div>
-      Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. Early BTC weekly (~2010–Sep 2014) embedded from blockchain.info market-price; live weekly/daily from same-origin /api/btc-history (Yahoo + early splice), with Coinbase/Kraken fallbacks. MSTR last print is TradingView (NASDAQ:MSTR); the path is split-adjusted daily/weekly bars stamped to that last so it matches the TV chart. MAs are simple weekly closes.
+      <div class="read">Read: Cycle tops/bottoms aligned to the desk TradingView map (Nov 2013 / Dec 2017 / Nov 2021 historical tops; Dec 2010 / Nov 2011 / Jan 2015 / Dec 2018 / Nov 2022 / Jul 1 2026 current low). BTC Top tracks the ATH from the chart series (daily closes preferred, weekly fallback; spot overrides if higher). Chart updates as new data arrives. Jul 1 2026 low marker y ≈ $55k placeholder. Both panels open on 4Y and share 1Y / 3Y / 4Y / 10Y / All when coupled (default); drag-zoom also mirrors. Tap Uncouple on the MA/move desk to zoom that chart alone — short windows 30D / 60D / 90D / 120D / 180D / 2Y / YTD reappear for the MA desk; Recouple syncs again and hides the short chips. MSTR / ETH / SOL overlays are optional. Educational only — NFA.</div>
+      Observation only. Not financial advice. Cycle length is historical rhyme, not a clock. Early BTC weekly (~2010–Sep 2014) embedded from blockchain.info market-price; live weekly/daily from same-origin /api/btc-history (Yahoo + early splice), with Coinbase/Kraken fallbacks. MSTR last print is TradingView (NASDAQ:MSTR); the path is split-adjusted daily/weekly bars stamped to that last so it matches the TV chart. ETH/SOL overlays from same-origin /api/crypto-overlay-history (Yahoo + Kraken early ETH splice / Coinbase fallback). MAs are simple weekly closes.
     </footer>
   </div>
   <script>
@@ -223,12 +247,14 @@
       grid: "rgba(140,160,190,0.10)", line: "#4c9fff",
       red: "#ef6b6b", green: "#3dcc9a", gold: "#d4a017",
       cyan: "#6ec8e8", white: "#d7e2f0", now: "#f2f6fb",
-      mstr: "#f0a36b"
+      mstr: "#f0a36b", eth: "#a78bfa", sol: "#14f195"
     };
     if (new URLSearchParams(location.search).get("embed") === "1") {
       document.body.classList.add("embed");
     }
     const STORE_MSTR = "adirindin_mstr_overlay";
+    const STORE_ETH = "adirindin_eth_overlay";
+    const STORE_SOL = "adirindin_sol_overlay";
     function storageGet(key) {
       try { return window.localStorage.getItem(key); }
       catch (e) { return null; }
@@ -257,6 +283,20 @@
       mstrPrice: null,
       mstrLive: false,
       mstrSource: "embedded",
+      showEth: storageGet(STORE_ETH) === "1",
+      ethWeekly: [],
+      ethDaily: [],
+      ethPrice: null,
+      ethLive: false,
+      ethSource: "",
+      ethFrom: null,
+      showSol: storageGet(STORE_SOL) === "1",
+      solWeekly: [],
+      solDaily: [],
+      solPrice: null,
+      solLive: false,
+      solSource: "",
+      solFrom: null,
     };
     let syncingRelayout = false;
     let relayoutBound = false;
@@ -397,7 +437,76 @@
         state.mstrSource = "embedded";
       }
     }
+    function unpackOverlayPairs(pairs) {
+      return (pairs || []).map(function (row) {
+        return { t: new Date(row[0] + "T00:00:00Z"), c: +row[1] };
+      }).filter(function (r) { return isFinite(r.c) && r.c > 0; });
+    }
+    function yahooCryptoUrls(symbol, interval, range) {
+      const path = "https://query1.finance.yahoo.com/v8/finance/chart/" + symbol
+        + "?interval=" + interval + "&range=" + range;
+      const path2 = path.replace("query1.", "query2.");
+      return [
+        path,
+        path2,
+        "https://corsproxy.io/?" + encodeURIComponent(path),
+        "https://api.allorigins.win/raw?url=" + encodeURIComponent(path),
+      ];
+    }
+    async function fetchCryptoOverlay(which) {
+      const key = which; // "eth" | "sol"
+      const symbol = key === "eth" ? "ETH" : "SOL";
+      const yahooSym = symbol + "-USD";
+      const wkKey = key + "Weekly";
+      const dyKey = key + "Daily";
+      const pxKey = key + "Price";
+      const liveKey = key + "Live";
+      const srcKey = key + "Source";
+      const fromKey = key + "From";
+      try {
+        const j = await getJSON("/api/crypto-overlay-history?symbol=" + symbol, 25000);
+        if (j && j.ok && ((j.weekly && j.weekly.length) || (j.daily && j.daily.length))) {
+          state[wkKey] = unpackOverlayPairs(j.weekly);
+          state[dyKey] = unpackOverlayPairs(j.daily);
+          if (!state[wkKey].length && state[dyKey].length) {
+            state[wkKey] = state[dyKey].slice();
+          }
+          if (!state[dyKey].length && state[wkKey].length) {
+            state[dyKey] = state[wkKey].slice();
+          }
+          state[pxKey] = j.last != null
+            ? +j.last
+            : (state[dyKey].length ? state[dyKey][state[dyKey].length - 1].c : state[pxKey]);
+          state[liveKey] = true;
+          state[srcKey] = j.source || "Yahoo";
+          state[fromKey] = j.from || (state[wkKey].length ? state[wkKey][0].t.toISOString().slice(0, 10) : null);
+          return;
+        }
+      } catch (e) { /* same-origin feed down — try Yahoo in browser */ }
+      try {
+        const [w, d] = await Promise.all([
+          getJSONAny(yahooCryptoUrls(yahooSym, "1wk", "max")),
+          getJSONAny(yahooCryptoUrls(yahooSym, "1d", "max")),
+        ]);
+        const weekly = parseYahoo(w);
+        const daily = parseYahoo(d);
+        if (weekly.rows.length) state[wkKey] = weekly.rows;
+        if (daily.rows.length) state[dyKey] = daily.rows;
+        state[pxKey] = daily.price || weekly.price || state[pxKey];
+        state[liveKey] = !!(state[wkKey].length || state[dyKey].length);
+        state[srcKey] = "Yahoo (browser)";
+        state[fromKey] = state[wkKey].length
+          ? state[wkKey][0].t.toISOString().slice(0, 10)
+          : (state[dyKey].length ? state[dyKey][0].t.toISOString().slice(0, 10) : null);
+      } catch (e) {
+        state[liveKey] = false;
+        state[srcKey] = state[srcKey] || "unavailable";
+      }
+    }
+    async function fetchEth() { return fetchCryptoOverlay("eth"); }
+    async function fetchSol() { return fetchCryptoOverlay("sol"); }
     async function fetchSpot() {
+
       try {
         const j = await getJSON("/api/btc-info", 8000);
         if (j && j.ok && j.btcPrice != null) return Number(j.btcPrice);
@@ -603,28 +712,70 @@
         font: { size: 10, color, family: "system-ui, sans-serif" },
       };
     }
-    function mstrTrace(rows, name) {
+    function overlayTrace(rows, name, color, yaxis, digits) {
+      const d = digits == null ? 2 : digits;
       return {
         type: "scatter", mode: "lines",
-        x: rows.map((d) => d.t),
-        y: rows.map((d) => d.c),
+        x: rows.map((r) => r.t),
+        y: rows.map((r) => r.c),
         name: name,
-        yaxis: "y2",
-        line: { color: COL.mstr, width: 1.8 },
-        hovertemplate: "%{x|%d %b %Y}<br>MSTR $%{y:,.2f}<extra></extra>",
+        yaxis: yaxis,
+        line: { color: color, width: 1.8 },
+        hovertemplate: "%{x|%d %b %Y}<br>" + name.split(" ")[0] + " $%{y:,." + d + "f}<extra></extra>",
       };
     }
-    function yaxis2(log) {
-      return {
+    function mstrTrace(rows, name) {
+      return overlayTrace(rows, name, COL.mstr, "y2", 2);
+    }
+    function ethTrace(rows, name) {
+      return overlayTrace(rows, name, COL.eth, "y3", 2);
+    }
+    function solTrace(rows, name) {
+      return overlayTrace(rows, name, COL.sol, "y4", 2);
+    }
+    function overlayAxis(color, title, log, position) {
+      const ax = {
         overlaying: "y",
         side: "right",
         type: log ? "log" : "linear",
         showgrid: false,
         zeroline: false,
         tickprefix: "$",
-        tickfont: { size: 10, color: COL.mstr },
-        title: { text: "MSTR", font: { size: 10, color: COL.mstr }, standoff: 6 },
+        tickfont: { size: 10, color: color },
+        title: { text: title, font: { size: 10, color: color }, standoff: 6 },
       };
+      if (position != null) {
+        ax.anchor = "free";
+        ax.position = position;
+      }
+      return ax;
+    }
+    function yaxis2(log) {
+      return overlayAxis(COL.mstr, "MSTR", log, null);
+    }
+    function activeOverlayCount() {
+      let n = 0;
+      if (state.showMstr && (state.mstrWeekly.length || state.mstrDaily.length)) n += 1;
+      if (state.showEth && (state.ethWeekly.length || state.ethDaily.length)) n += 1;
+      if (state.showSol && (state.solWeekly.length || state.solDaily.length)) n += 1;
+      return n;
+    }
+    function applyOverlayAxes(layout, log, flags) {
+      const f = flags || {};
+      const axes = [];
+      if (f.mstr) axes.push({ key: "yaxis2", color: COL.mstr, title: "MSTR" });
+      if (f.eth) axes.push({ key: "yaxis3", color: COL.eth, title: "ETH" });
+      if (f.sol) axes.push({ key: "yaxis4", color: COL.sol, title: "SOL" });
+      // Stagger free-anchored right axes when more than one is on.
+      const positions = axes.length <= 1
+        ? [null]
+        : axes.length === 2
+          ? [1.0, 0.94]
+          : [1.0, 0.94, 0.88];
+      for (let i = 0; i < axes.length; i++) {
+        layout[axes[i].key] = overlayAxis(axes[i].color, axes[i].title, log, positions[i]);
+      }
+      return axes.length;
     }
     function normaliseXMode(mode) {
       let m = mode || "4y";
@@ -892,7 +1043,10 @@
       if (!w.length) return;
       const x = w.map((d) => d.t);
       const y = w.map((d) => d.c);
-      const overlay = state.showMstr && state.mstrWeekly.length;
+      const mstrOn = state.showMstr && state.mstrWeekly.length;
+      const ethOn = state.showEth && state.ethWeekly.length;
+      const solOn = state.showSol && state.solWeekly.length;
+      const anyOverlay = mstrOn || ethOn || solOn;
       const events = snapEventsToSeries(CYCLE_EVENTS, w);
       const traces = [
         {
@@ -917,7 +1071,9 @@
           hovertemplate: "%{text}<br>%{x|%b %Y}<br>$%{y:,.2f}<extra></extra>",
         },
       ];
-      if (overlay) traces.push(mstrTrace(state.mstrWeekly, "MSTR weekly"));
+      if (mstrOn) traces.push(mstrTrace(state.mstrWeekly, "MSTR weekly"));
+      if (ethOn) traces.push(ethTrace(state.ethWeekly, "ETH weekly"));
+      if (solOn) traces.push(solTrace(state.solWeekly, "SOL weekly"));
       if (state.price) {
         traces.push({
           type: "scatter", mode: "markers+text",
@@ -933,7 +1089,7 @@
         return vline(e.t, e.color, e.projected ? "dash" : "solid", e.projected ? 1.7 : 1.35);
       });
       const annotations = [];
-      if (overlay) {
+      if (mstrOn) {
         shapes.push(vline(FRAMEWORK.mstrTreasury, "rgba(240,163,107,0.55)", "dot", 1.2));
         annotations.push({
           x: FRAMEWORK.mstrTreasury, y: 0.88, yref: "paper",
@@ -942,6 +1098,8 @@
           font: { size: 10, color: COL.mstr },
         });
       }
+      const nOv = (mstrOn ? 1 : 0) + (ethOn ? 1 : 0) + (solOn ? 1 : 0);
+      const rightPad = nOv === 0 ? 96 : (nOv === 1 ? 72 : (nOv === 2 ? 96 : 118));
       const layout = plotLayout({
         dragmode: "zoom",
         uirevision: "cycle-" + (state.xRangeMode || "4y") + (state.logScale ? "-log" : "-lin"),
@@ -952,6 +1110,7 @@
           tickfont: { size: 10, color: COL.font },
           fixedrange: false,
           autorange: false,
+          domain: nOv > 1 ? [0, 0.88] : undefined,
         },
         yaxis: {
           type: state.logScale ? "log" : "linear",
@@ -962,15 +1121,15 @@
           range: cycleYRange(),
         },
         shapes, annotations,
-        margin: { l: 62, r: overlay ? 72 : 96, t: 12, b: 40 },
-        showlegend: overlay,
-        legend: overlay ? {
+        margin: { l: 62, r: rightPad, t: 12, b: 40 },
+        showlegend: anyOverlay,
+        legend: anyOverlay ? {
           x: 0.01, y: 0.98, bgcolor: "rgba(11,21,36,0.7)",
           bordercolor: "rgba(28,44,66,0.8)", borderwidth: 1,
           font: { size: 10, color: COL.font },
         } : undefined,
       });
-      if (overlay) layout.yaxis2 = yaxis2(state.logScale);
+      applyOverlayAxes(layout, state.logScale, { mstr: mstrOn, eth: ethOn, sol: solOn });
       Plotly.react("cycleChart", traces, layout, {
         responsive: true,
         displayModeBar: true,
@@ -990,16 +1149,23 @@
       const ma200 = FRAMEWORK.pinMa200 || state.ma200;
       const lastX = x.length ? x[x.length - 1] : new Date();
       const mstrRows = state.mstrDaily.filter((r) => r.t >= cutoff);
-      const overlay = state.showMstr && mstrRows.length;
+      const ethRows = state.ethDaily.filter((r) => r.t >= cutoff);
+      const solRows = state.solDaily.filter((r) => r.t >= cutoff);
+      const mstrOn = state.showMstr && mstrRows.length;
+      const ethOn = state.showEth && ethRows.length;
+      const solOn = state.showSol && solRows.length;
+      const anyOverlay = mstrOn || ethOn || solOn;
       const traces = [{
         type: "scatter", mode: "lines",
         x, y, name: "BTC",
         line: { color: COL.line, width: 2.2 },
-        fill: overlay ? "none" : "tozeroy",
+        fill: anyOverlay ? "none" : "tozeroy",
         fillcolor: "rgba(76,159,255,0.07)",
         hovertemplate: "%{x|%d %b %Y}<br>BTC $%{y:,.0f}<extra></extra>",
       }];
-      if (overlay) traces.push(mstrTrace(mstrRows, "MSTR"));
+      if (mstrOn) traces.push(mstrTrace(mstrRows, "MSTR"));
+      if (ethOn) traces.push(ethTrace(ethRows, "ETH"));
+      if (solOn) traces.push(solTrace(solRows, "SOL"));
       if (state.price) {
         traces.push({
           type: "scatter", mode: "markers",
@@ -1031,6 +1197,8 @@
       }
       const yRange = moveYRange(xr, rows);
       const moveH = ($("moveChart") && $("moveChart").clientHeight) || 340;
+      const nOvMove = (mstrOn ? 1 : 0) + (ethOn ? 1 : 0) + (solOn ? 1 : 0);
+      const rightPad = anyOverlay ? (nOvMove > 1 ? 96 : 64) : 210;
       const layout = plotLayout({
         dragmode: "zoom",
         uirevision: "move-" + moveXRangeMode() + (state.chartsCoupled ? "-c" : "-u"),
@@ -1041,6 +1209,7 @@
           tickfont: { size: 10, color: COL.font },
           fixedrange: false,
           autorange: false,
+          domain: nOvMove > 1 ? [0, 0.88] : undefined,
         },
         yaxis: {
           gridcolor: COL.grid, tickprefix: "$", range: yRange,
@@ -1048,15 +1217,15 @@
           autorange: false,
         },
         shapes, annotations,
-        margin: { l: 58, r: overlay ? 64 : 210, t: 36, b: 36 },
-        showlegend: !!overlay,
-        legend: overlay ? {
+        margin: { l: 58, r: rightPad, t: 36, b: 36 },
+        showlegend: !!anyOverlay,
+        legend: anyOverlay ? {
           x: 0.01, y: 0.98, bgcolor: "rgba(11,21,36,0.7)",
           bordercolor: "rgba(28,44,66,0.8)", borderwidth: 1,
           font: { size: 10, color: COL.font },
         } : undefined,
       });
-      if (overlay) layout.yaxis2 = yaxis2(false);
+      applyOverlayAxes(layout, false, { mstr: mstrOn, eth: ethOn, sol: solOn });
       Plotly.react("moveChart", traces, layout, { responsive: true, displayModeBar: true, displaylogo: false, scrollZoom: true, modeBarButtonsToRemove: ["lasso2d", "select2d"] });
     }
     function mstrVsBtcHint() {
@@ -1071,6 +1240,30 @@
       const bPct = ((b1 - b0) / b0) * 100;
       const mPct = ((m1 - m0) / m0) * 100;
       const extra = mPct - bPct;
+      const sign = extra >= 0 ? "+" : "";
+      return "live · " + sign + extra.toFixed(1) + "pp vs BTC in window";
+    }
+    function cryptoOverlayHint(key, offLabel) {
+      const show = key === "eth" ? state.showEth : state.showSol;
+      const live = key === "eth" ? state.ethLive : state.solLive;
+      const src = key === "eth" ? state.ethSource : state.solSource;
+      const from = key === "eth" ? state.ethFrom : state.solFrom;
+      const daily = key === "eth" ? state.ethDaily : state.solDaily;
+      if (!show) return offLabel + " · tap overlay";
+      if (!live || !daily.length) {
+        return (src || "loading") + (from ? " · from " + from : "");
+      }
+      const cutoff = moveCutoff();
+      const btc = movePriceRows(cutoff);
+      const rows = daily.filter((r) => r.t >= cutoff);
+      if (btc.length < 2 || rows.length < 2) {
+        return (src || "live") + (from ? " · from " + from : " · overlay on");
+      }
+      const b0 = btc[0].c, b1 = btc[btc.length - 1].c;
+      const c0 = rows[0].c, c1 = rows[rows.length - 1].c;
+      const bPct = ((b1 - b0) / b0) * 100;
+      const cPct = ((c1 - c0) / c0) * 100;
+      const extra = cPct - bPct;
       const sign = extra >= 0 ? "+" : "";
       return "live · " + sign + extra.toFixed(1) + "pp vs BTC in window";
     }
@@ -1149,12 +1342,28 @@
       }
       $("mstrNow").textContent = state.mstrPrice != null ? usd(state.mstrPrice, 2) : "—";
       $("mstrHint").textContent = mstrVsBtcHint();
+      $("ethNow").textContent = state.ethPrice != null ? usd(state.ethPrice, 2) : "—";
+      $("ethHint").textContent = cryptoOverlayHint("eth", "Ethereum");
+      $("solNow").textContent = state.solPrice != null ? usd(state.solPrice, 2) : "—";
+      $("solHint").textContent = cryptoOverlayHint("sol", "Solana");
       $("updated").textContent = "Updated " + new Date().toLocaleString();
     }
     function syncMstrButtons() {
       document.querySelectorAll("[data-mstr-toggle]").forEach((btn) => {
         btn.classList.toggle("on", state.showMstr);
         btn.textContent = state.showMstr ? "MSTR on" : "MSTR overlay";
+      });
+    }
+    function syncEthButtons() {
+      document.querySelectorAll("[data-eth-toggle]").forEach((btn) => {
+        btn.classList.toggle("on", state.showEth);
+        btn.textContent = state.showEth ? "ETH on" : "ETH overlay";
+      });
+    }
+    function syncSolButtons() {
+      document.querySelectorAll("[data-sol-toggle]").forEach((btn) => {
+        btn.classList.toggle("on", state.showSol);
+        btn.textContent = state.showSol ? "SOL on" : "SOL overlay";
       });
     }
     async function setMstr(on) {
@@ -1167,6 +1376,44 @@
         drawMove();
         paintStats();
         fetchMstr().then(function () {
+          drawCycle();
+          drawMove();
+          paintStats();
+        });
+        return;
+      }
+      drawCycle();
+      drawMove();
+      paintStats();
+    }
+    async function setEth(on) {
+      state.showEth = on;
+      storageSet(STORE_ETH, on ? "1" : "0");
+      syncEthButtons();
+      if (on) {
+        drawCycle();
+        drawMove();
+        paintStats();
+        fetchEth().then(function () {
+          drawCycle();
+          drawMove();
+          paintStats();
+        });
+        return;
+      }
+      drawCycle();
+      drawMove();
+      paintStats();
+    }
+    async function setSol(on) {
+      state.showSol = on;
+      storageSet(STORE_SOL, on ? "1" : "0");
+      syncSolButtons();
+      if (on) {
+        drawCycle();
+        drawMove();
+        paintStats();
+        fetchSol().then(function () {
           drawCycle();
           drawMove();
           paintStats();
@@ -1207,6 +1454,8 @@
         console.warn("btc-history primary failed", e);
       }
       const tasks = [fetchMstr()];
+      if (state.showEth) tasks.push(fetchEth());
+      if (state.showSol) tasks.push(fetchSol());
       if (!weekly) tasks.push(fetchWeekly().then(function (w) { weekly = w; }));
       if (!daily) tasks.push(fetchDaily().then(function (d) { daily = d; }));
       await Promise.all(tasks);
@@ -1283,6 +1532,12 @@
     document.querySelectorAll("[data-mstr-toggle]").forEach((btn) => {
       btn.onclick = () => setMstr(!state.showMstr);
     });
+    document.querySelectorAll("[data-eth-toggle]").forEach((btn) => {
+      btn.onclick = () => setEth(!state.showEth);
+    });
+    document.querySelectorAll("[data-sol-toggle]").forEach((btn) => {
+      btn.onclick = () => setSol(!state.showSol);
+    });
     async function boot() {
       if (typeof Plotly === "undefined") {
         showErr("Plotly failed to load");
@@ -1293,6 +1548,8 @@
         setLive(false, "Loading history…");
         loadEmbeddedMstr();
         syncMstrButtons();
+        syncEthButtons();
+        syncSolButtons();
         syncCoupledClass();
         syncXRangeButtons();
         syncUncoupleButton();
