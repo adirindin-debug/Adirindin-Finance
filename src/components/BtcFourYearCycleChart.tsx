@@ -15,9 +15,10 @@ import { useState } from "react";
 import { halvingHoverRows, halvingProjectedRows } from "@/lib/bitcoinHalving";
 import {
   CYCLE_EXTREMES_DISCLAIMER,
+  PROJECTED_ANCHOR_NOTE,
   PROJECTED_DATES_NOTE,
   THEORY_CYCLE_YEARS,
-  approxMonthYear,
+  approxFullDate,
   cycleBottomHoverRows,
   cycleTopHoverRows,
   projectedLowHoverRows,
@@ -556,10 +557,10 @@ export default function BtcFourYearCycleChart() {
             <title>
               {`Live · ${liveDayLabel.format(new Date(nowMs as number))} (Melbourne) · ${
                 liveInfo.descending
-                  ? `~${liveInfo.daysToTrough} days to the ${approxMonthYear(
+                  ? `~${liveInfo.daysToTrough} days to the ${approxFullDate(
                       liveInfo.nextLowMs,
                     )} theory trough`
-                  : `~3y ascent toward the ${approxMonthYear(liveInfo.peakMs)} theory peak`
+                  : `~3y ascent toward the ${approxFullDate(liveInfo.peakMs)} theory peak`
               } (equal ~${THEORY_CYCLE_YEARS}y timing · NFA)`}
             </title>
             <circle
@@ -677,6 +678,11 @@ export default function BtcFourYearCycleChart() {
             <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb4]">
               Projected (theoretical)
             </p>
+            {tip !== "halving" ? (
+              <p className="mt-0.5 text-[10px] italic text-[#7a8aa0]">
+                {PROJECTED_ANCHOR_NOTE}
+              </p>
+            ) : null}
             <ul className="mt-1.5 space-y-1">
               {(tip === "halving"
                 ? halvingProjected

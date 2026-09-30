@@ -77,27 +77,53 @@ export function approxMonthYear(ms: number): string {
   return `~${monthYear.format(new Date(ms))}`;
 }
 
+const fullDateParts = new Intl.DateTimeFormat("en-AU", {
+  timeZone: "UTC",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+/** "Tue 6 Oct 2026" — weekday computed from the calendar, not hand-typed. */
+export function fullDate(ms: number): string {
+  const parts = fullDateParts.formatToParts(new Date(ms));
+  const get = (t: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("weekday")} ${get("day")} ${get("month")} ${get("year")}`;
+}
+
+/** "~Tue 6 Oct 2026" — theoretical date on equal ~4y spacing. */
+export function approxFullDate(ms: number): string {
+  return `~${fullDate(ms)}`;
+}
+
+/** "Mon 6 Oct 2025" — the desk top every projected date is anchored to. */
+export const THEORY_ANCHOR_LABEL = fullDate(theoryPeakMs(0));
+export const PROJECTED_ANCHOR_NOTE = `Anchored to the ${THEORY_ANCHOR_LABEL} top`;
+
 export type ProjectedRow = { title: string; detail: string };
 
 /**
- * Projected (theoretical) cycle peaks: Oct 2025 top + 4y, + 8y
- * → ~Oct 2029, ~Oct 2033.
+ * Projected (theoretical) cycle peaks: Mon 6 Oct 2025 top + 4y, + 8y
+ * → ~Sat 6 Oct 2029, ~Thu 6 Oct 2033 (weekdays computed at runtime).
  */
 export const PROJECTED_CYCLE_PEAKS: ReadonlyArray<ProjectedRow> = [1, 2].map((lap) => ({
   title: `Projected peak (top + ${lap * THEORY_CYCLE_YEARS}y)`,
-  detail: approxMonthYear(theoryPeakMs(lap)),
+  detail: approxFullDate(theoryPeakMs(lap)),
 }));
 
 /**
- * Projected (theoretical) cycle lows: each ~1y after a theory peak
- * → ~Oct 2026 (current-cycle theory trough), ~Oct 2030, ~Oct 2034.
+ * Projected (theoretical) cycle lows: each 1y after a theory peak
+ * → ~Tue 6 Oct 2026 (current-cycle theory trough), ~Sun 6 Oct 2030,
+ *   ~Fri 6 Oct 2034 (weekdays computed at runtime).
  */
 export const PROJECTED_CYCLE_LOWS: ReadonlyArray<ProjectedRow> = [0, 1, 2].map((lap) => ({
   title:
     lap === 0
       ? "Theory trough (top + 1y)"
       : `Projected low (top + ${lap * THEORY_CYCLE_YEARS + THEORY_DRAWDOWN_YEARS}y)`,
-  detail: approxMonthYear(theoryTroughMs(lap)),
+  detail: approxFullDate(theoryTroughMs(lap)),
 }));
 
 export const PROJECTED_DATES_NOTE =
