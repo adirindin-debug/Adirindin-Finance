@@ -23,6 +23,30 @@ export const NEXT_HALVING =
 
 export const NEXT_HALVING_BLOCK = 1_050_000;
 
+/**
+ * Projected (theoretical) halving after next: next estimate + another
+ * 210,000 blocks × ~10 min (~4 years) → ~Apr 2032. Month + year only.
+ */
+export const PROJECTED_HALVING_AFTER_NEXT =
+  NEXT_HALVING + BLOCKS_PER_HALVING * ESTIMATED_BLOCK_TIME_MS;
+export const PROJECTED_HALVING_AFTER_NEXT_BLOCK = 1_260_000;
+
+const auMonthYear = new Intl.DateTimeFormat("en-AU", {
+  timeZone: "UTC",
+  month: "short",
+  year: "numeric",
+});
+
+/** Projected (theoretical) halving rows for the theory-chart hover card. */
+export function halvingProjectedRows(): Array<{ title: string; detail: string }> {
+  return [
+    {
+      title: `6th · block ${PROJECTED_HALVING_AFTER_NEXT_BLOCK.toLocaleString("en-AU")}`,
+      detail: `~${auMonthYear.format(new Date(PROJECTED_HALVING_AFTER_NEXT))}`,
+    },
+  ];
+}
+
 export function daysSinceHalving(now = Date.now()) {
   return Math.floor((now - LAST_HALVING) / DAY_MS);
 }

@@ -10,7 +10,13 @@
  * after end-2048. Outward pulse — not a decorative tour.
  * Active-cycle years render bold yellow (current lap before end-2031; next-lap
  * theory years after). Research only — not prices, not predictive, not for timing.
+ * Live is computed client-side from the real current date after mount and
+ * re-ticks hourly (not frozen at build / static prerender).
  */
+
+"use client";
+
+import { useLiveNow } from "@/lib/useLiveNow";
 
 type YearStack = {
   years: string[];
@@ -471,12 +477,15 @@ export default function RealEstateCycleChart() {
   const BOTTOM_PAD = 36;
   const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
 
-  const live = livePositionFromNow();
-  const pastLow = isPastNextLow();
+  /* null until mounted — SSR/prerender renders no dot rather than a stale one */
+  const nowMs = useLiveNow();
+  const live = nowMs === null ? null : livePositionFromNow(nowMs);
+  /* Pre-mount fallback false = current-lap highlight (correct until end-2031) */
+  const pastLow = nowMs !== null && isPastNextLow(nowMs);
   /** Below-left of dot — crest has peak years (above-right) + left Winner’s Curse */
   const liveLabelDx = -42;
   /** Flip label above the dot while it rides the dashed wrap (2031) so it clears the caption */
-  const liveLabelDy = live.y > WRAP_Y - 20 ? -12 : 20;
+  const liveLabelDy = live && live.y > WRAP_Y - 20 ? -12 : 20;
 
   /** Midpoint of final run-up (LAND_ACCEL → peak) — Winner’s Curse phase aim */
   const winnersCurseAim = {
@@ -673,7 +682,7 @@ export default function RealEstateCycleChart() {
             fontFamily="system-ui, sans-serif"
             fontWeight="700"
           >
-            Winner's Curse
+            Winner&apos;s Curse
           </text>
           <line
             x1={winnersCurseLabel.x + 4}
@@ -700,88 +709,90 @@ export default function RealEstateCycleChart() {
         </text>
 
         {/* Green Live dot — classic lap then next-lap wrap on same loop; pulse resonates out */}
-        <g
-          aria-label="Live marker positioned by calendar date on the cycle path (classic lap, then next-lap wrap)"
-          filter="url(#live-glow)"
-        >
-          {/* Expanding opacity rings — resonate outward from the fixed dot (~2.5s) */}
-          <circle
-            cx={live.x}
-            cy={live.y}
-            r="6"
-            fill="none"
-            stroke="#2fd67b"
-            strokeWidth="1.5"
-            opacity="0"
+        {live ? (
+          <g
+            aria-label="Live marker positioned by calendar date on the cycle path (classic lap, then next-lap wrap)"
+            filter="url(#live-glow)"
           >
-            <animate
-              attributeName="r"
-              values="5;20"
-              dur="2.5s"
-              repeatCount="indefinite"
+            {/* Expanding opacity rings — resonate outward from the fixed dot (~2.5s) */}
+            <circle
+              cx={live.x}
+              cy={live.y}
+              r="6"
+              fill="none"
+              stroke="#2fd67b"
+              strokeWidth="1.5"
+              opacity="0"
+            >
+              <animate
+                attributeName="r"
+                values="5;20"
+                dur="2.5s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0.75;0"
+                dur="2.5s"
+                repeatCount="indefinite"
+              />
+            </circle>
+            <circle
+              cx={live.x}
+              cy={live.y}
+              r="6"
+              fill="none"
+              stroke="#7dffb0"
+              strokeWidth="1"
+              opacity="0"
+            >
+              <animate
+                attributeName="r"
+                values="5;20"
+                dur="2.5s"
+                begin="1.25s"
+                repeatCount="indefinite"
+              />
+              <animate
+                attributeName="opacity"
+                values="0.55;0"
+                dur="2.5s"
+                begin="1.25s"
+                repeatCount="indefinite"
+              />
+            </circle>
+            <circle
+              cx={live.x}
+              cy={live.y}
+              r="5.5"
+              fill="#2fd67b"
+              stroke="#9dffc4"
+              strokeWidth="1.5"
             />
-            <animate
-              attributeName="opacity"
-              values="0.75;0"
-              dur="2.5s"
-              repeatCount="indefinite"
+            <circle cx={live.x} cy={live.y} r="2" fill="#0a0a0a" opacity="0.55" />
+            <rect
+              x={live.x + liveLabelDx}
+              y={live.y + liveLabelDy - 10}
+              width="34"
+              height="14"
+              rx="3"
+              fill="#0f2418"
+              stroke="#2fd67b"
+              strokeWidth="1"
             />
-          </circle>
-          <circle
-            cx={live.x}
-            cy={live.y}
-            r="6"
-            fill="none"
-            stroke="#7dffb0"
-            strokeWidth="1"
-            opacity="0"
-          >
-            <animate
-              attributeName="r"
-              values="5;20"
-              dur="2.5s"
-              begin="1.25s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="opacity"
-              values="0.55;0"
-              dur="2.5s"
-              begin="1.25s"
-              repeatCount="indefinite"
-            />
-          </circle>
-          <circle
-            cx={live.x}
-            cy={live.y}
-            r="5.5"
-            fill="#2fd67b"
-            stroke="#9dffc4"
-            strokeWidth="1.5"
-          />
-          <circle cx={live.x} cy={live.y} r="2" fill="#0a0a0a" opacity="0.55" />
-          <rect
-            x={live.x + liveLabelDx}
-            y={live.y + liveLabelDy - 10}
-            width="34"
-            height="14"
-            rx="3"
-            fill="#0f2418"
-            stroke="#2fd67b"
-            strokeWidth="1"
-          />
-          <text
-            x={live.x + liveLabelDx + 17}
-            y={live.y + liveLabelDy}
-            textAnchor="middle"
-            fill="#7dffb0"
-            fontSize="9"
-            fontFamily="system-ui, sans-serif"
-            fontWeight="800"
-          >
-            Live
-          </text>
-        </g>
+            <text
+              x={live.x + liveLabelDx + 17}
+              y={live.y + liveLabelDy}
+              textAnchor="middle"
+              fill="#7dffb0"
+              fontSize="9"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="800"
+            >
+              Live
+            </text>
+          </g>
+        ) : null}
 
         {/* Phase labels under the plot */}
         <text

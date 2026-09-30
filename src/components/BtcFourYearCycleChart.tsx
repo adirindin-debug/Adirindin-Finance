@@ -3,6 +3,8 @@
  * Nike-tick silhouette: simple ~3-year rise, then ~1-year drop onto the
  * next trough. Green Live marker is calendar-dated (Melbourne) along the
  * path and wraps onto the same loop after ~1 year down from the theory peak.
+ * Live is computed client-side from the real current date after mount and
+ * re-ticks hourly (not frozen at build / static prerender).
  * No stacked calendar years on the diagram — phase labels only.
  * Research only — not prices, not predictive, NFA.
  */
@@ -10,12 +12,20 @@
 "use client";
 
 import { useState } from "react";
-import { halvingHoverRows } from "@/lib/bitcoinHalving";
+import { halvingHoverRows, halvingProjectedRows } from "@/lib/bitcoinHalving";
 import {
   CYCLE_EXTREMES_DISCLAIMER,
+  PROJECTED_DATES_NOTE,
+  THEORY_CYCLE_YEARS,
+  approxMonthYear,
   cycleBottomHoverRows,
   cycleTopHoverRows,
+  projectedLowHoverRows,
+  projectedPeakHoverRows,
+  theoryPeakMs,
+  theoryTroughMs,
 } from "@/lib/btcCycleExtremes";
+import { useLiveNow } from "@/lib/useLiveNow";
 type Pt = { x: number; y: number };
 
 /** Nike-tick vertices (not price data). ~75% width ascending, ~25% descending. */
@@ -46,51 +56,33 @@ const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}
 
 const SVG_W = 820;
 
-type DatedWaypoint = { at: number; points: Pt[] };
-
-function dateUtcMs(y: number, m: number, d: number): number {
-  return Date.UTC(y, m - 1, d, 23, 59, 59, 999);
-}
-
-function endOfYearMs(year: number): number {
-  return dateUtcMs(year, 12, 31);
-}
-
 /**
- * Classic lap (internal Live timing only — not drawn as year labels).
- * Equal 4y timing from theory peak ~Oct 6 2025: ~3y up / ~1y down.
- * Next low = peak + 1y (~Oct 6 2026). Schematic timing theory — NFA.
+ * Live timing (internal only — not drawn as year labels).
+ * Equal ~4y laps anchored on the desk/theory peak Mon 6 Oct 2025
+ * (see `btcCycleExtremes.ts`): lap k runs
+ *   theory trough (k−1) → theory peak k: ~3y ascent along TROUGH → MID_UP → PEAK
+ *   theory peak k → theory trough k:     ~1y descent along PEAK → NEXT_TROUGH
+ * Current lap: ~Oct 2022 → ~Oct 2025 peak → ~Oct 2026 theory trough, then the
+ * dot wraps onto the same loop (~Oct 2029 peak, ~Oct 2030 trough, …) with no
+ * end date. Schematic timing theory — NFA.
  */
-const THEORY_PEAK_MS = dateUtcMs(2025, 10, 6);
-const THEORY_LOW_MS = dateUtcMs(2022, 10, 6); /* peak − 3y */
-const THEORY_NEXT_LOW_MS = dateUtcMs(2026, 10, 6); /* peak + 1y */
+type TheoryLap = { lowMs: number; peakMs: number; nextLowMs: number };
 
-const YEAR_WAYPOINTS: DatedWaypoint[] = [
-  { at: THEORY_LOW_MS, points: [TROUGH] },
-  {
-    at: THEORY_PEAK_MS,
-    points: [TROUGH, MID_UP, PEAK],
-  },
-  {
-    at: THEORY_NEXT_LOW_MS,
-    points: [PEAK, NEXT_TROUGH],
-  },
-];
+function theoryLapAt(nowMs: number): TheoryLap {
+  const approxYears =
+    (nowMs - theoryPeakMs(0)) / (365.25 * 86_400_000) / THEORY_CYCLE_YEARS;
+  let lap = Math.floor(approxYears) - 1;
+  /* Step forward until now falls inside (trough k−1, trough k]. */
+  while (theoryTroughMs(lap) < nowMs) lap += 1;
+  while (theoryTroughMs(lap - 1) >= nowMs) lap -= 1;
+  return {
+    lowMs: theoryTroughMs(lap - 1),
+    peakMs: theoryPeakMs(lap),
+    nextLowMs: theoryTroughMs(lap),
+  };
+}
 
-/** Next lap on the same Nike-tick loop after peak + 1y. */
-const NEXT_LAP_WAYPOINTS: DatedWaypoint[] = [
-  { at: THEORY_NEXT_LOW_MS, points: [TROUGH] },
-  {
-    at: dateUtcMs(2029, 10, 6), /* +3y ascent */
-    points: [TROUGH, MID_UP, PEAK],
-  },
-  {
-    at: dateUtcMs(2030, 10, 6), /* +1y descent */
-    points: [PEAK, NEXT_TROUGH],
-  },
-];
-
-function melbourneYmd(nowMs: number = Date.now()): { y: number; m: number; d: number } {
+function melbourneYmd(nowMs: number): { y: number; m: number; d: number } {
   const melParts = new Intl.DateTimeFormat("en-AU", {
     timeZone: "Australia/Melbourne",
     year: "numeric",
@@ -104,11 +96,10 @@ function melbourneYmd(nowMs: number = Date.now()): { y: number; m: number; d: nu
   };
 }
 
-/** True once Melbourne calendar is past theory next-low (peak + 1y). */
-function isPastTheoryNextLow(nowMs: number = Date.now()): boolean {
+/** Melbourne calendar day → noon UTC ms (Live moves once per Melbourne day). */
+function melbourneDayMs(nowMs: number): number {
   const { y, m, d } = melbourneYmd(nowMs);
-  const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  return now > THEORY_NEXT_LOW_MS;
+  return Date.UTC(y, m - 1, d, 12, 0, 0, 0);
 }
 
 function dist(a: Pt, b: Pt): number {
@@ -139,45 +130,37 @@ function pointAlong(points: Pt[], t: number): Pt {
   return points[points.length - 1];
 }
 
-function livePositionOnWaypoints(now: number, waypoints: DatedWaypoint[]): Pt {
-  const ends = waypoints.map((w) => w.at);
-  if (now <= ends[0]) {
-    const first = waypoints[0];
-    return first.points[first.points.length - 1];
-  }
-  if (now >= ends[ends.length - 1]) {
-    const last = waypoints[waypoints.length - 1];
-    return last.points[last.points.length - 1];
-  }
-  for (let i = 0; i < waypoints.length - 1; i++) {
-    const t0 = ends[i];
-    const t1 = ends[i + 1];
-    if (now > t1) continue;
-    const frac = (now - t0) / (t1 - t0);
-    const a = waypoints[i];
-    const b = waypoints[i + 1];
-    if (b.points.length > 1) {
-      return pointAlong(b.points, frac);
-    }
-    const from = a.points[a.points.length - 1];
-    const to = b.points[b.points.length - 1];
-    return {
-      x: from.x + (to.x - from.x) * frac,
-      y: from.y + (to.y - from.y) * frac,
-    };
-  }
-  const last = waypoints[waypoints.length - 1];
-  return last.points[last.points.length - 1];
+type LiveInfo = {
+  pt: Pt;
+  daysToTrough: number;
+  descending: boolean;
+  peakMs: number;
+  nextLowMs: number;
+};
+
+function liveFromNow(nowMs: number): LiveInfo {
+  const now = melbourneDayMs(nowMs);
+  const { lowMs, peakMs, nextLowMs } = theoryLapAt(now);
+  const descending = now > peakMs;
+  const pt = descending
+    ? pointAlong([PEAK, NEXT_TROUGH], (now - peakMs) / (nextLowMs - peakMs))
+    : pointAlong([TROUGH, MID_UP, PEAK], (now - lowMs) / (peakMs - lowMs));
+  return {
+    pt,
+    daysToTrough: Math.max(0, Math.round((nextLowMs - now) / 86_400_000)),
+    descending,
+    peakMs,
+    nextLowMs,
+  };
 }
 
-function livePositionFromNow(nowMs: number = Date.now()): Pt {
-  const { y, m, d } = melbourneYmd(nowMs);
-  const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  if (now > THEORY_NEXT_LOW_MS) {
-    return livePositionOnWaypoints(now, NEXT_LAP_WAYPOINTS);
-  }
-  return livePositionOnWaypoints(now, YEAR_WAYPOINTS);
-}
+const liveDayLabel = new Intl.DateTimeFormat("en-AU", {
+  timeZone: "Australia/Melbourne",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
 
 function SpanArrow({
   x1,
@@ -233,14 +216,20 @@ export default function BtcFourYearCycleChart() {
   type TipKind = "halving" | "peaks" | "lows" | null;
   const [tip, setTip] = useState<TipKind>(null);
   const [lowsAt, setLowsAt] = useState<"cycle" | "next">("cycle");
-  const halvingRows = halvingHoverRows();
+  const nowMs = useLiveNow();
+  const halvingRows = halvingHoverRows(nowMs ?? undefined);
+  const halvingProjected = halvingProjectedRows();
   const peakRows = cycleTopHoverRows();
   const lowRows = cycleBottomHoverRows();
+  const peakProjected = projectedPeakHoverRows();
+  const lowProjected = projectedLowHoverRows();
 
-  const live = livePositionFromNow();
-  void isPastTheoryNextLow(); /* reserved if we re-add lap-aware accents later */
+  /* null until mounted — SSR/prerender renders no dot rather than a stale one */
+  const liveInfo = nowMs === null ? null : liveFromNow(nowMs);
+  const live = liveInfo?.pt ?? null;
   const liveLabelDx = -42;
-  const liveLabelDy = 20;
+  /* Near a trough the pill sits level-left so it clears the Cycle low / Next low labels */
+  const liveLabelDy = live && live.y > TROUGH.y - 30 ? 4 : 20;
 
   const tipPoint =
     tip === "halving"
@@ -261,7 +250,7 @@ export default function BtcFourYearCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Hover the blue halving tip or gold cycle low/peak dots for desk dates. Educational rough guide only — not a predictive model or financial advice"
+      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Hover the blue halving tip or gold cycle low/peak dots for desk dates and projected (theoretical) dates. Educational rough guide only — not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -561,50 +550,70 @@ export default function BtcFourYearCycleChart() {
           label="~1 year down"
         />
 
-        {/* Live pulse */}
-        <g filter="url(#btc-live-glow)" aria-label="Live position on cycle path">
-          <circle
-            className="btc-live-ring"
-            cx={live.x}
-            cy={live.y}
-            r={7}
-            fill="none"
-            stroke="#3dcc9a"
-            strokeWidth="2"
-          />
-          <circle cx={live.x} cy={live.y} r={5.5} fill="#3dcc9a" />
-          <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
-          <rect
-            x={live.x + liveLabelDx}
-            y={live.y + liveLabelDy - 10}
-            width="34"
-            height="14"
-            rx="3"
-            fill="#0f2418"
-            stroke="#3dcc9a"
-            strokeWidth="1"
-          />
-          <text
-            x={live.x + liveLabelDx + 17}
-            y={live.y + liveLabelDy}
-            textAnchor="middle"
-            fill="#7dffb0"
-            fontSize="9"
-            fontFamily="system-ui, sans-serif"
-            fontWeight="800"
-          >
-            Live
-          </text>
-        </g>
+        {/* Live pulse — client-computed from today's Melbourne date (hidden until mounted) */}
+        {live && liveInfo ? (
+          <g filter="url(#btc-live-glow)" aria-label="Live position on cycle path">
+            <title>
+              {`Live · ${liveDayLabel.format(new Date(nowMs as number))} (Melbourne) · ${
+                liveInfo.descending
+                  ? `~${liveInfo.daysToTrough} days to the ${approxMonthYear(
+                      liveInfo.nextLowMs,
+                    )} theory trough`
+                  : `~3y ascent toward the ${approxMonthYear(liveInfo.peakMs)} theory peak`
+              } (equal ~${THEORY_CYCLE_YEARS}y timing · NFA)`}
+            </title>
+            <circle
+              className="btc-live-ring"
+              cx={live.x}
+              cy={live.y}
+              r={7}
+              fill="none"
+              stroke="#3dcc9a"
+              strokeWidth="2"
+            />
+            <circle cx={live.x} cy={live.y} r={5.5} fill="#3dcc9a" />
+            <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
+            <rect
+              x={live.x + liveLabelDx}
+              y={live.y + liveLabelDy - 10}
+              width="34"
+              height="14"
+              rx="3"
+              fill="#0f2418"
+              stroke="#3dcc9a"
+              strokeWidth="1"
+            />
+            <text
+              x={live.x + liveLabelDx + 17}
+              y={live.y + liveLabelDy}
+              textAnchor="middle"
+              fill="#7dffb0"
+              fontSize="9"
+              fontFamily="system-ui, sans-serif"
+              fontWeight="800"
+            >
+              Live
+            </text>
+          </g>
+        ) : null}
       </g>
     </svg>
       {tip ? (
         <div
-          className={
+          className={`pointer-events-none absolute z-20 w-[min(18rem,90%)] rounded-lg border px-3 py-2.5 shadow-lg shadow-black/50 backdrop-blur-sm ${
             tip === "halving"
-              ? "pointer-events-none absolute z-20 w-[min(18rem,90%)] -translate-x-1/2 -translate-y-[108%] rounded-lg border border-[#3a6aa8] bg-[#0d1520]/95 px-3 py-2.5 shadow-lg shadow-black/50 backdrop-blur-sm"
-              : "pointer-events-none absolute z-20 w-[min(18rem,90%)] -translate-x-1/2 -translate-y-[108%] rounded-lg border border-[#8a6a20] bg-[#14100a]/95 px-3 py-2.5 shadow-lg shadow-black/50 backdrop-blur-sm"
-          }
+              ? "border-[#3a6aa8] bg-[#0d1520]/95"
+              : "border-[#8a6a20] bg-[#14100a]/95"
+          } ${
+            /* Keep cards on-screen: peak card opens below the crest; edge lows hug inward */
+            tip === "peaks" ? "translate-y-4" : "-translate-y-[108%]"
+          } ${
+            tip === "lows" && lowsAt === "next"
+              ? "-translate-x-[88%]"
+              : tip === "lows"
+                ? "-translate-x-[12%]"
+                : "-translate-x-1/2"
+          }`}
           style={{ left: `${tipLeftPct}%`, top: `${tipTopPct}%` }}
           role="tooltip"
         >
@@ -663,10 +672,49 @@ export default function BtcFourYearCycleChart() {
                     </li>
                   ))}
           </ul>
+          {/* Projected (theoretical) — dashed divider, italic, muted, ~ prefix */}
+          <div className="mt-2.5 border-t border-dashed border-[#3a4558] pt-2">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8b9bb4]">
+              Projected (theoretical)
+            </p>
+            <ul className="mt-1.5 space-y-1">
+              {(tip === "halving"
+                ? halvingProjected
+                : tip === "peaks"
+                  ? peakProjected
+                  : lowProjected
+              ).map((row) => (
+                <li
+                  key={`${row.title}-${row.detail}`}
+                  className="flex items-baseline justify-between gap-3 italic"
+                >
+                  <span className="flex items-center gap-1.5 text-[11px] text-[#7a8aa0]">
+                    <span
+                      aria-hidden
+                      className="inline-block h-2 w-2 shrink-0 rounded-full border border-dashed border-[#8b9bb4]"
+                    />
+                    {row.title}
+                  </span>
+                  <span className="shrink-0 font-mono text-[11px] text-[#a8b4c6]">
+                    {row.detail}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
           <p className="mt-2 text-[10px] leading-snug text-[#6b7a90]">
             {tip === "halving"
-              ? "Next date is the desk estimate (210,000 blocks × ~10 min) until that epoch lands. Educational only · NFA."
+              ? "Next date is the desk estimate (210,000 blocks × ~10 min) until that epoch lands; the 6th adds another ~210,000 blocks. Educational only · NFA."
               : CYCLE_EXTREMES_DISCLAIMER}
+          </p>
+          {tip === "lows" ? (
+            <p className="mt-1 text-[10px] leading-snug text-[#6b7a90]">
+              “Current bottom” is the desk-logged low so far; the Live dot follows the equal ~4y
+              theory trough.
+            </p>
+          ) : null}
+          <p className="mt-1 text-[10px] italic leading-snug text-[#8b9bb4]">
+            {PROJECTED_DATES_NOTE}
           </p>
         </div>
       ) : null}
