@@ -1,13 +1,14 @@
 /**
  * Classic “18.6 Year Real Estate Cycle theory” schematic (educational diagram).
  * Jagged phase line with stacked historical/framework years. Next-cycle
- * theory years (≈2032 / 2037 / 2039 / 2044 / 2046 / 2048) sit on the classic columns
+ * theory years (≈2031 / 2037 / 2039 / 2044 / 2046 / 2048) sit on the classic columns
  * (future above older) — a reset/wrap onto the same loop, not a linear
  * runway past 2030. Green Live marker is calendar-dated: classic year vertices
- * through end-2030, then wraps to recovery and walks the same geometric loop
- * on next-lap theory years (2032 / 2037 / 2039 / 2044 / 2046 / 2048), parking at the low
+ * through end-2030, then walks the dashed wrap during 2031 to reach the ~2031
+ * low (recovery column) at end-2031, and walks the same geometric loop on
+ * next-lap theory years (2031 / 2037 / 2039 / 2044 / 2046 / 2048), parking at the low
  * after end-2048. Outward pulse — not a decorative tour.
- * Active-cycle years render bold yellow (current lap before end-2030; next-lap
+ * Active-cycle years render bold yellow (current lap before end-2031; next-lap
  * theory years after). Research only — not prices, not predictive, not for timing.
  */
 
@@ -36,7 +37,7 @@ const POINTS = [
   { id: "peak", x: 610, y: 42 },
   /** Clear decline, trough near mid-slowdown depth (not below recovery) */
   { id: "downturn", x: 680, y: 230 },
-  /** Assumed ~2030 cycle low / restart — schematic framework, not a prediction */
+  /** ~2030 end-of-lap low zone; next restart ~2031 wraps to recovery — schematic framework, not a prediction */
   { id: "next", x: 760, y: 182 },
 ] as const;
 
@@ -55,8 +56,8 @@ const LAND_ACCEL = { x: 525, y: 128 };
 
 const YEAR_STACKS: Record<(typeof POINTS)[number]["id"], YearStack> = {
   recovery: {
-    /** Next-lap start above classic recovery years */
-    years: ["2032", "2012", "1994", "1975"],
+    /** Next-lap start (~2031 low) above classic recovery years */
+    years: ["2031", "2012", "1994", "1975"],
     placement: "above",
   },
   midPeak: {
@@ -119,6 +120,11 @@ type Pt = { x: number; y: number };
  * end-of-calendar-year on that vertex — so end-2026 sits at the peak.
  * Between 2024→2026 the path includes the unlabeled LAND_ACCEL inflection.
  */
+/** Next-cycle low / restart year (recovery column) — ~2012 + 18.6y. */
+const NEXT_LOW_YEAR = 2031;
+/** Y of the dashed wrap path under the plot (chart-local coordinates). */
+const WRAP_Y = 348;
+
 const YEAR_WAYPOINTS: { year: number; points: Pt[] }[] = [
   { year: 2012, points: [{ x: POINTS[0].x, y: POINTS[0].y }] },
   { year: 2019, points: [{ x: POINTS[1].x, y: POINTS[1].y }] },
@@ -134,18 +140,32 @@ const YEAR_WAYPOINTS: { year: number; points: Pt[] }[] = [
   },
   { year: 2028, points: [{ x: POINTS[5].x, y: POINTS[5].y }] },
   { year: 2030, points: [{ x: POINTS[6].x, y: POINTS[6].y }] },
+  /**
+   * Lap wrap during 2031: follow the dashed reset path under the plot from the
+   * 2030 low-zone vertex back to recovery, arriving at the ~2031 low at end-2031
+   * (same pattern as 2011→2012, 1993→1994, 1974→1975).
+   */
+  {
+    year: NEXT_LOW_YEAR,
+    points: [
+      { x: POINTS[6].x, y: POINTS[6].y },
+      { x: POINTS[6].x + 28, y: WRAP_Y },
+      { x: POINTS[0].x - 18, y: WRAP_Y },
+      { x: POINTS[0].x, y: POINTS[0].y },
+    ],
+  },
 ];
 
 /**
- * Next-lap theory years on the same geometric loop after the ~2030 reset.
- * Live jumps from the 2030 low to recovery, then walks these waypoints;
+ * Next-lap theory years on the same geometric loop after the ~2031 low.
+ * Live reaches recovery (2031 low) at end-2031 via the wrap, then walks these waypoints;
  * parks at the low after end-2048 (no third lap).
  * 2044 uses landBoom → LAND_ACCEL → peak (same silhouette idea as classic 2024→2026).
  * 2048 routes peak → downturn → next like classic peak→downturn→low.
  */
 const NEXT_LAP_WAYPOINTS: { year: number; points: Pt[] }[] = [
-  /** Restart / wrap start — recovery (leftmost vertex) at end-2030 */
-  { year: 2030, points: [{ x: POINTS[0].x, y: POINTS[0].y }] },
+  /** Restart / wrap start — recovery (leftmost vertex) at end-2031 (~2031 low) */
+  { year: NEXT_LOW_YEAR, points: [{ x: POINTS[0].x, y: POINTS[0].y }] },
   { year: 2037, points: [{ x: POINTS[1].x, y: POINTS[1].y }] },
   { year: 2039, points: [{ x: POINTS[2].x, y: POINTS[2].y }] },
   {
@@ -183,8 +203,8 @@ const CURRENT_CYCLE_YEARS = new Set([
   "2030",
 ]);
 
-/** Next-lap theory timing years — bold yellow only after the ~2030 low. */
-const NEXT_CYCLE_YEARS = new Set(["2032", "2037", "2039", "2044", "2046", "2048"]);
+/** Next-lap theory timing years — bold yellow only after the ~2031 low. */
+const NEXT_CYCLE_YEARS = new Set(["2031", "2037", "2039", "2044", "2046", "2048"]);
 
 /** Bold yellow for the active cycle highlight. */
 const ACTIVE_YEAR_FILL = "#ffe14a";
@@ -210,13 +230,13 @@ function melbourneYmd(nowMs: number = Date.now()): { y: number; m: number; d: nu
 }
 
 /**
- * True once Melbourne calendar is past end-2030 (assumed ~2030 low / restart).
+ * True once Melbourne calendar is past end-2031 (assumed ~2031 low / restart).
  * Before that, classic current-lap years stay bold yellow; after, next-lap theory years do.
  */
-function isPast2030Low(nowMs: number = Date.now()): boolean {
+function isPastNextLow(nowMs: number = Date.now()): boolean {
   const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  return now > endOfYearMs(2030);
+  return now > endOfYearMs(NEXT_LOW_YEAR);
 }
 
 
@@ -294,15 +314,16 @@ function livePositionOnWaypoints(
 
 /**
  * Melbourne-local Y-M-D → Live (cx, cy) on the cycle path.
- * Through end-2030: classic YEAR_WAYPOINTS (unchanged).
- * After end-2030: intentional reset to recovery, then NEXT_LAP_WAYPOINTS
- * on the same geometric loop; parks at the low after end-2048.
+ * Through end-2031: classic YEAR_WAYPOINTS (2030 low-zone vertex at end-2030,
+ * then the dashed wrap back to recovery = ~2031 low at end-2031).
+ * After end-2031: NEXT_LAP_WAYPOINTS on the same geometric loop; parks at the
+ * low after end-2048.
  */
 function livePositionFromNow(nowMs: number = Date.now()): Pt {
   const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
 
-  if (now > endOfYearMs(2030)) {
+  if (now > endOfYearMs(NEXT_LOW_YEAR)) {
     return livePositionOnWaypoints(now, NEXT_LAP_WAYPOINTS);
   }
   return livePositionOnWaypoints(now, YEAR_WAYPOINTS);
@@ -312,12 +333,12 @@ function YearColumn({
   x,
   pointY,
   stack,
-  past2030,
+  pastLow,
 }: {
   x: number;
   pointY: number;
   stack: YearStack;
-  past2030: boolean;
+  pastLow: boolean;
 }) {
   const lineH = 13;
   const gap = 1;
@@ -352,12 +373,12 @@ function YearColumn({
         const y = startY + i * (lineH + gap);
         const isCurrentLap = CURRENT_CYCLE_YEARS.has(yr);
         const isNextLap = NEXT_CYCLE_YEARS.has(yr);
-        // Before end-2030: current-lap years bold yellow; next-lap (e.g. 2044) muted.
+        // Before end-2031: current-lap years bold yellow; next-lap (e.g. 2031, 2044) muted.
         // After: next-lap theory years bold yellow; 2030 goes white; other classic years muted.
         let fill = MUTED_YEAR_FILL;
         let bold = false;
         if (isCurrentLap) {
-          if (!past2030) {
+          if (!pastLow) {
             fill = ACTIVE_YEAR_FILL;
             bold = true;
           } else if (yr === "2030") {
@@ -366,7 +387,7 @@ function YearColumn({
           } else {
             fill = MUTED_YEAR_FILL;
           }
-        } else if (isNextLap && past2030) {
+        } else if (isNextLap && pastLow) {
           fill = ACTIVE_YEAR_FILL;
           bold = true;
         }
@@ -451,10 +472,11 @@ export default function RealEstateCycleChart() {
   const SVG_H = 500 + TOP_PAD + BOTTOM_PAD;
 
   const live = livePositionFromNow();
-  const past2030 = isPast2030Low();
+  const pastLow = isPastNextLow();
   /** Below-left of dot — crest has peak years (above-right) + left Winner’s Curse */
   const liveLabelDx = -42;
-  const liveLabelDy = 20;
+  /** Flip label above the dot while it rides the dashed wrap (2031) so it clears the caption */
+  const liveLabelDy = live.y > WRAP_Y - 20 ? -12 : 20;
 
   /** Midpoint of final run-up (LAND_ACCEL → peak) — Winner’s Curse phase aim */
   const winnersCurseAim = {
@@ -513,7 +535,7 @@ export default function RealEstateCycleChart() {
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        Schematic · 18.6y framing · bold yellow = active cycle years · muted = inactive / next-lap until after 2030 · not a forecast · NFA
+        Schematic · 18.6y framing · bold yellow = active cycle years · muted = inactive / next-lap until after 2031 · not a forecast · NFA
       </text>
 
       {/* Shift chart geometry down into the padded canvas; title stays in the top band */}
@@ -559,7 +581,7 @@ export default function RealEstateCycleChart() {
 
         {/* Soft wrap hint: dashed return under the plot (reset to start of loop) */}
         <path
-          d={`M ${next.x} ${next.y} L ${next.x + 28} ${348} L ${recovery.x - 18} ${348} L ${recovery.x} ${recovery.y}`}
+          d={`M ${next.x} ${next.y} L ${next.x + 28} ${WRAP_Y} L ${recovery.x - 18} ${WRAP_Y} L ${recovery.x} ${recovery.y}`}
           fill="none"
           stroke="#5a6a80"
           strokeWidth="1.75"
@@ -635,7 +657,7 @@ export default function RealEstateCycleChart() {
               x={pt.x}
               pointY={pt.y}
               stack={stack}
-              past2030={past2030}
+              pastLow={pastLow}
             />
           );
         })}
@@ -809,7 +831,7 @@ export default function RealEstateCycleChart() {
           fontSize="9"
           fontFamily="system-ui, sans-serif"
         >
-          Bold yellow years mark the active cycle (current lap before end-2030; next-lap theory years after). Framework dates — not predictions.
+          Bold yellow years mark the active cycle (current lap before end-2031; next-lap theory years after). Framework dates — not predictions.
         </text>
 
         {/* Prominent theory disclaimer — AU English, NFA tone */}

@@ -19,7 +19,7 @@ const PHASES = [
     width: "22%",
     color: "#3dcc9a",
     summary:
-      "Credit repairs, builders restart, sentiment still cautious. Prices often feel “cheap” relative to late-boom memory. Classic series troughs / restarts include 1975, 1994, 2012 (and the framework’s next restart marker around 2030).",
+      "Credit repairs, builders restart, sentiment still cautious. Prices often feel “cheap” relative to late-boom memory. Classic series troughs / restarts include 1975, 1994, 2012 (and the framework’s next restart marker around 2031).",
   },
   {
     name: "Mid-cycle",
