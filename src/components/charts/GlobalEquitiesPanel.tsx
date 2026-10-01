@@ -85,18 +85,39 @@ export function GlobalEquitiesPanel() {
     };
   }, []);
 
-  useEffect(() => setHoverIdx(null), [tf]);
+  // Zoom window in day numbers (UTC days since epoch); null = full range.
+  const [zoom, setZoom] = useState<{ a: number; b: number } | null>(null);
+  const [sel, setSel] = useState<{ x0: number; x1: number } | null>(null);
+  const dragRef = useRef<{ startX: number } | null>(null);
+  const touchesRef = useRef<Map<number, number>>(new Map());
+  const pinchRef = useRef<{ d0: number; a0: number; b0: number; midFrac: number; midDay: number } | null>(null);
+
+  useEffect(() => {
+    setHoverIdx(null);
+    setZoom(null);
+    setSel(null);
+  }, [tf]);
 
   const all = useMemo(() => (data?.ok && data.rows ? enrich(data.rows) : []), [data]);
   const summary = useMemo(() => summarise(all), [all]);
 
-  const pts = useMemo(() => {
+  const rangePts = useMemo(() => {
     if (!all.length) return [] as EqPoint[];
     const meta = TIMEFRAMES.find((t) => t.key === tf)!;
     if (meta.years == null) return all;
     const c = cutoff(all[all.length - 1]!.d, meta.years);
     return all.filter((p) => p.d > c);
   }, [all, tf]);
+
+  /** Points in view: the range, narrowed by any zoom. */
+  const pts = useMemo(() => {
+    if (!zoom) return rangePts;
+    const v = rangePts.filter((p) => {
+      const n = dayNum(p.d);
+      return n >= zoom.a && n <= zoom.b;
+    });
+    return v.length >= 2 ? v : rangePts;
+  }, [rangePts, zoom]);
 
   const chart = useMemo(() => {
     if (pts.length < 2) return null;
@@ -181,12 +202,14 @@ export function GlobalEquitiesPanel() {
     const xTicks: { d: string; label: string }[] = [];
     if (x1 - x0 < 730) {
       // Short windows: quarterly ticks (Jan / Apr / Jul / Oct).
-      const MON = ["Jan", "Apr", "Jul", "Oct"];
+      // Very short (zoomed) windows: monthly ticks.
+      const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const every = x1 - x0 < 200 ? 1 : 3;
       for (let y = y0; y <= y1; y++) {
-        for (let q = 0; q < 4; q++) {
-          const d = `${y}-${String(q * 3 + 1).padStart(2, "0")}-01`;
+        for (let m = 0; m < 12; m += every) {
+          const d = `${y}-${String(m + 1).padStart(2, "0")}-01`;
           const n = dayNum(d);
-          if (n > x0 && n <= x1) xTicks.push({ d, label: `${MON[q]} ${String(y).slice(2)}` });
+          if (n > x0 && n <= x1) xTicks.push({ d, label: `${MON[m]} ${String(y).slice(2)}` });
         }
       }
     } else {
@@ -201,18 +224,31 @@ export function GlobalEquitiesPanel() {
     };
   }, [pts]);
 
-  const onMove = useCallback(
-    (e: ReactPointerEvent<SVGSVGElement>) => {
-      const svg = svgRef.current;
-      if (!chart || !svg) return;
-      const rect = svg.getBoundingClientRect();
-      if (!rect.width) return;
-      const sx = ((e.clientX - rect.left) / rect.width) * W;
+  const toSvgX = useCallback((clientX: number): number | null => {
+    const svg = svgRef.current;
+    if (!svg) return null;
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return null;
+    return ((clientX - rect.left) / rect.width) * W;
+  }, []);
+
+  const dayAt = useCallback(
+    (sx: number): number => {
+      if (!chart) return 0;
+      const f = Math.min(Math.max((sx - PAD_L) / (W - PAD_L - PAD_R), 0), 1);
+      return chart.x0 + f * (chart.x1 - chart.x0);
+    },
+    [chart],
+  );
+
+  const hoverAt = useCallback(
+    (sx: number) => {
+      if (!chart) return;
       if (sx < PAD_L - 4 || sx > W - PAD_R + 4) {
         setHoverIdx(null);
         return;
       }
-      const target = chart.x0 + ((sx - PAD_L) / (W - PAD_L - PAD_R)) * (chart.x1 - chart.x0);
+      const target = dayAt(sx);
       let lo = 0;
       let hi = pts.length - 1;
       while (lo < hi) {
@@ -223,8 +259,116 @@ export function GlobalEquitiesPanel() {
       if (lo > 0 && Math.abs(dayNum(pts[lo - 1]!.d) - target) < Math.abs(dayNum(pts[lo]!.d) - target)) lo--;
       setHoverIdx(lo);
     },
-    [chart, pts],
+    [chart, pts, dayAt],
   );
+
+  const applyZoom = useCallback(
+    (a: number, b: number) => {
+      if (rangePts.length < 2) return;
+      const ra = dayNum(rangePts[0]!.d);
+      const rb = dayNum(rangePts[rangePts.length - 1]!.d);
+      const span = Math.max(b - a, 10); // at least ~2 trading weeks
+      if (span >= rb - ra) {
+        setZoom(null);
+        return;
+      }
+      let za = Math.max(a, ra);
+      let zb = za + span;
+      if (zb > rb) {
+        zb = rb;
+        za = rb - span;
+      }
+      setZoom({ a: za, b: zb });
+    },
+    [rangePts],
+  );
+
+  const onDown = useCallback(
+    (e: ReactPointerEvent<SVGSVGElement>) => {
+      const sx = toSvgX(e.clientX);
+      if (sx == null || !chart) return;
+      if (e.pointerType === "touch") {
+        touchesRef.current.set(e.pointerId, e.clientX);
+        if (touchesRef.current.size === 2) {
+          const xs = [...touchesRef.current.values()].map((cx) => toSvgX(cx) ?? 0);
+          const mid = (xs[0]! + xs[1]!) / 2;
+          pinchRef.current = {
+            d0: Math.max(Math.abs(xs[0]! - xs[1]!), 1),
+            a0: chart.x0,
+            b0: chart.x1,
+            midFrac: Math.min(Math.max((mid - PAD_L) / (W - PAD_L - PAD_R), 0), 1),
+            midDay: dayAt(mid),
+          };
+          setHoverIdx(null);
+          return;
+        }
+        hoverAt(sx);
+        return;
+      }
+      if (e.button !== 0) return;
+      dragRef.current = { startX: Math.min(Math.max(sx, PAD_L), W - PAD_R) };
+      setSel(null);
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      hoverAt(sx);
+    },
+    [chart, toSvgX, dayAt, hoverAt],
+  );
+
+  const onMove = useCallback(
+    (e: ReactPointerEvent<SVGSVGElement>) => {
+      const sx = toSvgX(e.clientX);
+      if (sx == null || !chart) return;
+      if (e.pointerType === "touch" && touchesRef.current.has(e.pointerId)) {
+        touchesRef.current.set(e.pointerId, e.clientX);
+        const pinch = pinchRef.current;
+        if (pinch && touchesRef.current.size === 2) {
+          const xs = [...touchesRef.current.values()].map((cx) => toSvgX(cx) ?? 0);
+          const d1 = Math.max(Math.abs(xs[0]! - xs[1]!), 1);
+          const span = (pinch.b0 - pinch.a0) * (pinch.d0 / d1);
+          const a = pinch.midDay - pinch.midFrac * span;
+          applyZoom(a, a + span);
+          return;
+        }
+      }
+      const drag = dragRef.current;
+      if (drag) {
+        setSel({ x0: drag.startX, x1: Math.min(Math.max(sx, PAD_L), W - PAD_R) });
+      }
+      hoverAt(sx);
+    },
+    [chart, toSvgX, applyZoom, hoverAt],
+  );
+
+  const onUp = useCallback(
+    (e: ReactPointerEvent<SVGSVGElement>) => {
+      if (e.pointerType === "touch") {
+        touchesRef.current.delete(e.pointerId);
+        if (touchesRef.current.size < 2) pinchRef.current = null;
+        return;
+      }
+      const drag = dragRef.current;
+      dragRef.current = null;
+      setSel(null);
+      if (!drag || !chart) return;
+      const sx = toSvgX(e.clientX);
+      if (sx == null) return;
+      const end = Math.min(Math.max(sx, PAD_L), W - PAD_R);
+      if (Math.abs(end - drag.startX) < 6) return; // a click, not a drag
+      const a = dayAt(Math.min(drag.startX, end));
+      const b = dayAt(Math.max(drag.startX, end));
+      setHoverIdx(null);
+      applyZoom(a, b);
+    },
+    [chart, toSvgX, dayAt, applyZoom],
+  );
+
+  const resetZoom = useCallback(() => {
+    setZoom(null);
+    setSel(null);
+    setHoverIdx(null);
+  }, []);
+
+  useEffect(() => setHoverIdx(null), [zoom]);
 
   const hp = hoverIdx != null ? pts[hoverIdx] : null;
 
@@ -255,6 +399,15 @@ export function GlobalEquitiesPanel() {
                 </button>
               ))}
             </div>
+            {zoom && (
+              <button
+                type="button"
+                onClick={resetZoom}
+                className="rounded-md border border-[#22d3ee]/60 bg-[#22d3ee]/10 px-3 py-1.5 text-xs font-semibold text-[#22d3ee] transition-colors hover:bg-[#22d3ee]/20"
+              >
+                Reset zoom
+              </button>
+            )}
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted">
             Developed-world equities via the iShares MSCI World ETF (URTH), a labelled proxy for
@@ -358,9 +511,14 @@ export function GlobalEquitiesPanel() {
               className="w-full cursor-crosshair touch-none select-none"
               role="img"
               aria-label={`URTH (MSCI World proxy) with all-time-high bands, phase bar, drawdown and VIX, ${tf} window. Hover for values.`}
+              onPointerDown={onDown}
               onPointerMove={onMove}
-              onPointerDown={onMove}
-              onPointerLeave={() => setHoverIdx(null)}
+              onPointerUp={onUp}
+              onPointerCancel={onUp}
+              onPointerLeave={() => {
+                if (!dragRef.current) setHoverIdx(null);
+              }}
+              onDoubleClick={resetZoom}
             >
               <defs>
                 <clipPath id="eq-top">
@@ -436,6 +594,19 @@ export function GlobalEquitiesPanel() {
                   {t.label}
                 </text>
               ))}
+              {sel && Math.abs(sel.x1 - sel.x0) > 1 && (
+                <rect
+                  x={Math.min(sel.x0, sel.x1)}
+                  y={TOP.y}
+                  width={Math.abs(sel.x1 - sel.x0)}
+                  height={BOT.y + BOT.h - TOP.y}
+                  fill="#22d3ee"
+                  opacity={0.12}
+                  stroke="#22d3ee"
+                  strokeOpacity={0.5}
+                  pointerEvents="none"
+                />
+              )}
               {hp && (
                 <g pointerEvents="none">
                   <line x1={chart.xOf(hp.d)} x2={chart.xOf(hp.d)} y1={TOP.y} y2={BOT.y + BOT.h} stroke="#9eb0c8" strokeDasharray="3 3" opacity={0.8} />
@@ -486,6 +657,15 @@ export function GlobalEquitiesPanel() {
         )}
       </div>
 
+      {chart && (
+        <p className="mt-2 text-[11px] text-muted">
+          {zoom && pts.length
+            ? `Zoomed: ${fmtDay(pts[0]!.d)} – ${fmtDay(pts[pts.length - 1]!.d)} · `
+            : ""}
+          Drag across the chart to zoom (pinch on touch) · double-click or Reset zoom to go back ·
+          range buttons reset the zoom
+        </p>
+      )}
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-foreground/85">
         {PHASE_ORDER.map((p) => (
           <span key={p.key} className="inline-flex items-center gap-1.5">
