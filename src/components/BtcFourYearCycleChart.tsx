@@ -1,8 +1,11 @@
 /**
  * BTC 4 year cycle theory schematic (educational diagram).
- * Nike-tick silhouette: simple ~3-year rise, then ~1-year drop onto the
- * next trough. Green Live marker is calendar-dated (Melbourne) along the
- * path and wraps onto the same loop after ~1 year down from the theory peak.
+ * Nike-tick silhouette: ~3-year rise, then ~1-year drop onto the next trough,
+ * with fixed (deterministic) organic wobbles — pullbacks on the slow climb,
+ * shakeouts on the late-bull run-up, a small double-top feel, and bear-market
+ * relief rallies on the way down. Green Live marker is calendar-dated
+ * (Melbourne): date-progress → x along each leg, y sampled from the drawn
+ * curve at that x; wraps onto the same loop after ~1 year down.
  * Live is computed client-side from the real current date after mount and
  * re-ticks hourly (not frozen at build / static prerender).
  * No stacked calendar years on the diagram — phase labels only.
@@ -29,7 +32,6 @@ import {
 import { useLiveNow } from "@/lib/useLiveNow";
 import {
   bezierPathD,
-  curveLerp,
   pointAtX,
   smoothBeziers,
   type Pt,
@@ -51,13 +53,53 @@ const LATE_BULL_X0 = HALVING_X1;
 const LATE_BULL_X1 = PEAK.x;
 const LATE_BULL_ORANGE = "#e8873a";
 
-const PATH_VERTS: Pt[] = [TROUGH, MID_UP, PEAK, NEXT_TROUGH];
 /**
- * Smooth Nike-tick: cubic beziers through every vertex (no overshoot above the
- * peak or below the troughs). Standard Hermite handles on the climb; shorter flat handles at
- * the peak so the ~1y drawdown still reads sharp-ish against the slow climb.
+ * Fixed wobble knots (schematic shape only — not price data). Every knot sits
+ * strictly between the peak (y 48) and the lows (y 300), and the monotone
+ * cubic never overshoots its knots, so the Cycle peak stays the highest point
+ * and the Cycle low / Next low stay the lowest points.
  */
-const LINE_BEZ = smoothBeziers(PATH_VERTS, { extremeHandle: 0.16 });
+/** Slow early climb: long grinding rallies with short, shallow pullbacks (Cycle low → mid bend). */
+const CLIMB_WOBBLE: Pt[] = [
+  { x: 150, y: 282 },
+  { x: 162, y: 287 },
+  { x: 228, y: 266 },
+  { x: 240, y: 270 },
+  { x: 318, y: 246 },
+  { x: 334, y: 252 },
+  { x: 400, y: 228 },
+  { x: 412, y: 232 },
+];
+/** Steep late-bull run-up: two moderate shakeouts, small double-top feel at the crest. */
+const RUNUP_WOBBLE: Pt[] = [
+  { x: 520, y: 178 },
+  { x: 532, y: 190 },
+  { x: 572, y: 112 },
+  { x: 583, y: 126 },
+  { x: 603, y: 58 },
+  { x: 610, y: 68 },
+];
+/** ~1y drawdown: long drops, short relief rallies with lower highs, into the Next low. */
+const DRAWDOWN_WOBBLE: Pt[] = [
+  { x: 640, y: 118 },
+  { x: 648, y: 104 },
+  { x: 672, y: 182 },
+  { x: 680, y: 171 },
+  { x: 703, y: 238 },
+  { x: 710, y: 230 },
+];
+
+const LINE_KNOTS: Pt[] = [
+  TROUGH,
+  ...CLIMB_WOBBLE,
+  MID_UP,
+  ...RUNUP_WOBBLE,
+  PEAK,
+  ...DRAWDOWN_WOBBLE,
+  NEXT_TROUGH,
+];
+/** Smooth monotone-cubic curve through every knot (no spikes, no overshoot). */
+const LINE_BEZ = smoothBeziers(LINE_KNOTS);
 const LINE_PATH = bezierPathD(LINE_BEZ);
 
 /** Mid of blue halving wash — hover tip sits ON the smoothed Nike-tick ascent. */
@@ -112,33 +154,6 @@ function melbourneDayMs(nowMs: number): number {
   return Date.UTC(y, m - 1, d, 12, 0, 0, 0);
 }
 
-function dist(a: Pt, b: Pt): number {
-  return Math.hypot(b.x - a.x, b.y - a.y);
-}
-
-function pointAlong(points: Pt[], t: number): Pt {
-  if (points.length === 1) return points[0];
-  const clamped = Math.min(1, Math.max(0, t));
-  const segs: number[] = [];
-  let total = 0;
-  for (let i = 0; i < points.length - 1; i++) {
-    const d = dist(points[i], points[i + 1]);
-    segs.push(d);
-    total += d;
-  }
-  if (total <= 0) return points[points.length - 1];
-  let remain = clamped * total;
-  for (let i = 0; i < segs.length; i++) {
-    if (remain <= segs[i] || i === segs.length - 1) {
-      const u = segs[i] <= 0 ? 1 : remain / segs[i];
-      /* Same segment timing as the straight walk; position follows the curve piece. */
-      return curveLerp(PATH_VERTS, LINE_BEZ, points[i], points[i + 1], u);
-    }
-    remain -= segs[i];
-  }
-  return points[points.length - 1];
-}
-
 type LiveInfo = {
   pt: Pt;
   daysToTrough: number;
@@ -151,9 +166,18 @@ function liveFromNow(nowMs: number): LiveInfo {
   const now = melbourneDayMs(nowMs);
   const { lowMs, peakMs, nextLowMs } = theoryLapAt(now);
   const descending = now > peakMs;
-  const pt = descending
-    ? pointAlong([PEAK, NEXT_TROUGH], (now - peakMs) / (nextLowMs - peakMs))
-    : pointAlong([TROUGH, MID_UP, PEAK], (now - lowMs) / (peakMs - lowMs));
+  /* Date-progress → x along the leg, then y sampled from the drawn curve at x. */
+  const frac = Math.min(
+    1,
+    Math.max(
+      0,
+      descending ? (now - peakMs) / (nextLowMs - peakMs) : (now - lowMs) / (peakMs - lowMs),
+    ),
+  );
+  const x = descending
+    ? PEAK.x + frac * (NEXT_TROUGH.x - PEAK.x)
+    : TROUGH.x + frac * (PEAK.x - TROUGH.x);
+  const pt = pointAtX(LINE_BEZ, x);
   return {
     pt,
     daysToTrough: Math.max(0, Math.round((nextLowMs - now) / 86_400_000)),
