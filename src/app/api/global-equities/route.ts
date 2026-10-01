@@ -22,6 +22,9 @@ export const maxDuration = 30;
 const FETCH_MS = 12_000;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+/** FRED: identify honestly (browser-like UAs from datacentre IPs get tarpitted). */
+const FRED_UA =
+  "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
 const PRICE_SOURCE =
   "iShares MSCI World ETF (URTH, NYSE Arca) adjusted close via Yahoo Finance — proxy for MSCI World";
 const VIX_SOURCE = "Cboe Volatility Index (VIX) close via FRED (VIXCLS)";
@@ -96,7 +99,11 @@ async function fetchVix(): Promise<Array<[string, number]>> {
     try {
       const res = await fetch(
         `https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key=${encodeURIComponent(key)}&file_type=json`,
-        { next: { revalidate: 3600 }, signal: AbortSignal.timeout(FETCH_MS) },
+        {
+          headers: { "User-Agent": FRED_UA, Accept: "application/json" },
+          next: { revalidate: 3600 },
+          signal: AbortSignal.timeout(FETCH_MS),
+        },
       );
       if (!res.ok) throw new Error(`FRED API VIX: HTTP ${res.status}`);
       const json = (await res.json()) as { observations?: Array<{ date: string; value: string }> };
@@ -113,7 +120,7 @@ async function fetchVix(): Promise<Array<[string, number]>> {
   }
   try {
     const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS", {
-      headers: { "User-Agent": UA, Accept: "text/csv,*/*" },
+      headers: { "User-Agent": FRED_UA, Accept: "text/csv,text/plain,*/*" },
       next: { revalidate: 3600 },
       signal: AbortSignal.timeout(FETCH_MS),
     });
