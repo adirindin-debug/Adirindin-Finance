@@ -22,9 +22,12 @@ import {
   type EqPoint,
 } from "@/lib/globalEquities";
 
-type TfKey = "5Y" | "20Y" | "MAX";
+type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "20Y" | "MAX";
 const TIMEFRAMES: { key: TfKey; label: string; years: number | null }[] = [
+  { key: "1Y", label: "1Y", years: 1 },
+  { key: "3Y", label: "3Y", years: 3 },
   { key: "5Y", label: "5Y", years: 5 },
+  { key: "10Y", label: "10Y", years: 10 },
   { key: "20Y", label: "20Y", years: 20 },
   { key: "MAX", label: "Max", years: null },
 ];
@@ -42,7 +45,7 @@ const DD_COLOR = "#f87171";
 const LEVEL_COLORS = ["#fbbf24", "#fb923c", "#a78bfa", "#e879f9"];
 
 const PHASE_ORDER = [
-  PHASES.peak,
+  PHASES.hot,
   PHASES.cooling,
   PHASES.stress,
   PHASES.washout,
@@ -175,8 +178,21 @@ export function GlobalEquitiesPanel() {
     const y0 = Number(pts[0]!.d.slice(0, 4));
     const y1 = Number(pts[pts.length - 1]!.d.slice(0, 4));
     const yStep = y1 - y0 > 8 ? 2 : 1;
-    const xTicks: number[] = [];
-    for (let y = y0 + 1; y <= y1; y += 1) if ((y - y0 - 1) % yStep === 0) xTicks.push(y);
+    const xTicks: { d: string; label: string }[] = [];
+    if (x1 - x0 < 730) {
+      // Short windows: quarterly ticks (Jan / Apr / Jul / Oct).
+      const MON = ["Jan", "Apr", "Jul", "Oct"];
+      for (let y = y0; y <= y1; y++) {
+        for (let q = 0; q < 4; q++) {
+          const d = `${y}-${String(q * 3 + 1).padStart(2, "0")}-01`;
+          const n = dayNum(d);
+          if (n > x0 && n <= x1) xTicks.push({ d, label: `${MON[q]} ${String(y).slice(2)}` });
+        }
+      }
+    } else {
+      for (let y = y0 + 1; y <= y1; y += 1)
+        if ((y - y0 - 1) % yStep === 0) xTicks.push({ d: `${y}-01-01`, label: String(y) });
+    }
     const ddTicks = [0, ...DD_LEVELS].filter((l) => l >= ddLo);
     const lastP = pts[pts.length - 1]!;
     return {
@@ -269,13 +285,13 @@ export function GlobalEquitiesPanel() {
             <div className="relative mt-2 h-2 w-full overflow-visible rounded-full" aria-label="Phase scale by drawdown">
               <div className="flex h-2 w-full overflow-hidden rounded-full">
                 {[
-                  [PHASES.peak, 5],
+                  [PHASES.hot, 5],
                   [PHASES.cooling, 7],
                   [PHASES.stress, 8],
                   [PHASES.washout, 10],
                   [PHASES.capitulation, 10],
                 ].map(([ph, w]) => {
-                  const p = ph as (typeof PHASES)["peak"];
+                  const p = ph as (typeof PHASES)["hot"];
                   return <span key={p.key} style={{ width: `${((w as number) / 40) * 100}%`, background: p.color, opacity: p.key === summary.phase.key ? 1 : 0.35 }} />;
                 })}
               </div>
@@ -415,9 +431,9 @@ export function GlobalEquitiesPanel() {
               <text x={PAD_L} y={BOT.y - 4} fill="#9aa8b5" fontSize={9} fontWeight={600}>
                 Drawdown from ATH
               </text>
-              {chart.xTicks.map((y) => (
-                <text key={`x${y}`} x={chart.xOf(`${y}-01-01`)} y={H - 8} textAnchor="middle" fill="#6b7785" fontSize={10}>
-                  {y}
+              {chart.xTicks.map((t) => (
+                <text key={`x${t.d}`} x={chart.xOf(t.d)} y={H - 8} textAnchor="middle" fill="#6b7785" fontSize={10}>
+                  {t.label}
                 </text>
               ))}
               {hp && (
@@ -487,10 +503,10 @@ export function GlobalEquitiesPanel() {
           Phase = drawdown of URTH adjusted close from its all-time high (series starts 12 Jan 2012,
           so 20Y and Max show the same span). Repair: still more than 12% below the high, at least 5%
           off the low since that high, and higher than three months ago — fear staying high is normal
-          here. Sentiment tilt, one notch only, from VIX vs its own 5-year range: Heat+ when VIX is in
-          its lowest 10% (complacent), &quot;Heat but nervous&quot; at the 75th percentile or above,
+          here. Sentiment tilt, one notch only, from VIX vs its own 5-year range: Hot market+ when VIX is
+          in its lowest 10% (complacent), &quot;Hot market but nervous&quot; at the 75th percentile or above,
           Cooling with rising vol, Washout+ on a VIX spike (90th percentile or ≥30). Greed or low vol
-          is a heat flag only, not a short signal. No top or bottom dates.
+          is a strength flag only, not a short signal. No top or bottom dates.
         </p>
         <p>
           Price: iShares MSCI World ETF (URTH, NYSE Arca) adjusted close (dividends reinvested) via

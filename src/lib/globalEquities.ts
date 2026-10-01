@@ -20,7 +20,7 @@
 export type EqRow = [string, number, number | null, number | null];
 
 export type PhaseKey =
-  | "peak"
+  | "hot"
   | "cooling"
   | "stress"
   | "washout"
@@ -29,7 +29,7 @@ export type PhaseKey =
 export type Phase = { key: PhaseKey; label: string; color: string; band: string };
 
 export const PHASES: Record<PhaseKey, Phase> = {
-  peak: { key: "peak", label: "Peak / late heat", color: "#f87171", band: "0% to −5%" },
+  hot: { key: "hot", label: "Hot market", color: "#39e75f", band: "0% to −5%" },
   cooling: { key: "cooling", label: "Cooling", color: "#fbbf24", band: "−5% to −12%" },
   stress: { key: "stress", label: "Stress", color: "#fb923c", band: "−12% to −20%" },
   washout: { key: "washout", label: "Washout", color: "#a78bfa", band: "−20% to −30%" },
@@ -61,7 +61,7 @@ export const EQ_FOOTER =
   "Heuristic state from price and public sentiment. Not a psychology model. Not financial advice.";
 
 export function phaseFromDd(dd: number): Phase {
-  if (dd > -0.05) return PHASES.peak;
+  if (dd > -0.05) return PHASES.hot;
   if (dd > -0.12) return PHASES.cooling;
   if (dd > -0.2) return PHASES.stress;
   if (dd > -0.3) return PHASES.washout;
@@ -97,9 +97,9 @@ function tagFor(
     return phase.key === "capitulation" ? "Extreme" : null;
   }
   switch (phase.key) {
-    case "peak":
-      if (vixPct <= VIX_VERY_LOW_PCT) return "Heat+ · vol very low (complacent)";
-      if (vixPct >= VIX_NERVOUS_PCT) return "Heat but nervous · vol elevated";
+    case "hot":
+      if (vixPct <= VIX_VERY_LOW_PCT) return "Hot market+ · vol very low (complacent)";
+      if (vixPct >= VIX_NERVOUS_PCT) return "Hot market but nervous · vol elevated";
       return null;
     case "cooling":
       return vixPrev != null && vix > vixPrev && vixPct >= 50
@@ -263,7 +263,7 @@ export function fmtPx(n: number): string {
   return n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** Card hover: "30 Sep 2026 · URTH 206.23 · −2.5% from ATH · VIX 16.0 (5y p33) · Peak / late heat". */
+/** Card hover: "30 Sep 2026 · URTH 206.23 · −2.5% from ATH · VIX 16.0 (5y p33) · Hot market". */
 export function eqHoverLine(s: EqSummary): string {
   const vix =
     s.vix != null

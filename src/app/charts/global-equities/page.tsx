@@ -16,7 +16,7 @@ export default function GlobalEquitiesPage() {
         Global equities · sentiment state
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        Where developed-world shares sit on the path from peak heat to washout and repair, from
+        Where developed-world shares sit on the path from a hot market to washout and repair, from
         price drawdown plus public volatility data. Research tool only — not financial advice (NFA).
       </p>
 
