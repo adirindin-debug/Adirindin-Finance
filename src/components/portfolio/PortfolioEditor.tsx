@@ -311,7 +311,7 @@ export function PortfolioEditor({
               Available cash (AUD)
             </p>
             <p className="text-[10px] leading-relaxed text-zinc-500">
-              Cash is stored in AUD. Portfolio display currency (AUD ↔ USD) is separate.
+              Cash is stored in AUD. Portfolio display currency (USD, AUD, EUR, BTC …) is separate.
             </p>
             <label className="block text-xs text-zinc-500">
               Portfolio name

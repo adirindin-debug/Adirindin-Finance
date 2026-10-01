@@ -1,17 +1,36 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import type {
   PortfolioLiveSummary,
   PositionReturnWindow,
 } from "@/lib/portfolioTypes";
 import type { PortfolioDisplayCurrency } from "@/lib/chartTimeframes";
 import {
+  DISPLAY_CURRENCIES,
   audToDisplay,
+  currencySymbol,
   formatGain,
   formatMoney,
   returnWindowHint,
   returnWindowHintVsCost,
 } from "@/lib/portfolioCompute";
+
+/** Small "FX: <source> · as of <date>" line under the value. */
+export type FxNote = { source: string; url?: string; asOf: string };
+
+const CURRENCY_NAMES: Record<PortfolioDisplayCurrency, string> = {
+  USD: "US dollar",
+  AUD: "Australian dollar",
+  EUR: "Euro",
+  GBP: "British pound",
+  JPY: "Japanese yen",
+  CAD: "Canadian dollar",
+  CHF: "Swiss franc",
+  NZD: "New Zealand dollar",
+  CNY: "Chinese yuan",
+  BTC: "Bitcoin",
+};
 
 type Props = {
   portfolioName: string;
@@ -29,12 +48,14 @@ type Props = {
   quotesLoading: boolean;
   quotesError: string | null;
   returnsError: string | null;
-  /** User preference (AUD|USD). */
+  /** User preference (value denomination). */
   displayCurrency: PortfolioDisplayCurrency;
-  /** Resolved currency actually used for $ amounts (falls back to AUD if FX missing). */
+  /** Resolved currency actually used for amounts (falls back to AUD if FX missing). */
   effectiveDisplay: PortfolioDisplayCurrency;
-  audPerUsd: number | null;
+  /** Units of the display currency per 1 AUD. */
+  displayPerAud: number | null;
   fxUnavailableHint: string | null;
+  fxNote: FxNote | null;
   onDisplayCurrencyChange: (c: PortfolioDisplayCurrency) => void;
   onEditName: () => void;
   onAdd: () => void;
@@ -55,8 +76,9 @@ export function PortfolioSummary({
   returnsError,
   displayCurrency,
   effectiveDisplay,
-  audPerUsd,
+  displayPerAud,
   fxUnavailableHint,
+  fxNote,
   onDisplayCurrencyChange,
   onEditName,
   onAdd,
@@ -73,9 +95,9 @@ export function PortfolioSummary({
   const valueDisplay = audToDisplay(
     summary?.totalMarketValueAud ?? null,
     effectiveDisplay,
-    audPerUsd,
+    displayPerAud,
   );
-  const gainDisplay = audToDisplay(gainAud, effectiveDisplay, audPerUsd);
+  const gainDisplay = audToDisplay(gainAud, effectiveDisplay, displayPerAud);
   const valueLabel =
     !hasHoldings || !summary
       ? formatMoney(null, effectiveDisplay, 2)
@@ -91,10 +113,23 @@ export function PortfolioSummary({
     return returnWindowHint(returnWindow);
   })();
 
-  const toggleBtn =
-    "rounded-md px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors";
-  const toggleOn = "bg-emerald-600 text-white shadow-sm";
-  const toggleOff = "bg-transparent text-zinc-500 hover:bg-zinc-900 hover:text-zinc-300";
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [menuOpen]);
 
   return (
     <section className="px-1" aria-label="Portfolio summary">
@@ -127,22 +162,53 @@ export function PortfolioSummary({
               {effectiveDisplay}
             </span>
           </p>
-          <div
-            className="inline-flex gap-0.5 rounded-lg border border-zinc-800 bg-zinc-950 p-0.5"
-            role="group"
-            aria-label="Display currency"
-          >
-            {(["AUD", "USD"] as const).map((c) => (
-              <button
-                key={c}
-                type="button"
-                className={`${toggleBtn} ${displayCurrency === c ? toggleOn : toggleOff}`}
-                aria-pressed={displayCurrency === c}
-                onClick={() => onDisplayCurrencyChange(c)}
+          <div ref={menuRef} className="relative">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:border-zinc-700"
+              aria-haspopup="listbox"
+              aria-expanded={menuOpen}
+              aria-label={`Display currency: ${displayCurrency}`}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              <span className="text-emerald-400">{currencySymbol(displayCurrency).trim()}</span>
+              {displayCurrency}
+              <span className="text-zinc-500" aria-hidden>
+                ▾
+              </span>
+            </button>
+            {menuOpen ? (
+              <ul
+                role="listbox"
+                aria-label="Display currency"
+                className="absolute right-0 z-20 mt-1 max-h-80 w-56 overflow-auto rounded-lg border border-zinc-800 bg-zinc-950 p-1 shadow-xl"
               >
-                {c}
-              </button>
-            ))}
+                {DISPLAY_CURRENCIES.map((c) => (
+                  <li key={c} role="option" aria-selected={displayCurrency === c}>
+                    <button
+                      type="button"
+                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                        displayCurrency === c
+                          ? "bg-emerald-600 text-white"
+                          : "text-zinc-300 hover:bg-zinc-900 hover:text-white"
+                      }`}
+                      onClick={() => {
+                        onDisplayCurrencyChange(c);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      <span className="w-9 font-semibold">{c}</span>
+                      <span className={displayCurrency === c ? "text-emerald-50" : "text-zinc-500"}>
+                        {CURRENCY_NAMES[c]}
+                      </span>
+                      <span className="ml-auto font-mono text-[11px] opacity-80">
+                        {currencySymbol(c).trim()}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         </div>
         <p className="mt-2 text-sm">
@@ -157,6 +223,24 @@ export function PortfolioSummary({
         </p>
         {fxUnavailableHint ? (
           <p className="mt-1 text-xs text-amber-500/90">{fxUnavailableHint}</p>
+        ) : null}
+        {fxNote ? (
+          <p className="mt-1 text-[11px] text-zinc-600">
+            FX:{" "}
+            {fxNote.url ? (
+              <a
+                href={fxNote.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-zinc-700 underline-offset-2 hover:text-zinc-400"
+              >
+                {fxNote.source}
+              </a>
+            ) : (
+              fxNote.source
+            )}{" "}
+            · as of {fxNote.asOf}
+          </p>
         ) : null}
       </div>
     </section>

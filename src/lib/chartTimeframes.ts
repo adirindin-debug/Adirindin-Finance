@@ -233,15 +233,39 @@ export function writeStoredReturnsVsCost(on: boolean): void {
 /** Portfolio display currency (AUD bookkeeping; USD is display-only via AUDUSD). */
 export const PORTFOLIO_DISPLAY_CURRENCY_KEY = "adirindin.portfolioDisplayCurrency";
 
-export type PortfolioDisplayCurrency = "AUD" | "USD";
+/** Portfolio value denomination (display only — bookkeeping stays AUD). */
+export type PortfolioDisplayCurrency =
+  | "USD"
+  | "AUD"
+  | "EUR"
+  | "GBP"
+  | "JPY"
+  | "CAD"
+  | "CHF"
+  | "NZD"
+  | "CNY"
+  | "BTC";
+
+const PORTFOLIO_DISPLAY_CURRENCY_SET = new Set<string>([
+  "USD",
+  "AUD",
+  "EUR",
+  "GBP",
+  "JPY",
+  "CAD",
+  "CHF",
+  "NZD",
+  "CNY",
+  "BTC",
+]);
 
 export function readStoredDisplayCurrency(
-  fallback: PortfolioDisplayCurrency = "AUD",
+  fallback: PortfolioDisplayCurrency = "USD",
 ): PortfolioDisplayCurrency {
   if (typeof window === "undefined") return fallback;
   try {
     const raw = window.localStorage.getItem(PORTFOLIO_DISPLAY_CURRENCY_KEY);
-    if (raw === "USD" || raw === "AUD") return raw;
+    if (raw && PORTFOLIO_DISPLAY_CURRENCY_SET.has(raw)) return raw as PortfolioDisplayCurrency;
     return fallback;
   } catch {
     return fallback;
