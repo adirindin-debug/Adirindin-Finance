@@ -85,6 +85,8 @@ const SPOT_CRYPTO_BASES = new Set([
   "ICP",
   "HBAR",
   "APTOS",
+  "ZEC",
+  "ZCASH",
 ]);
 
 /**
@@ -118,6 +120,9 @@ export const COINGECKO_IMAGE_BY_SYMBOL: Record<string, string> = {
   NEAR: "https://coin-images.coingecko.com/coins/images/10365/large/near.jpg",
   UNI: "https://coin-images.coingecko.com/coins/images/12504/large/uniswap-logo.png",
   AAVE: "https://coin-images.coingecko.com/coins/images/12645/large/aave-token-round.png",
+  /* Official Zcash brandmark (yellow, white Z) — fills the circle, no inset */
+  ZEC: "https://coin-images.coingecko.com/coins/images/486/large/Brandmark-Yellow_%281%29.png",
+  ZCASH: "https://coin-images.coingecko.com/coins/images/486/large/Brandmark-Yellow_%281%29.png",
   SHIB: "https://coin-images.coingecko.com/coins/images/11939/large/shiba.png",
   PEPE: "https://coin-images.coingecko.com/coins/images/29850/large/pepe-token.jpeg",
   TON: "https://coin-images.coingecko.com/coins/images/17980/large/ton_symbol.png",
@@ -166,6 +171,8 @@ export const COINGECKO_ID_BY_SYMBOL: Record<string, string> = {
   NEAR: "near",
   UNI: "uniswap",
   AAVE: "aave",
+  ZEC: "zcash",
+  ZCASH: "zcash",
   SHIB: "shiba-inu",
   PEPE: "pepe",
   TON: "the-open-network",

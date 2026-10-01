@@ -131,7 +131,7 @@ export function AllocationDonutEmpty({
   displayCurrency = "AUD",
   displayPerAud = null,
 }: Props) {
-  const [mode, setMode] = useState<ViewMode>("assets");
+  const [mode, setMode] = useState<ViewMode>("sector");
 
   const assetSlices = useMemo(
     () => buildAssetSlices(holdings, cashAud),
