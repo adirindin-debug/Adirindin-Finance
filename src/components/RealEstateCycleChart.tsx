@@ -21,6 +21,7 @@ import {
   bezierPathD,
   bezierPointAtFraction,
   curveLerp,
+  pointAtX,
   smoothBeziers,
   type Pt,
 } from "@/lib/smoothCurve";
@@ -123,13 +124,68 @@ const PATH_VERTS = [
 ] as const;
 
 /**
- * Smooth cycle line: cubic beziers through every vertex (same coordinates as the
- * classic jagged schematic), with no overshoot above peaks / below lows.
+ * Timing reference curve: cubic beziers through the labelled vertices only
+ * (unchanged from the classic schematic). Not drawn — Live x-timing and the
+ * Winner’s Curse leader x still come from it, so date → x stays as before.
  * Piece i runs PATH_VERTS[i] → PATH_VERTS[i + 1].
  */
 const LINE_VERTS: Pt[] = PATH_VERTS.map((p) => ({ x: p.x, y: p.y }));
 const LINE_BEZ = smoothBeziers(LINE_VERTS, { extremeHandle: 0.22 });
-const LINE_PATH = bezierPathD(LINE_BEZ);
+
+/**
+ * Drawn line: illustrative model curve (not price data) shaped after Phil
+ * Anderson’s ~18-year real estate cycle — steady, gently wobbling 7-year rise
+ * (2012 → 2019), modest mid-cycle dip (→ 2022), recovery into an accelerating
+ * boom (→ 2024), ~2-year Winner’s Curse spike to the end-2026 peak, steep crash
+ * with brief relief rallies (→ 2028), then rescue / bottoming and a modest
+ * recovery (→ 2030). Passes through every labelled vertex and LAND_ACCEL, so
+ * vertex dots, year stacks and callouts stay exactly where they were. Fixed
+ * (deterministic) wobble knots all sit strictly between the peak (y 42) and the
+ * recovery low (y 305); the monotone cubic never overshoots a knot, so the peak
+ * stays the highest point and recovery the lowest.
+ */
+const SHAPE_KNOTS: Pt[] = [
+  { x: POINTS[0].x, y: POINTS[0].y }, // recovery (2012)
+  /* Years 0–7: long grinding rallies, short shallow pullbacks */
+  { x: 128, y: 280 },
+  { x: 138, y: 285 },
+  { x: 180, y: 250 },
+  { x: 191, y: 255 },
+  { x: 234, y: 216 },
+  { x: 245, y: 220 },
+  { x: POINTS[1].x, y: POINTS[1].y }, // mid-cycle peak (2019)
+  /* Mid-cycle slowdown: soft slide with one relief bounce */
+  { x: 318, y: 202 },
+  { x: 328, y: 198 },
+  { x: POINTS[2].x, y: POINTS[2].y }, // mid-cycle low (2022)
+  /* Recovery, then the boom accelerates */
+  { x: 396, y: 207 },
+  { x: POINTS[3].x, y: POINTS[3].y }, // land boom (2024)
+  { x: 468, y: 135 },
+  { x: 476, y: 138 },
+  { x: LAND_ACCEL.x, y: LAND_ACCEL.y },
+  /* Winner’s Curse: one shakeout, then the near-vertical spike */
+  { x: 562, y: 98 },
+  { x: 570, y: 106 },
+  { x: POINTS[4].x, y: POINTS[4].y }, // major peak (end-2026)
+  /* Crash: long drops, brief lower-high relief rallies */
+  { x: 632, y: 104 },
+  { x: 638, y: 97 },
+  { x: 660, y: 182 },
+  { x: 666, y: 176 },
+  { x: POINTS[5].x, y: POINTS[5].y }, // crash low (2028)
+  /* Rescue: bottoming retest (higher low), then a modest climb */
+  { x: 705, y: 214 },
+  { x: 716, y: 220 },
+  { x: POINTS[6].x, y: POINTS[6].y }, // 2030
+];
+const SHAPE_BEZ = smoothBeziers(SHAPE_KNOTS, { extremeHandle: 0.22 });
+const LINE_PATH = bezierPathD(SHAPE_BEZ);
+
+/** Keep a timing-curve point’s x; take its height from the drawn line. */
+function onDrawnLine(p: Pt): Pt {
+  return { x: p.x, y: pointAtX(SHAPE_BEZ, p.x).y };
+}
 /** Curve piece LAND_ACCEL → peak (final run-up). */
 const RUN_UP_PIECE = 4;
 
@@ -341,9 +397,13 @@ function livePositionFromNow(nowMs: number = Date.now()): Pt {
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
 
   if (now > endOfYearMs(NEXT_LOW_YEAR)) {
-    return livePositionOnWaypoints(now, NEXT_LAP_WAYPOINTS);
+    return onDrawnLine(livePositionOnWaypoints(now, NEXT_LAP_WAYPOINTS));
   }
-  return livePositionOnWaypoints(now, YEAR_WAYPOINTS);
+  /* During 2031 the dot rides the dashed wrap under the plot (unchanged). */
+  if (now > endOfYearMs(NEXT_LOW_YEAR - 1)) {
+    return livePositionOnWaypoints(now, YEAR_WAYPOINTS);
+  }
+  return onDrawnLine(livePositionOnWaypoints(now, YEAR_WAYPOINTS));
 }
 
 function YearColumn({
@@ -499,7 +559,7 @@ export default function RealEstateCycleChart() {
   const liveLabelDy = live && live.y > WRAP_Y - 20 ? -12 : 20;
 
   /** Midpoint of final run-up (LAND_ACCEL → peak) ON the smoothed curve — Winner’s Curse phase aim */
-  const winnersCurseAim = bezierPointAtFraction(LINE_BEZ[RUN_UP_PIECE], 0.5);
+  const winnersCurseAim = onDrawnLine(bezierPointAtFraction(LINE_BEZ[RUN_UP_PIECE], 0.5));
   /** Callout sits left of that phase (same spot as the classic chord midpoint); dotted leader aims into the run-up */
   const winnersCurseLabel = {
     x: (LAND_ACCEL.x + peak.x) / 2 - 92,
