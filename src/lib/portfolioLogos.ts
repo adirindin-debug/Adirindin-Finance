@@ -6,6 +6,7 @@
  */
 
 import {
+  cryptoLogoKnockoutFill,
   cryptoLogoProxyUrl,
   isBitcoinTicker,
   isSpotCryptoTicker,
@@ -26,6 +27,8 @@ export type LogoDescriptor = {
   initials: string;
   /** Accessible holding name for remote logos. */
   label?: string;
+  /** Fixed backdrop for logos with a transparent knockout mark (overrides sampled tint). */
+  knockoutFill?: string;
 };
 
 function initialsFor(input: { kind: string; ticker: string; name?: string }): string {
@@ -64,6 +67,7 @@ export function resolveHoldingLogo(input: {
       src: cryptoLogoProxyUrl(ticker),
       initials,
       label: input.name?.trim() || ticker,
+      knockoutFill: cryptoLogoKnockoutFill(ticker),
     };
   }
 

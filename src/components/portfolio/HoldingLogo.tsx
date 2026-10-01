@@ -98,10 +98,11 @@ export function HoldingLogo({ kind, ticker, name, color, size = "md" }: Props) {
     failedSrc !== desc.src;
 
   if (useRemoteImage && desc.src) {
+    const backdrop = desc.knockoutFill ?? brandBg;
     return (
       <div
         className={`overflow-hidden rounded-full ${dimension} shrink-0`}
-        style={brandBg ? { backgroundColor: brandBg } : undefined}
+        style={backdrop ? { backgroundColor: backdrop } : undefined}
         role="img"
         aria-label={`${desc.label ?? ticker} logo`}
       >

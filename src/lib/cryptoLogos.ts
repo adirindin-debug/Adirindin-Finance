@@ -144,6 +144,20 @@ export const COINGECKO_IMAGE_BY_SYMBOL: Record<string, string> = {
   HBAR: "https://coin-images.coingecko.com/coins/images/3688/large/hbar.png",
 };
 
+/**
+ * Coin logos whose mark is a transparent knockout (e.g. Zcash's official yellow
+ * brandmark: the Z is cut out). HoldingLogo paints this colour behind the image
+ * instead of the sampled brand tint, so the mark doesn't vanish into a plain dot.
+ */
+const KNOCKOUT_FILL_BY_SYMBOL: Record<string, string> = {
+  ZEC: "#ffffff",
+  ZCASH: "#ffffff",
+};
+
+export function cryptoLogoKnockoutFill(ticker: string): string | undefined {
+  return KNOCKOUT_FILL_BY_SYMBOL[cryptoBaseSymbol(ticker)];
+}
+
 /** CoinGecko coin id for search fallback / /coins/{id} lookups. */
 export const COINGECKO_ID_BY_SYMBOL: Record<string, string> = {
   BTC: "bitcoin",
