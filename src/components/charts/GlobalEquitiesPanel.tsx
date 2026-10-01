@@ -216,7 +216,10 @@ export function GlobalEquitiesPanel() {
       for (let y = y0 + 1; y <= y1; y += 1)
         if ((y - y0 - 1) % yStep === 0) xTicks.push({ d: `${y}-01-01`, label: String(y) });
     }
-    const ddTicks = [0, ...DD_LEVELS].filter((l) => l >= ddLo);
+    // Deeper labelled gridlines (−40%, −50%, …) only when the auto-scaled axis reaches them.
+    const deeperTicks: number[] = [];
+    for (let k = 4; -k / 10 >= ddLo; k++) deeperTicks.push(-k / 10);
+    const ddTicks = [0, ...DD_LEVELS, ...deeperTicks].filter((l) => l >= ddLo);
     const lastP = pts[pts.length - 1]!;
     return {
       xOf, yP, yD, yV, vHi, pricePath, athPath, bandPaths, ddLine, ddArea, vixPath,
@@ -566,7 +569,11 @@ export function GlobalEquitiesPanel() {
                     x2={W - PAD_R}
                     y1={chart.yD(l)}
                     y2={chart.yD(l)}
-                    stroke={l === 0 ? "#3a4656" : LEVEL_COLORS[DD_LEVELS.indexOf(l as (typeof DD_LEVELS)[number])]}
+                    stroke={
+                      DD_LEVELS.includes(l as (typeof DD_LEVELS)[number])
+                        ? LEVEL_COLORS[DD_LEVELS.indexOf(l as (typeof DD_LEVELS)[number])]
+                        : "#3a4656"
+                    }
                     strokeDasharray={l === 0 ? undefined : "3 4"}
                     opacity={l === 0 ? 1 : 0.6}
                   />
