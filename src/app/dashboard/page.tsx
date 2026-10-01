@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Cycle Desk",
   description:
-    "Educational cycle tools: Bitcoin 4-year cycle map and ~18.6y real estate cycle framing. Not financial advice.",
+    "Educational cycle tools: Bitcoin 4-year cycle map, ~18.6y real estate cycle framing and a US 10-year bond yield secular regime sketch. Not financial advice.",
 };
 
 const tools = [
@@ -24,6 +24,14 @@ const tools = [
     meta: "Detailed tool · phase timeline · AU lens · educational",
     cta: "Open detailed RE cycle desk",
   },
+  {
+    href: "/tools/bond-cycle",
+    title: "US 10 Year Bond Yield Cycle theory",
+    blurb:
+      "Stylised sketch of US 10-year Treasury secular regimes: decades of rising long rates into 1981, decades of falling long rates into 2020, with a theoretical ~2060 peak-zone marker. Regime direction only — no yield targets.",
+    meta: "Theory sketch · ~40y half-swings · Live dot · educational",
+    cta: "Open bond cycle theory",
+  },
 ];
 
 export default function DashboardHubPage() {
@@ -32,7 +40,7 @@ export default function DashboardHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Cycle desk</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Educational cycle desks for study. Cards below open the BTC 4-year theory schematic and the RE cycle tool; the live BTC price map sits under Charts. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
+        Educational cycle desks for study. Cards below open the BTC 4-year theory schematic, the RE cycle tool and the US 10-year bond cycle sketch; the live BTC price map sits under Charts. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
         Anthony / Adirindin (@Dirindin533).
       </p>
 

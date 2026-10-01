@@ -36,6 +36,9 @@ export function Footer() {
           <Link href="/tools/real-estate-cycle" className="hover:text-accent">
             RE cycle
           </Link>
+          <Link href="/tools/bond-cycle" className="hover:text-accent">
+            Bond cycle
+          </Link>
           <Link href="/tools" className="hover:text-accent">
             Tools
           </Link>

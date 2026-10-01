@@ -7,13 +7,14 @@ const nav = [
   { href: "/charts", label: "Charts" },
   { href: "/dashboard/btc-cycle", label: "BTC cycle" },
   { href: "/tools/real-estate-cycle", label: "RE cycle" },
+  { href: "/tools/bond-cycle", label: "Bond cycle" },
   { href: "/tools", label: "Tools" },
   { href: "/contact", label: "Contact" },
 ];
 
 function isCurrent(path: string, href: string): boolean {
   if (href === "/") return path === "/";
-  // Tools family: hub + portfolio + property prices — not RE cycle (own top tab)
+  // Tools family: hub + portfolio + property prices — not RE / Bond cycle (own top tabs)
   if (href === "/tools") {
     return path === "/tools" || path === "/portfolio" || path === "/property-prices";
   }
