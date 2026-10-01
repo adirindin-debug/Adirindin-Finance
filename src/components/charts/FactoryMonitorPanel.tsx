@@ -26,9 +26,13 @@ import {
   type FactoryPoint,
 } from "@/lib/factoryMonitor";
 
-type TfKey = "20Y" | "ALL";
+type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "20Y" | "ALL";
 
 const TIMEFRAMES: { key: TfKey; months: number | null }[] = [
+  { key: "1Y", months: 12 },
+  { key: "3Y", months: 36 },
+  { key: "5Y", months: 60 },
+  { key: "10Y", months: 120 },
   { key: "20Y", months: 240 },
   { key: "ALL", months: null },
 ];
@@ -121,10 +125,23 @@ export function FactoryMonitorPanel() {
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) yTicks.push(v);
     const y0 = Math.floor(i0 / 12);
     const y1 = Math.floor(i1 / 12);
-    const yearStep = y1 - y0 > 30 ? 10 : 5;
-    const xTicks: number[] = [];
-    for (let y = Math.ceil(y0 / yearStep) * yearStep; y <= y1; y += yearStep) {
-      if (y * 12 >= i0) xTicks.push(y);
+    const xTicks: { idx: number; label: string }[] = [];
+    const span = i1 - i0;
+    if (span < 48) {
+      // Short windows: quarterly (≤2y) or half-yearly month labels, e.g. "Jan 26".
+      const every = span < 24 ? 3 : 6;
+      for (let idx = i0; idx <= i1; idx++) {
+        if (idx % every === 0) {
+          const mk = `${Math.floor(idx / 12)}-${String((idx % 12) + 1).padStart(2, "0")}`;
+          const [mon, yr] = fmtMonthKey(mk).split(" ");
+          xTicks.push({ idx, label: `${mon} ${yr!.slice(2)}` });
+        }
+      }
+    } else {
+      const yearStep = span <= 132 ? 1 : y1 - y0 > 30 ? 10 : 5;
+      for (let y = Math.ceil(y0 / yearStep) * yearStep; y <= y1; y += yearStep) {
+        if (y * 12 >= i0) xTicks.push({ idx: y * 12, label: String(y) });
+      }
     }
     const bands = NBER_RECESSIONS.map((r) => {
       const a = Math.max(monthIndex(r.start), i0);
@@ -302,18 +319,18 @@ export function FactoryMonitorPanel() {
                   </text>
                 </g>
               ))}
-              {chart.xTicks.map((y) => {
-                const x = chart.xOf(y * 12);
+              {chart.xTicks.map((t) => {
+                const x = chart.xOf(t.idx);
                 return (
                   <text
-                    key={`x${y}`}
+                    key={`x${t.idx}`}
                     x={x}
                     y={H - 10}
                     textAnchor="middle"
                     fill="#6b7785"
                     fontSize={10}
                   >
-                    {y}
+                    {t.label}
                   </text>
                 );
               })}
