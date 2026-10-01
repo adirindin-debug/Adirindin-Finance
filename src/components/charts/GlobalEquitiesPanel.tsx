@@ -22,12 +22,15 @@ import {
   type EqPoint,
 } from "@/lib/globalEquities";
 
-type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "20Y" | "MAX";
-const TIMEFRAMES: { key: TfKey; label: string; years: number | null }[] = [
+type TfKey = "YTD" | "1Y" | "3Y" | "5Y" | "10Y" | "15Y" | "20Y" | "MAX";
+/** years: null = everything; "ytd" = from 1 Jan of the browser's current year. */
+const TIMEFRAMES: { key: TfKey; label: string; years: number | "ytd" | null }[] = [
+  { key: "YTD", label: "YTD", years: "ytd" },
   { key: "1Y", label: "1Y", years: 1 },
   { key: "3Y", label: "3Y", years: 3 },
   { key: "5Y", label: "5Y", years: 5 },
   { key: "10Y", label: "10Y", years: 10 },
+  { key: "15Y", label: "15Y", years: 15 },
   { key: "20Y", label: "20Y", years: 20 },
   { key: "MAX", label: "Max", years: null },
 ];
@@ -105,6 +108,15 @@ export function GlobalEquitiesPanel() {
     if (!all.length) return [] as EqPoint[];
     const meta = TIMEFRAMES.find((t) => t.key === tf)!;
     if (meta.years == null) return all;
+    if (meta.years === "ytd") {
+      // Live from the browser date: 1 Jan of the current calendar year.
+      const jan1 = `${new Date().getFullYear()}-01-01`;
+      const ytd = all.filter((p) => p.d >= jan1);
+      if (ytd.length >= 2) return ytd;
+      // First days of January: anchor on the last close of the prior year.
+      const prior = all.filter((p) => p.d < jan1).slice(-1);
+      return [...prior, ...ytd];
+    }
     const c = cutoff(all[all.length - 1]!.d, meta.years);
     return all.filter((p) => p.d > c);
   }, [all, tf]);
@@ -204,7 +216,7 @@ export function GlobalEquitiesPanel() {
       // Short windows: quarterly ticks (Jan / Apr / Jul / Oct).
       // Very short (zoomed) windows: monthly ticks.
       const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const every = x1 - x0 < 200 ? 1 : 3;
+      const every = x1 - x0 < 200 || tf === "YTD" ? 1 : 3;
       for (let y = y0; y <= y1; y++) {
         for (let m = 0; m < 12; m += every) {
           const d = `${y}-${String(m + 1).padStart(2, "0")}-01`;
@@ -225,7 +237,7 @@ export function GlobalEquitiesPanel() {
       xOf, yP, yD, yV, vHi, pricePath, athPath, bandPaths, ddLine, ddArea, vixPath,
       segs, repairs, pTicks, xTicks, ddTicks, ddLo, lastP, x0, x1,
     };
-  }, [pts]);
+  }, [pts, tf]);
 
   const toSvgX = useCallback((clientX: number): number | null => {
     const svg = svgRef.current;
@@ -688,7 +700,7 @@ export function GlobalEquitiesPanel() {
       <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-muted">
         <p>
           Phase = drawdown of URTH adjusted close from its all-time high (series starts 12 Jan 2012,
-          so 20Y and Max show the same span). Repair: still more than 12% below the high, at least 5%
+          so 15Y, 20Y and Max show the same span). Repair: still more than 12% below the high, at least 5%
           off the low since that high, and higher than three months ago — fear staying high is normal
           here. Sentiment tilt, one notch only, from VIX vs its own 5-year range: Hot market+ when VIX is
           in its lowest 10% (complacent), &quot;Hot market but nervous&quot; at the 75th percentile or above,
