@@ -45,7 +45,7 @@ const LEVEL_LINES: Array<{
   dash?: string;
   width: number;
 }> = [
-  { v: FACTORY_LEVELS.lateHeat, color: "#f87171", label: "+20", width: 1.25, dash: "6 4" },
+  { v: FACTORY_LEVELS.lateHeat, color: "#f87171", label: "+25", width: 1.25, dash: "6 4" },
   { v: FACTORY_LEVELS.zero, color: "#f5f7fa", label: "0", width: 1.25 },
   { v: FACTORY_LEVELS.watch, color: "#fb923c", label: "−10", width: 1.25, dash: "6 4" },
   { v: FACTORY_LEVELS.recession, color: "#ef4444", label: "−15", width: 1, dash: "2 4" },
@@ -428,7 +428,7 @@ export function FactoryMonitorPanel() {
       <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-muted">
         <p>{FACTORY_LEVELS_FOOTNOTE}</p>
         <p>
-          States: ≥+20 Late heat (not a dated top) · 0 to &lt;+20 Expansion ·
+          States: ≥+25 Late heat (not a dated top) · 0 to &lt;+25 Expansion ·
           −10 to &lt;0 Soft / stagnation (manufacturing contracting, not
           automatically NBER recession) · −15 to &lt;−10 Risk-off watch ·
           &lt;−15 Recession zone. Grey bands: NBER US recessions. Dotted cyan

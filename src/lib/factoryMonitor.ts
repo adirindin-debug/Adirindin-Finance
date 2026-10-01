@@ -11,7 +11,10 @@
  * Philly Fed index is (% higher − % lower), centred on zero. So an ISM-style
  * level L sits at roughly 2 × (L − 50) on the Philly Fed scale:
  *   60 → +20, 50 → 0, 46 → −8, 42 → −16.
- * Rounded to clean numbers (nearest 5): +20 / 0 / −10 / −15.
+ * Rounded to clean numbers (nearest 5): +20 / 0 / −10 / −15, then Late heat
+ * raised to +25 to allow for the noisier single-question survey (about 19% of
+ * months since 1968 at or above +25, vs about 27% at +20).
+ * Lines used: +25 / 0 / −10 / −15.
  * These are research reference lines, not official thresholds.
  *
  * Educational only — not financial advice (NFA).
@@ -24,17 +27,17 @@ export const FACTORY_PHILLY_URL =
 
 /** Reference levels on the Philly Fed (zero-centred) scale. */
 export const FACTORY_LEVELS = {
-  lateHeat: 20,
+  lateHeat: 25,
   zero: 0,
   watch: -10,
   recession: -15,
 } as const;
 
 export const FACTORY_KEY_LINE =
-  "≥+20 late heat · 0 expansion line · −10 watch · <−15 recession zone";
+  "≥+25 late heat · 0 expansion line · −10 watch · <−15 recession zone";
 
 export const FACTORY_LEVELS_FOOTNOTE =
-  "Levels converted from ISM-style reference lines (60 / 50 / 46 / 42) with diffusion-index arithmetic (Philly ≈ 2 × (ISM-style − 50)), rounded; not official thresholds.";
+  "Levels converted from ISM-style reference lines (60 / 50 / 46 / 42) with diffusion-index arithmetic (Philly ≈ 2 × (ISM-style − 50)), rounded: ISM-style 60 converts to about +20, with Late heat set at +25 to allow for the noisier single-question survey (about 19% of months since 1968). Not official thresholds.";
 
 export const FACTORY_NOT_ISM_NOTE =
   "This is the Philadelphia Fed manufacturing survey, not the ISM Manufacturing PMI. ISM data is licensed and not shown here. Readings are a diffusion index centred on zero.";
