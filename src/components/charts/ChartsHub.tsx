@@ -8,6 +8,13 @@ import {
   fmtReading,
   type FactoryPayload,
 } from "@/lib/factoryMonitor";
+import {
+  eqHoverLine,
+  enrich as enrichEquities,
+  fmtPct,
+  summarise as summariseEquities,
+  type EqPayload,
+} from "@/lib/globalEquities";
 
 type TileStatus = "loading" | "ok" | "error";
 
@@ -23,6 +30,8 @@ type TileLive = {
   /** Optional overrides used by the Philly Fed tile (others unchanged). */
   sparkColor?: string;
   chip?: { label: string; color: string };
+  /** Small line under the chip (e.g. sentiment tilt). */
+  chipSubtitle?: string;
   tooltip?: string;
   /** false = dated snapshot fallback (hides the Live badge). */
   isLive?: boolean;
@@ -215,6 +224,31 @@ function parseFactoryMonitor(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
+/** Global equities · sentiment state — URTH (MSCI World proxy) drawdown phase + VIX tilt. */
+function parseGlobalEquities(json: unknown): Omit<TileLive, "status"> | null {
+  const data = json as EqPayload;
+  if (!data?.ok || !data.rows?.length) return null;
+  const pts = enrichEquities(data.rows);
+  const s = summariseEquities(pts);
+  if (!s) return null;
+  // Weekly-sampled sparkline over the full URTH history (~14.7 years).
+  const spark: SparkPoint[] = [];
+  for (let i = 0; i < pts.length; i += 5) spark.push({ t: i, v: pts[i]!.px });
+  const lastPt = pts[pts.length - 1]!;
+  if (spark[spark.length - 1]?.v !== lastPt.px) spark.push({ t: pts.length, v: lastPt.px });
+  return {
+    headline: `${fmtPct(s.dd)} from ATH`,
+    headlineColor: "#22d3ee",
+    secondary: s.phase.label,
+    spark,
+    sparkColor: "#22d3ee",
+    chip: { label: s.phase.label, color: s.phase.color },
+    chipSubtitle: s.tag ?? "No sentiment tilt (VIX mid-range)",
+    tooltip: eqHoverLine(s),
+    isLive: !data.snapshot,
+  };
+}
+
 const CATEGORIES: Category[] = [
   {
     id: "sentiment",
@@ -281,6 +315,14 @@ const CATEGORIES: Category[] = [
         subtitle: "Philly Fed survey · monthly · not ISM",
         endpoint: "/api/factory-monitor",
         parse: parseFactoryMonitor,
+      },
+      {
+        id: "global-equities",
+        href: "/charts/global-equities",
+        title: "Global equities · sentiment state",
+        subtitle: "MSCI World proxy (URTH) · daily · VIX tilt",
+        endpoint: "/api/global-equities",
+        parse: parseGlobalEquities,
       },
     ],
   },
@@ -412,7 +454,11 @@ function ChartTile({
           />
           {live.chip.label}
         </span>
-      ) : (
+      ) : null}
+      {live?.chip && live.chipSubtitle && status === "ok" ? (
+        <p className="relative mt-1 text-xs text-muted">{live.chipSubtitle}</p>
+      ) : null}
+      {live?.chip && status === "ok" ? null : (
         <p
           className="relative mt-1 text-xs text-muted sm:text-sm"
           style={
