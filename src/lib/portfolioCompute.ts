@@ -128,35 +128,97 @@ export function cashWeightPct(cashAud: number, totalMarketValueAud: number): num
 export { CASH_COLOR };
 
 /** Display currency for portfolio UI (bookkeeping stays AUD). */
-export type DisplayCurrency = "AUD" | "USD";
+/** Portfolio value denominations (bookkeeping stays AUD; display only). */
+export const DISPLAY_CURRENCIES = [
+  "USD",
+  "AUD",
+  "EUR",
+  "GBP",
+  "JPY",
+  "CAD",
+  "CHF",
+  "NZD",
+  "CNY",
+  "BTC",
+] as const;
+export type DisplayCurrency = (typeof DISPLAY_CURRENCIES)[number];
 
-/** Convert an AUD amount to the selected display currency. USD needs audPerUsd > 0. */
+export function isDisplayCurrency(v: unknown): v is DisplayCurrency {
+  return typeof v === "string" && (DISPLAY_CURRENCIES as readonly string[]).includes(v);
+}
+
+/**
+ * Convert an AUD amount to the selected display currency.
+ * displayPerAud = units of the display currency per 1 AUD (ignored for AUD).
+ */
 export function audToDisplay(
   amountAud: number | null | undefined,
   display: DisplayCurrency,
-  audPerUsd: number | null,
+  displayPerAud: number | null,
 ): number | null {
   if (amountAud == null || !Number.isFinite(amountAud)) return null;
   if (display === "AUD") return amountAud;
-  if (audPerUsd == null || !(audPerUsd > 0)) return null;
-  return amountAud / audPerUsd;
+  if (displayPerAud == null || !(displayPerAud > 0)) return null;
+  return amountAud * displayPerAud;
 }
 
-/** Format money in A$ or US$ (en-AU numerals). */
+/** Prefix symbol: A$ / US$ as before, ₿ for BTC, Intl symbols for the rest (€, £, ¥, CA$, NZ$, CN¥, CHF). */
+export function currencySymbol(currency: DisplayCurrency): string {
+  if (currency === "AUD") return "A$";
+  if (currency === "USD") return "US$";
+  if (currency === "BTC") return "₿";
+  try {
+    const sym = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency,
+      currencyDisplay: "symbol",
+    })
+      .formatToParts(0)
+      .find((p) => p.type === "currency")?.value;
+    if (sym) return /[A-Za-z]$/.test(sym) ? `${sym} ` : sym;
+  } catch {
+    // fall through
+  }
+  return `${currency} `;
+}
+
+/** Unsigned BTC amount: ₿ with up to 8 dp, or sats below ₿0.001. */
+function formatBtcAbs(abs: number): string {
+  if (abs > 0 && abs < 0.001) return `${Math.round(abs * 1e8).toLocaleString("en-AU")} sats`;
+  return `₿${abs.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 8 })}`;
+}
+
+/** Unsigned money string (JPY always 0 dp; BTC per formatBtcAbs). */
+export function formatMoneyAbs(abs: number, currency: DisplayCurrency, digits = 2): string {
+  if (currency === "BTC") return formatBtcAbs(abs);
+  const d = currency === "JPY" ? 0 : digits;
+  return `${currencySymbol(currency)}${abs.toLocaleString("en-AU", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  })}`;
+}
+
+/** Format money in the display currency (en-AU numerals; A$ / US$ unchanged). */
 export function formatMoney(
   n: number | null | undefined,
   currency: DisplayCurrency = "AUD",
   digits = 2,
 ): string {
-  const prefix = currency === "USD" ? "US$" : "A$";
-  if (n == null || !Number.isFinite(n)) return `${prefix}—`;
-  const abs = Math.abs(n);
-  const formatted = abs.toLocaleString("en-AU", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
-  if (n < 0) return `-${prefix}${formatted}`;
-  return `${prefix}${formatted}`;
+  if (n == null || !Number.isFinite(n)) return `${currencySymbol(currency)}—`;
+  const body = formatMoneyAbs(Math.abs(n), currency, digits);
+  return n < 0 ? `-${body}` : body;
+}
+
+/** Holdings-row unit price: "$" for AUD and "US$" for USD as before. */
+export function formatUnitPrice(n: number | null | undefined, currency: DisplayCurrency): string {
+  if (currency === "BTC") {
+    return n == null || !Number.isFinite(n) ? "₿—" : formatBtcAbs(Math.abs(n));
+  }
+  const prefix = currency === "AUD" ? "$" : currencySymbol(currency);
+  if (currency === "JPY" && n != null && Number.isFinite(n) && Math.abs(n) >= 100) {
+    return `${prefix}${Math.round(n).toLocaleString("en-AU")}`;
+  }
+  return `${prefix}${formatPrice(n)}`;
 }
 
 export function formatAud(n: number | null | undefined, digits = 2): string {
@@ -169,15 +231,11 @@ export function formatGain(
   currency: DisplayCurrency = "AUD",
 ): string {
   if (gain == null || pct == null) return "— · —%";
-  const prefix = currency === "USD" ? "US$" : "A$";
   const sign = gain >= 0 ? "+" : "";
-  const g = Math.abs(gain).toLocaleString("en-AU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const g = formatMoneyAbs(Math.abs(gain), currency, 2);
   const p = Math.abs(pct).toFixed(2);
   const pctSign = pct >= 0 ? "+" : "−";
-  return `${sign}${prefix}${g} · ${pctSign}${p}%`;
+  return `${sign}${g} · ${pctSign}${p}%`;
 }
 
 export function formatPrice(n: number | null | undefined): string {

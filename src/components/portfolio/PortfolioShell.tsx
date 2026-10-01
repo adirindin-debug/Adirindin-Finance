@@ -33,7 +33,8 @@ import {
   computePeriodSummary,
   type PeriodTickerReturn,
 } from "@/lib/portfolioCompute";
-import { PortfolioSummary } from "./PortfolioSummary";
+import type { FxRatesPayload } from "@/app/api/fx-rates/route";
+import { PortfolioSummary, type FxNote } from "./PortfolioSummary";
 import { PerformanceChart } from "./PerformanceChart";
 import { AllocationDonutEmpty } from "./AllocationDonutEmpty";
 import { HoldingsListEmpty } from "./HoldingsListEmpty";
@@ -42,6 +43,22 @@ import { PortfolioEditor } from "./PortfolioEditor";
 type Props = {
   seed: PortfolioConfig;
 };
+
+/** "1 Oct 2026" from YYYY-MM-DD (UTC date, no shift). */
+function fmtDate(ymd: string): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
+/** Local time with zone, e.g. "9:41 am AEST · 2 Oct". */
+function fmtTime(ms: number): string {
+  if (!Number.isFinite(ms)) return "—";
+  const d = new Date(ms);
+  const t = d.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZoneName: "short" });
+  const day = d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+  return `${t} · ${day}`;
+}
 
 export function PortfolioShell({ seed }: Props) {
   const [portfolio, setPortfolio] = useState<PortfolioConfig>(seed);
@@ -59,8 +76,14 @@ export function PortfolioShell({ seed }: Props) {
   const [tfReady, setTfReady] = useState(false);
   /** Pin summary/holdings to cost basis; lock Performance chart to 1Y. Portfolio-only. */
   const [returnsVsCost, setReturnsVsCost] = useState(true);
-  /** Display-only AUD|USD toggle (bookkeeping stays AUD). */
-  const [displayCurrency, setDisplayCurrency] = useState<PortfolioDisplayCurrency>("AUD");
+  /** Display-only value denomination (bookkeeping stays AUD). Default USD unless saved. */
+  const [displayCurrency, setDisplayCurrency] = useState<PortfolioDisplayCurrency>("USD");
+  /** When the last live AUDUSD (Yahoo) arrived — for the FX note. */
+  const [audUsdAt, setAudUsdAt] = useState<number | null>(null);
+  /** ECB (Frankfurter) display FX, units per 1 AUD. */
+  const [fx, setFx] = useState<FxRatesPayload | null>(null);
+  /** BTC/USD from the existing /api/btc-info feed (only fetched while BTC is selected). */
+  const [btc, setBtc] = useState<{ usd: number; source: string; asOf: string } | null>(null);
   const [periodReturns, setPeriodReturns] = useState<PeriodTickerReturn[] | null>(null);
   const [returnsLoading, setReturnsLoading] = useState(false);
   const [returnsError, setReturnsError] = useState<string | null>(null);
@@ -76,7 +99,7 @@ export function PortfolioShell({ seed }: Props) {
   useEffect(() => {
     setTf(toPortfolioTf(readStoredChartTimeframe(DEFAULT_CHART_TIMEFRAME)));
     setReturnsVsCost(readStoredReturnsVsCost(true));
-    setDisplayCurrency(readStoredDisplayCurrency("AUD"));
+    setDisplayCurrency(readStoredDisplayCurrency("USD"));
     setTfReady(true);
   }, []);
 
@@ -121,6 +144,7 @@ export function PortfolioShell({ seed }: Props) {
     // collectables in USD / security tickers — use fxOnly=1 when no tickers.
     const needsFx =
       displayCurrency === "USD" ||
+      displayCurrency === "BTC" ||
       portfolio.holdings.some(
         (h) =>
           h.costCurrency === "USD" ||
@@ -152,10 +176,16 @@ export function PortfolioShell({ seed }: Props) {
         setQuotesError(data.error || `HTTP ${res.status}`);
         setQuotes(data.quotes ?? []);
         // Keep last known FX — do not invent a rate.
-        if (nextFx != null) setAudPerUsd(nextFx);
+        if (nextFx != null) {
+          setAudPerUsd(nextFx);
+          setAudUsdAt(Date.now());
+        }
       } else {
         setQuotes(data.quotes ?? []);
-        if (nextFx != null) setAudPerUsd(nextFx);
+        if (nextFx != null) {
+          setAudPerUsd(nextFx);
+          setAudUsdAt(Date.now());
+        }
         setQuotesError(data.error || null);
       }
     } catch (e) {
@@ -171,6 +201,61 @@ export function PortfolioShell({ seed }: Props) {
     const id = window.setInterval(() => void fetchQuotes(), 60_000);
     return () => window.clearInterval(id);
   }, [hydrated, fetchQuotes]);
+
+  // Display FX (ECB via Frankfurter, cached same-origin route) — only needed off AUD.
+  const needsDisplayFx = displayCurrency !== "AUD";
+  useEffect(() => {
+    if (!hydrated || !needsDisplayFx) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/fx-rates");
+        const data = (await res.json()) as FxRatesPayload;
+        if (!cancelled && data?.ok && data.rates) setFx(data);
+      } catch {
+        // keep last known rates — never invent one
+      }
+    };
+    void load();
+    const id = window.setInterval(() => void load(), 60 * 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [hydrated, needsDisplayFx]);
+
+  // BTC denomination: existing BTC price feed, refreshed with the quotes cadence.
+  const btcSelected = displayCurrency === "BTC";
+  useEffect(() => {
+    if (!hydrated || !btcSelected) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/btc-info");
+        const data = (await res.json()) as {
+          ok?: boolean;
+          btcPrice?: number;
+          source?: string;
+          asOf?: string;
+        };
+        if (!cancelled && data.ok && data.btcPrice && data.btcPrice > 0) {
+          setBtc({
+            usd: data.btcPrice,
+            source: data.source ?? "btc-info",
+            asOf: data.asOf ?? new Date().toISOString(),
+          });
+        }
+      } catch {
+        // keep last known price
+      }
+    };
+    void load();
+    const id = window.setInterval(() => void load(), 60_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [hydrated, btcSelected]);
 
   const fetchPeriodReturns = useCallback(async () => {
     // Vs cost: personal cost-basis gains already on live holdings — skip API.
@@ -349,12 +434,47 @@ export function PortfolioShell({ seed }: Props) {
   const showSummary =
     hasHoldings || (portfolio.availableCashAud != null && portfolio.availableCashAud > 0);
 
-  const fxOk = audPerUsd != null && audPerUsd > 0;
-  /** Prefer USD when selected and FX is known; otherwise fall back to AUD (no invented rates). */
-  const effectiveDisplay: PortfolioDisplayCurrency =
-    displayCurrency === "USD" && fxOk ? "USD" : "AUD";
-  const fxUnavailableHint =
-    displayCurrency === "USD" && !fxOk ? "FX unavailable — showing A$" : null;
+  /**
+   * Units of the display currency per 1 AUD. USD keeps the live Yahoo AUDUSD the
+   * page already uses for quotes (falls back to ECB); other fiat use ECB rates;
+   * BTC = (USD per AUD) ÷ BTC/USD. Null when unknown — never an invented rate.
+   */
+  const yahooUsdPerAud = audPerUsd != null && audPerUsd > 0 ? 1 / audPerUsd : null;
+  const usdPerAud = yahooUsdPerAud ?? fx?.rates.USD ?? null;
+  const usdLeg = yahooUsdPerAud != null ? "Yahoo AUDUSD" : fx ? fx.sourceLabel : null;
+  const displayPerAud: number | null = (() => {
+    if (displayCurrency === "AUD") return 1;
+    if (displayCurrency === "USD") return usdPerAud;
+    if (displayCurrency === "BTC") return usdPerAud != null && btc ? usdPerAud / btc.usd : null;
+    return fx?.rates[displayCurrency] ?? null;
+  })();
+  const fxOk = displayPerAud != null && displayPerAud > 0;
+  /** Prefer the selected currency when FX is known; otherwise fall back to AUD. */
+  const effectiveDisplay: PortfolioDisplayCurrency = fxOk ? displayCurrency : "AUD";
+  const fxUnavailableHint = !fxOk ? "FX unavailable — showing A$" : null;
+  const fxNote: FxNote | null = (() => {
+    if (!fxOk || effectiveDisplay === "AUD") return null;
+    if (effectiveDisplay === "USD" && yahooUsdPerAud != null) {
+      return {
+        source: "Yahoo Finance AUDUSD (may be delayed)",
+        asOf: audUsdAt ? fmtTime(audUsdAt) : "live",
+      };
+    }
+    if (effectiveDisplay === "BTC" && btc) {
+      return {
+        source: `BTC/USD ${btc.source === "coinbase" ? "Coinbase" : btc.source} · AUD→USD ${usdLeg ?? "—"}`,
+        asOf: fmtTime(Date.parse(btc.asOf)),
+      };
+    }
+    if (fx) {
+      return {
+        source: fx.sourceLabel,
+        url: fx.sourceUrl,
+        asOf: fmtDate(fx.asOf),
+      };
+    }
+    return null;
+  })();
 
   return (
     <div className="mx-auto max-w-2xl bg-black px-4 py-8 sm:px-6 sm:py-10">
@@ -373,8 +493,9 @@ export function PortfolioShell({ seed }: Props) {
         returnsError={returnsError}
         displayCurrency={displayCurrency}
         effectiveDisplay={effectiveDisplay}
-        audPerUsd={audPerUsd}
+        displayPerAud={displayPerAud}
         fxUnavailableHint={fxUnavailableHint}
+        fxNote={fxNote}
         onDisplayCurrencyChange={setDisplayCurrencyPersist}
         onEditName={openMeta}
         onAdd={openAdd}
@@ -392,7 +513,7 @@ export function PortfolioShell({ seed }: Props) {
         holdings={liveHoldings}
         cashAud={summary.cashAud}
         displayCurrency={effectiveDisplay}
-        audPerUsd={audPerUsd}
+        displayPerAud={displayPerAud}
       />
       <HoldingsListEmpty
         holdings={liveHoldings}
@@ -402,7 +523,7 @@ export function PortfolioShell({ seed }: Props) {
         returnsLoading={returnsLoading}
         highlightId={justAddedId}
         displayCurrency={effectiveDisplay}
-        audPerUsd={audPerUsd}
+        displayPerAud={displayPerAud}
         onEdit={openEdit}
         onAdd={openAdd}
         onEditCash={openMeta}

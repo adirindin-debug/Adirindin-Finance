@@ -27,7 +27,8 @@ type Props = {
   holdings: HoldingLive[];
   cashAud: number;
   displayCurrency?: DisplayCurrency;
-  audPerUsd?: number | null;
+  /** Units of the display currency per 1 AUD. */
+  displayPerAud?: number | null;
 };
 
 type ViewMode = "assets" | "sector";
@@ -128,7 +129,7 @@ export function AllocationDonutEmpty({
   holdings,
   cashAud,
   displayCurrency = "AUD",
-  audPerUsd = null,
+  displayPerAud = null,
 }: Props) {
   const [mode, setMode] = useState<ViewMode>("assets");
 
@@ -233,7 +234,7 @@ export function AllocationDonutEmpty({
                     <span className="text-zinc-400">{s.pct.toFixed(1)}%</span>
                     <span className="w-24 text-right text-white">
                       {formatMoney(
-                        audToDisplay(s.value, displayCurrency, audPerUsd),
+                        audToDisplay(s.value, displayCurrency, displayPerAud),
                         displayCurrency,
                         0,
                       )}

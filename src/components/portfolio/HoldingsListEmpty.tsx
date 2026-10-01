@@ -9,7 +9,8 @@ import type { DisplayCurrency } from "@/lib/portfolioCompute";
 import {
   audToDisplay,
   formatMoney,
-  formatPrice,
+  formatMoneyAbs,
+  formatUnitPrice,
   returnWindowHint,
   returnWindowHintVsCost,
 } from "@/lib/portfolioCompute";
@@ -25,7 +26,8 @@ type Props = {
   /** Briefly highlight a newly added holding */
   highlightId?: string | null;
   displayCurrency?: DisplayCurrency;
-  audPerUsd?: number | null;
+  /** Units of the display currency per 1 AUD. */
+  displayPerAud?: number | null;
   onEdit: (id: string) => void;
   onAdd: () => void;
   onEditCash: () => void;
@@ -37,14 +39,10 @@ function formatRowGain(
   currency: DisplayCurrency,
 ): string {
   if (gain == null || gainPct == null) return "—";
-  const prefix = currency === "USD" ? "US$" : "A$";
   const sign = gain >= 0 ? "+" : "−";
-  const dollars = Math.abs(gain).toLocaleString("en-AU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  const dollars = formatMoneyAbs(Math.abs(gain), currency, 2);
   const pctSign = gainPct >= 0 ? "+" : "−";
-  return `${sign}${prefix}${dollars} ${pctSign}${Math.abs(gainPct).toFixed(2)}%`;
+  return `${sign}${dollars} ${pctSign}${Math.abs(gainPct).toFixed(2)}%`;
 }
 
 export function HoldingsListEmpty({
@@ -55,7 +53,7 @@ export function HoldingsListEmpty({
   returnsLoading,
   highlightId = null,
   displayCurrency = "AUD",
-  audPerUsd = null,
+  displayPerAud = null,
   onEdit,
   onAdd,
   onEditCash,
@@ -110,8 +108,7 @@ export function HoldingsListEmpty({
             const gainPositive = h.gainAud != null && h.gainAud >= 0;
             const isCollectable = h.kind === "collectable";
             const title = isCollectable ? h.name ?? h.ticker : h.ticker;
-            const unitPrice = audToDisplay(h.priceAud, displayCurrency, audPerUsd);
-            const pricePrefix = displayCurrency === "USD" ? "US$" : "$";
+            const unitPrice = audToDisplay(h.priceAud, displayCurrency, displayPerAud);
             const subtitle = isCollectable
               ? [
                   "Collectable",
@@ -120,7 +117,7 @@ export function HoldingsListEmpty({
                 ]
                   .filter(Boolean)
                   .join(" · ")
-              : `${h.quantity} | ${pricePrefix}${formatPrice(unitPrice)}${
+              : `${h.quantity} | ${formatUnitPrice(unitPrice, displayCurrency)}${
                   h.costCurrency === "USD" ? " · cost USD" : ""
                 }${h.name ? ` · ${h.name}` : ""}`;
 
@@ -130,7 +127,7 @@ export function HoldingsListEmpty({
                 if (!useCostBasis) return "—";
                 if (h.costBasis <= 0) return "est. value";
               }
-              const gainDisp = audToDisplay(h.gainAud, displayCurrency, audPerUsd);
+              const gainDisp = audToDisplay(h.gainAud, displayCurrency, displayPerAud);
               return formatRowGain(gainDisp, h.gainPct, displayCurrency);
             })();
 
@@ -174,7 +171,7 @@ export function HoldingsListEmpty({
                   <div className="text-right">
                     <p className="font-semibold text-white">
                       {formatMoney(
-                        audToDisplay(h.marketValueAud, displayCurrency, audPerUsd),
+                        audToDisplay(h.marketValueAud, displayCurrency, displayPerAud),
                         displayCurrency,
                         2,
                       )}
@@ -224,7 +221,7 @@ export function HoldingsListEmpty({
         </div>
         <p className="text-sm font-semibold text-white">
           {formatMoney(
-            audToDisplay(availableCashAud, displayCurrency, audPerUsd),
+            audToDisplay(availableCashAud, displayCurrency, displayPerAud),
             displayCurrency,
             2,
           )}
