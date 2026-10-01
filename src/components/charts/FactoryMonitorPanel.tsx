@@ -45,10 +45,9 @@ const LEVEL_LINES: Array<{
   dash?: string;
   width: number;
 }> = [
-  { v: FACTORY_LEVELS.lateHeat, color: "#f87171", label: "+25", width: 1.25, dash: "6 4" },
+  { v: FACTORY_LEVELS.hot, color: "#39e75f", label: "+25", width: 1.25, dash: "6 4" },
   { v: FACTORY_LEVELS.zero, color: "#f5f7fa", label: "0", width: 1.25 },
-  { v: FACTORY_LEVELS.watch, color: "#fb923c", label: "−10", width: 1.25, dash: "6 4" },
-  { v: FACTORY_LEVELS.recession, color: "#ef4444", label: "−15", width: 1, dash: "2 4" },
+  { v: FACTORY_LEVELS.weak, color: "#ef4444", label: "−10", width: 1.25, dash: "6 4" },
 ];
 
 type Hover = { x: number; y: number; p: FactoryPoint; inRecession: boolean };
@@ -103,8 +102,8 @@ export function FactoryMonitorPanel() {
     if (points.length < 2) return null;
     const i0 = monthIndex(points[0]!.m);
     const i1 = monthIndex(points[points.length - 1]!.m);
-    let lo = Math.min(FACTORY_LEVELS.recession, ...points.map((p) => p.v));
-    let hi = Math.max(FACTORY_LEVELS.lateHeat, ...points.map((p) => p.v));
+    let lo = Math.min(FACTORY_LEVELS.weak, ...points.map((p) => p.v));
+    let hi = Math.max(FACTORY_LEVELS.hot, ...points.map((p) => p.v));
     lo = Math.floor((lo - 4) / 10) * 10;
     hi = Math.ceil((hi + 4) / 10) * 10;
     const iw = W - PAD.left - PAD.right;
@@ -428,10 +427,10 @@ export function FactoryMonitorPanel() {
       <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-muted">
         <p>{FACTORY_LEVELS_FOOTNOTE}</p>
         <p>
-          States: ≥+25 Late heat (not a dated top) · 0 to &lt;+25 Expansion ·
-          −10 to &lt;0 Soft / stagnation (manufacturing contracting, not
-          automatically NBER recession) · −15 to &lt;−10 Risk-off watch ·
-          &lt;−15 Recession zone. Grey bands: NBER US recessions. Dotted cyan
+          States: ≥+25 Hot market (manufacturing strong · bull-market
+          backdrop) · 0 to &lt;+25 Expansion · −10 to &lt;0 Neutral / sluggish
+          (manufacturing contracting, not automatically NBER recession) ·
+          &lt;−10 Recessionary / weak. Grey bands: NBER US recessions. Dotted cyan
           line: latest reading.
         </p>
         <p>

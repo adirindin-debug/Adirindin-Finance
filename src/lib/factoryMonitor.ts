@@ -10,12 +10,10 @@
  * An ISM-style diffusion index is 50 + (% higher − % lower) / 2, while the
  * Philly Fed index is (% higher − % lower), centred on zero. So an ISM-style
  * level L sits at roughly 2 × (L − 50) on the Philly Fed scale:
- *   60 → +20, 50 → 0, 46 → −8, 42 → −16.
- * Rounded to clean numbers (nearest 5): +20 / 0 / −10 / −15, then Late heat
- * raised to +25 to allow for the noisier single-question survey (about 19% of
- * months since 1968 at or above +25, vs about 27% at +20).
- * Lines used: +25 / 0 / −10 / −15.
- * These are research reference lines, not official thresholds.
+ *   60 → +20, 50 → 0, 46 → −8 (rounded to −10).
+ * The Hot market line is set at +25 (not +20) to allow for the noisier
+ * single-question survey (about 19% of months since 1968 at or above +25).
+ * Lines used: +25 / 0 / −10. Research reference lines, not official thresholds.
  *
  * Educational only — not financial advice (NFA).
  */
@@ -27,17 +25,16 @@ export const FACTORY_PHILLY_URL =
 
 /** Reference levels on the Philly Fed (zero-centred) scale. */
 export const FACTORY_LEVELS = {
-  lateHeat: 25,
+  hot: 25,
   zero: 0,
-  watch: -10,
-  recession: -15,
+  weak: -10,
 } as const;
 
 export const FACTORY_KEY_LINE =
-  "≥+25 late heat · 0 expansion line · −10 watch · <−15 recession zone";
+  "≥+25 hot market · 0 expansion line · −10 to <0 neutral / sluggish · <−10 recessionary / weak";
 
 export const FACTORY_LEVELS_FOOTNOTE =
-  "Levels converted from ISM-style reference lines (60 / 50 / 46 / 42) with diffusion-index arithmetic (Philly ≈ 2 × (ISM-style − 50)), rounded: ISM-style 60 converts to about +20, with Late heat set at +25 to allow for the noisier single-question survey (about 19% of months since 1968). Not official thresholds.";
+  "Levels converted from ISM-style reference lines (60 / 50 / 46) with diffusion-index arithmetic (Philly ≈ 2 × (ISM-style − 50)), rounded: ISM-style 60 converts to about +20, with the Hot market line set at +25 to allow for the noisier single-question survey (about 19% of months since 1968); 46 converts to about −8, rounded to −10. Not official thresholds.";
 
 export const FACTORY_NOT_ISM_NOTE =
   "This is the Philadelphia Fed manufacturing survey, not the ISM Manufacturing PMI. ISM data is licensed and not shown here. Readings are a diffusion index centred on zero.";
@@ -45,12 +42,7 @@ export const FACTORY_NOT_ISM_NOTE =
 export const FACTORY_FOOTER =
   "Research tool. Not financial advice. Length of slumps is not a forecast date.";
 
-export type FactoryStateKey =
-  | "late-heat"
-  | "expansion"
-  | "soft"
-  | "risk-off-watch"
-  | "recession-zone";
+export type FactoryStateKey = "hot" | "expansion" | "neutral" | "weak";
 
 export type FactoryState = {
   key: FactoryStateKey;
@@ -60,37 +52,31 @@ export type FactoryState = {
 };
 
 export const FACTORY_STATES: Record<FactoryStateKey, FactoryState> = {
-  "late-heat": {
-    key: "late-heat",
-    label: "Late heat",
-    color: "#f87171",
-    note: "Not a dated top",
+  hot: {
+    key: "hot",
+    label: "Hot market",
+    color: "#39e75f",
+    note: "Manufacturing strong · bull-market backdrop",
   },
   expansion: { key: "expansion", label: "Expansion", color: "#2dd4bf" },
-  soft: {
-    key: "soft",
-    label: "Soft / stagnation",
+  neutral: {
+    key: "neutral",
+    label: "Neutral / sluggish",
     color: "#fbbf24",
     note: "Manufacturing contracting. Not automatically NBER recession",
   },
-  "risk-off-watch": {
-    key: "risk-off-watch",
-    label: "Risk-off watch",
-    color: "#fb923c",
-  },
-  "recession-zone": {
-    key: "recession-zone",
-    label: "Recession zone",
+  weak: {
+    key: "weak",
+    label: "Recessionary / weak",
     color: "#ef4444",
   },
 };
 
 export function factoryState(v: number): FactoryState {
-  if (v >= FACTORY_LEVELS.lateHeat) return FACTORY_STATES["late-heat"];
+  if (v >= FACTORY_LEVELS.hot) return FACTORY_STATES.hot;
   if (v >= FACTORY_LEVELS.zero) return FACTORY_STATES.expansion;
-  if (v >= FACTORY_LEVELS.watch) return FACTORY_STATES.soft;
-  if (v >= FACTORY_LEVELS.recession) return FACTORY_STATES["risk-off-watch"];
-  return FACTORY_STATES["recession-zone"];
+  if (v >= FACTORY_LEVELS.weak) return FACTORY_STATES.neutral;
+  return FACTORY_STATES.weak;
 }
 
 /** Monthly observation: month key "YYYY-MM" and reading. */
@@ -172,7 +158,7 @@ export function factorySummary(points: FactoryPoint[]): string | null {
   const plural = (n: number) => (n === 1 ? "month" : "months");
   const capped = (n: number) =>
     n >= points.length ? `${n}+ ${plural(n)}` : `${n} ${plural(n)}`;
-  const watch = FACTORY_LEVELS.watch;
+  const watch = FACTORY_LEVELS.weak;
   if (last.v > 0) {
     const above = trailingRun(points, (v) => v > 0);
     const notBelow = trailingRun(points, (v) => v >= watch);
