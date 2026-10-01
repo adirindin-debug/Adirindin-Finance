@@ -17,6 +17,13 @@
 "use client";
 
 import { useLiveNow } from "@/lib/useLiveNow";
+import {
+  bezierPathD,
+  bezierPointAtFraction,
+  curveLerp,
+  smoothBeziers,
+  type Pt,
+} from "@/lib/smoothCurve";
 
 type YearStack = {
   years: string[];
@@ -115,11 +122,18 @@ const PATH_VERTS = [
   POINTS[6],
 ] as const;
 
-const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+/**
+ * Smooth cycle line: cubic beziers through every vertex (same coordinates as the
+ * classic jagged schematic), with no overshoot above peaks / below lows.
+ * Piece i runs PATH_VERTS[i] → PATH_VERTS[i + 1].
+ */
+const LINE_VERTS: Pt[] = PATH_VERTS.map((p) => ({ x: p.x, y: p.y }));
+const LINE_BEZ = smoothBeziers(LINE_VERTS, { extremeHandle: 0.22 });
+const LINE_PATH = bezierPathD(LINE_BEZ);
+/** Curve piece LAND_ACCEL → peak (final run-up). */
+const RUN_UP_PIECE = 4;
 
 const SVG_W = 820;
-
-type Pt = { x: number; y: number };
 
 /**
  * Classic labelled year vertices (framework years). Each year maps to
@@ -268,9 +282,9 @@ function pointAlong(points: Pt[], t: number): Pt {
   for (let i = 0; i < segs.length; i++) {
     if (remain <= segs[i] || i === segs.length - 1) {
       const u = segs[i] <= 0 ? 1 : remain / segs[i];
-      const a = points[i];
-      const b = points[i + 1];
-      return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u };
+      /* Same segment timing as the straight walk; on-path legs follow the curve,
+         dashed wrap legs stay straight (curveLerp falls back to a lerp). */
+      return curveLerp(LINE_VERTS, LINE_BEZ, points[i], points[i + 1], u);
     }
     remain -= segs[i];
   }
@@ -308,10 +322,7 @@ function livePositionOnWaypoints(
     }
     const from = a.points[a.points.length - 1];
     const to = b.points[b.points.length - 1];
-    return {
-      x: from.x + (to.x - from.x) * frac,
-      y: from.y + (to.y - from.y) * frac,
-    };
+    return curveLerp(LINE_VERTS, LINE_BEZ, from, to, frac);
   }
 
   const last = waypoints[waypoints.length - 1];
@@ -487,15 +498,12 @@ export default function RealEstateCycleChart() {
   /** Flip label above the dot while it rides the dashed wrap (2031) so it clears the caption */
   const liveLabelDy = live && live.y > WRAP_Y - 20 ? -12 : 20;
 
-  /** Midpoint of final run-up (LAND_ACCEL → peak) — Winner’s Curse phase aim */
-  const winnersCurseAim = {
-    x: (LAND_ACCEL.x + peak.x) / 2,
-    y: (LAND_ACCEL.y + peak.y) / 2,
-  };
-  /** Callout sits left of that phase; dotted leader aims into the run-up (may pass under Live) */
+  /** Midpoint of final run-up (LAND_ACCEL → peak) ON the smoothed curve — Winner’s Curse phase aim */
+  const winnersCurseAim = bezierPointAtFraction(LINE_BEZ[RUN_UP_PIECE], 0.5);
+  /** Callout sits left of that phase (same spot as the classic chord midpoint); dotted leader aims into the run-up */
   const winnersCurseLabel = {
-    x: winnersCurseAim.x - 92,
-    y: winnersCurseAim.y + 6,
+    x: (LAND_ACCEL.x + peak.x) / 2 - 92,
+    y: (LAND_ACCEL.y + peak.y) / 2 + 6,
   };
 
   return (

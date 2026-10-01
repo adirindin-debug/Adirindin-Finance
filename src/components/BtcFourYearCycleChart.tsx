@@ -27,7 +27,13 @@ import {
   theoryTroughMs,
 } from "@/lib/btcCycleExtremes";
 import { useLiveNow } from "@/lib/useLiveNow";
-type Pt = { x: number; y: number };
+import {
+  bezierPathD,
+  curveLerp,
+  pointAtX,
+  smoothBeziers,
+  type Pt,
+} from "@/lib/smoothCurve";
 
 /** Nike-tick vertices (not price data). ~75% width ascending, ~25% descending. */
 const TROUGH: Pt = { x: 88, y: 300 };
@@ -45,15 +51,18 @@ const LATE_BULL_X0 = HALVING_X1;
 const LATE_BULL_X1 = PEAK.x;
 const LATE_BULL_ORANGE = "#e8873a";
 
-/** Mid of blue halving wash — hover tip sits on the Nike-tick ascent. */
-const HALVING_DOT_X = (HALVING_X0 + HALVING_X1) / 2;
-const HALVING_ON_ASCENT_T =
-  (HALVING_DOT_X - TROUGH.x) / (MID_UP.x - TROUGH.x);
-const HALVING_DOT_Y =
-  TROUGH.y + HALVING_ON_ASCENT_T * (MID_UP.y - TROUGH.y);
-
 const PATH_VERTS: Pt[] = [TROUGH, MID_UP, PEAK, NEXT_TROUGH];
-const LINE_PATH = PATH_VERTS.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+/**
+ * Smooth Nike-tick: cubic beziers through every vertex (no overshoot above the
+ * peak or below the troughs). Standard Hermite handles on the climb; shorter flat handles at
+ * the peak so the ~1y drawdown still reads sharp-ish against the slow climb.
+ */
+const LINE_BEZ = smoothBeziers(PATH_VERTS, { extremeHandle: 0.16 });
+const LINE_PATH = bezierPathD(LINE_BEZ);
+
+/** Mid of blue halving wash — hover tip sits ON the smoothed Nike-tick ascent. */
+const HALVING_DOT_X = (HALVING_X0 + HALVING_X1) / 2;
+const HALVING_DOT_Y = pointAtX(LINE_BEZ, HALVING_DOT_X).y;
 
 const SVG_W = 820;
 
@@ -122,9 +131,8 @@ function pointAlong(points: Pt[], t: number): Pt {
   for (let i = 0; i < segs.length; i++) {
     if (remain <= segs[i] || i === segs.length - 1) {
       const u = segs[i] <= 0 ? 1 : remain / segs[i];
-      const a = points[i];
-      const b = points[i + 1];
-      return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u };
+      /* Same segment timing as the straight walk; position follows the curve piece. */
+      return curveLerp(PATH_VERTS, LINE_BEZ, points[i], points[i + 1], u);
     }
     remain -= segs[i];
   }
