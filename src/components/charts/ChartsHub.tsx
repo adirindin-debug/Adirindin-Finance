@@ -2,6 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import {
+  factoryState,
+  factorySummary,
+  fmtReading,
+  type FactoryPayload,
+} from "@/lib/factoryMonitor";
 
 type TileStatus = "loading" | "ok" | "error";
 
@@ -14,6 +20,12 @@ type TileLive = {
   secondary: string;
   secondaryColor?: string;
   spark?: SparkPoint[];
+  /** Optional overrides used by the Philly Fed tile (others unchanged). */
+  sparkColor?: string;
+  chip?: { label: string; color: string };
+  tooltip?: string;
+  /** false = dated snapshot fallback (hides the Live badge). */
+  isLive?: boolean;
 };
 
 type Category = {
@@ -26,6 +38,7 @@ type TileDef = {
   id: string;
   href: string;
   title: string;
+  subtitle?: string;
   endpoint: string;
   parse: (json: unknown) => Omit<TileLive, "status"> | null;
 };
@@ -182,6 +195,26 @@ function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
+/** Philly Fed manufacturing survey (via FRED) — 20Y monthly sparkline. NOT ISM. */
+function parseFactoryMonitor(json: unknown): Omit<TileLive, "status"> | null {
+  const data = json as FactoryPayload;
+  const pts = data?.ok ? (data.points ?? []) : [];
+  const last = pts[pts.length - 1];
+  if (!last || !Number.isFinite(last.v)) return null;
+  const state = factoryState(last.v);
+  const spark = pts.slice(-240).map((p, i) => ({ t: i, v: p.v }));
+  return {
+    headline: fmtReading(last.v),
+    headlineColor: "#22d3ee",
+    secondary: `${state.label}${state.note ? ` · ${state.note}` : ""}`,
+    spark,
+    sparkColor: "#22d3ee",
+    chip: { label: state.label, color: state.color },
+    tooltip: factorySummary(pts) ?? undefined,
+    isLive: !data.snapshot,
+  };
+}
+
 const CATEGORIES: Category[] = [
   {
     id: "sentiment",
@@ -240,6 +273,14 @@ const CATEGORIES: Category[] = [
         title: "Wilshire 5000 / US M2",
         endpoint: "/api/wilshire-m2",
         parse: parseWilshireM2,
+      },
+      {
+        id: "factory-monitor",
+        href: "/charts/factory-monitor",
+        title: "Philly Fed Manufacturing",
+        subtitle: "Philly Fed survey · monthly · not ISM",
+        endpoint: "/api/factory-monitor",
+        parse: parseFactoryMonitor,
       },
     ],
   },
@@ -329,8 +370,13 @@ function ChartTile({
       <div className="relative flex items-start justify-between gap-2">
         <h3 className="text-base font-semibold text-foreground group-hover:text-accent sm:text-lg">
           {def.title}
+          {def.subtitle ? (
+            <span className="mt-0.5 block text-xs font-normal text-muted">
+              {def.subtitle}
+            </span>
+          ) : null}
         </h3>
-        {status === "ok" ? (
+        {status === "ok" && live?.isLive !== false ? (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
             <span
               className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent"
@@ -350,22 +396,48 @@ function ChartTile({
       >
         {headline}
       </p>
-      <p
-        className="relative mt-1 text-xs text-muted sm:text-sm"
-        style={
-          live?.secondaryColor && status === "ok"
-            ? { color: live.secondaryColor }
-            : undefined
-        }
-      >
-        {secondary}
-      </p>
+      {live?.chip && status === "ok" ? (
+        <span
+          className="relative mt-2 inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold"
+          style={{
+            color: live.chip.color,
+            borderColor: `${live.chip.color}66`,
+            background: `${live.chip.color}1a`,
+          }}
+        >
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ background: live.chip.color }}
+            aria-hidden
+          />
+          {live.chip.label}
+        </span>
+      ) : (
+        <p
+          className="relative mt-1 text-xs text-muted sm:text-sm"
+          style={
+            live?.secondaryColor && status === "ok"
+              ? { color: live.secondaryColor }
+              : undefined
+          }
+        >
+          {secondary}
+        </p>
+      )}
       {live?.spark && live.spark.length >= 2 && status === "ok" ? (
         <div className="relative mt-3 flex-1">
           <Sparkline
             points={live.spark}
-            color={live.headlineColor ?? "#3b82c4"}
+            color={live.sparkColor ?? live.headlineColor ?? "#3b82c4"}
           />
+          {live.tooltip ? (
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute inset-x-2 bottom-2 hidden rounded-md border border-border/80 bg-black/90 px-2.5 py-1.5 font-mono text-[11px] text-[#e8eef7] opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 md:block"
+            >
+              {live.tooltip}
+            </span>
+          ) : null}
         </div>
       ) : (
         <div className="relative mt-3 flex-1" aria-hidden />
