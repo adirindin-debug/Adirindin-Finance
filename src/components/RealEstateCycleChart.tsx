@@ -158,15 +158,24 @@ const SHAPE_KNOTS: Pt[] = [
   { x: 318, y: 202 },
   { x: 328, y: 198 },
   { x: POINTS[2].x, y: POINTS[2].y }, // mid-cycle low (2022)
-  /* Recovery, then the boom accelerates */
-  { x: 396, y: 207 },
-  { x: POINTS[3].x, y: POINTS[3].y }, // land boom (2024)
-  { x: 468, y: 135 },
-  { x: 476, y: 138 },
-  { x: LAND_ACCEL.x, y: LAND_ACCEL.y },
-  /* Winner’s Curse: one shakeout, then the near-vertical spike */
-  { x: 562, y: 98 },
-  { x: 570, y: 106 },
+  /*
+   * Recovery → boom → Winner’s Curse: one steadily accelerating, convex climb
+   * from the 2022 low into the end-2026 peak (roughly exponential, with tiny
+   * slope wobbles but no reversals — no shelf, hump or V before the Live dot).
+   * The 2024 point (x 430) and the unlabelled knot at LAND_ACCEL.x sit on this
+   * climb; POINTS / LAND_ACCEL themselves are unchanged, so the timing curve,
+   * Live x-timing and the Winner’s Curse callout position stay exactly as before.
+   */
+  { x: 396, y: 219.6 },
+  { x: POINTS[3].x, y: 206 }, // 2024 (drawn line only)
+  { x: 456, y: 195.6 },
+  { x: 480, y: 177 },
+  { x: 503, y: 164.9 },
+  { x: LAND_ACCEL.x, y: 144.9 }, // drawn line only
+  { x: 546, y: 122.4 },
+  { x: 566, y: 104.4 },
+  { x: 584, y: 80.3 },
+  { x: 598, y: 60.5 },
   { x: POINTS[4].x, y: POINTS[4].y }, // major peak (end-2026)
   /* Crash: long drops, brief lower-high relief rallies */
   { x: 632, y: 104 },
