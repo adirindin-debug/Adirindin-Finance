@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { CyclesBackLink } from "@/components/cycles/CyclesBackLink";
 import GoldCommodityCycleChart from "@/components/GoldCommodityCycleChart";
-import { GOLD_PEAK_ANCHORS, GOLD_CYCLE_YEARS } from "@/lib/goldCommodityCycle";
+import {
+  GOLD_PEAK_ANCHORS,
+  GOLD_CYCLE_YEARS,
+  GOLD_TROUGH_OFFSET_YEARS,
+} from "@/lib/goldCommodityCycle";
 
 export const metadata: Metadata = {
   title: "46-year gold-led commodity cycle sketch",
@@ -11,41 +15,22 @@ export const metadata: Metadata = {
 
 const PHASES = [
   {
-    name: "Post-peak settle",
-    years: "Early years after a peak zone",
-    width: "14%",
+    name: "Post-peak decline",
+    years: "Peak zone → trough zone · ~20y",
     color: "#ef6b6b",
     summary:
-      "After a peak-zone marker the sketch lets price settle from the prior crest toward a quiet base. Timing and depth vary by era — this is shape language, not a measured drawdown rule.",
+      "After each peak-zone marker the same shape steps down quickly, then grinds lower into a trough zone about 20 years later (~1954, ~2000, ~2046*). The 1934→1954 stretch sits in the US$35 peg era, so it is a model position, not a market low.",
   },
   {
-    name: "Flat base",
-    years: "Long quiet stretch",
-    width: "28%",
-    color: "#8a97a8",
-    summary:
-      "Years of relatively flat or range-bound behaviour (including peg-era official prices before free float). The 1934→1970s stretch is a policy/peg story as much as a market cycle.",
-  },
-  {
-    name: "Primary run",
-    years: "Huge multi-year advance",
-    width: "26%",
+    name: "Advance from trough",
+    years: "Trough zone → mid-run pause · ~17y",
     color: "#3dcc9a",
     summary:
-      "The main multi-year advance in the gold-led commodity story. Historically this is where free-market gold made its large secular moves — still an observation, not a signal.",
-  },
-  {
-    name: "Third-quarter pause",
-    years: "Mid/late-cycle digest",
-    width: "14%",
-    color: "#d4a017",
-    summary:
-      "A pause or digest after the primary run — sideways to mildly lower — before any final push. Placement is schematic (~third quarter of the ~46-year lap).",
+      "The main multi-year advance in the gold-led commodity story, ending in a short pause / shoulder in the third quarter of the lap. Historically this is where free-market gold made its large secular moves — still an observation, not a signal.",
   },
   {
     name: "Final run → peak zone",
-    years: "Into the next Jan marker",
-    width: "18%",
+    years: "Into the next Jan marker · ~9y",
     color: "#f0c14a",
     summary:
       "Final advance into the next peak-zone calendar marker. 2026 is under study as a zone, not a guaranteed top; 2072 is theoretical from the ~46-year spacing.",
@@ -74,9 +59,11 @@ export default function GoldCyclePage() {
         , not a valuation model, and not a timing signal.
       </p>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-        Shape per lap: flat for years → huge multi-year run → third-quarter pause →
-        final run into the peak zone. Anchors are easy to retune in one lib file after
-        this first preview.
+        One silhouette repeats on every ~{GOLD_CYCLE_YEARS}-year lap, like the bond,
+        real estate and Bitcoin cycle charts: peak zone → post-peak decline → trough
+        zone (~{GOLD_TROUGH_OFFSET_YEARS}y after the peak) → advance with a mid-run
+        pause → final run into the next peak zone. Anchors are easy to retune in one lib
+        file.
       </p>
 
       <div className="mt-8 rounded-xl border border-border bg-black p-6">
@@ -89,34 +76,36 @@ export default function GoldCyclePage() {
           </span>
         </div>
 
-        <div className="mt-5 flex h-14 w-full overflow-hidden rounded-lg border border-[#222]">
-          {PHASES.map((p) => (
-            <div
-              key={p.name}
-              title={`${p.name} (${p.years})`}
-              style={{
-                width: p.width,
-                background: `linear-gradient(180deg, ${p.color}55, ${p.color}22)`,
-              }}
-              className="relative flex items-end border-r border-[#222] last:border-r-0"
-            >
+        <ol
+          className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-muted sm:text-xs"
+          aria-label="One lap of the repeating gold cycle shape"
+        >
+          {[
+            "Peak zone",
+            `~${GOLD_TROUGH_OFFSET_YEARS}y decline`,
+            "Trough zone",
+            "Advance · mid-run pause",
+            "Final run",
+            `Next peak zone (+${GOLD_CYCLE_YEARS}y)`,
+          ].map((step, i, arr) => (
+            <li key={step} className="inline-flex items-center gap-2">
               <span
-                className="absolute inset-x-0 top-0 h-1"
-                style={{ background: p.color }}
-                aria-hidden
-              />
-              <span className="w-full truncate px-2 pb-2 text-[11px] font-medium text-[#e8eef7] sm:text-xs">
-                {p.name}
+                className={
+                  i === 0 || i === 2 || i === arr.length - 1
+                    ? "font-mono font-semibold text-[#f5f0e6]"
+                    : ""
+                }
+              >
+                {step}
               </span>
-            </div>
+              {i < arr.length - 1 ? (
+                <span className="text-[#5a6a80]" aria-hidden>
+                  →
+                </span>
+              ) : null}
+            </li>
           ))}
-        </div>
-
-        <div className="mt-3 flex justify-between font-mono text-[10px] text-muted sm:text-xs">
-          <span>Settle → flat</span>
-          <span>Primary run → pause</span>
-          <span>Final run → peak zone</span>
-        </div>
+        </ol>
 
         <GoldCommodityCycleChart />
 
@@ -144,6 +133,12 @@ export default function GoldCyclePage() {
               language scaled to the chart — not a USD price path.
             </li>
             <li>
+              <strong className="font-medium text-[#d0d8e4]">Trough zones</strong> (~1954,
+              ~2000, ~2046*) come from the repeating shape (~{GOLD_TROUGH_OFFSET_YEARS}y after
+              each peak), not separate anchors. ~2000 lines up with the 1999–2001 low; ~1954
+              is peg-era model position only.
+            </li>
+            <li>
               Research / educational purposes only.{" "}
               <strong className="font-medium text-[#d0d8e4]">Not financial advice (NFA)</strong>.
             </li>
@@ -151,7 +146,7 @@ export default function GoldCyclePage() {
         </aside>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {PHASES.map((p) => (
           <article key={p.name} className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center gap-2">

@@ -1,10 +1,13 @@
 /**
  * Gold-led ~46y commodity cycle silhouette for the Market cycles hub.
- * Path + Live timing share phase math with GoldCommodityCycleChart / goldCommodityCycle.ts.
+ * Same framing as the sibling tiles: trough zone (left) → peak zone → next
+ * trough zone (right). The ridge is the single repeating lap shape from
+ * goldCommodityCycle.ts, so the hub and /tools/gold-cycle always match.
  * Educational observational sketch · NFA.
  */
 
 import {
+  GOLD_TROUGH_FRAC,
   goldCycleProgress,
   goldLivePhaseLine,
   goldModelUnit,
@@ -22,14 +25,21 @@ function modelToY(unit: number): number {
   return Y_BASE - unit * (Y_BASE - Y_PEAK);
 }
 
+/** Tile x (0..1 across) → fraction along the peak→peak lap, starting at the trough. */
+function tileToLapFrac(u: number): number {
+  return (GOLD_TROUGH_FRAC + u) % 1;
+}
+
 const RIDGE_PATH = (() => {
   const parts: string[] = [];
-  const steps = 120;
+  const steps = 240;
   for (let i = 0; i <= steps; i++) {
-    const frac = i / steps;
-    const x = X0 + frac * W;
-    const y = modelToY(goldModelUnit(frac));
-    parts.push(`${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`);
+    const u = i / steps;
+    const x = X0 + u * W;
+    // Exact peak at the wrap point (frac 1 → 0 is the same summit)
+    const f = GOLD_TROUGH_FRAC + u;
+    const unit = Math.abs(f - 1) < 1e-9 ? 1 : goldModelUnit(tileToLapFrac(u));
+    parts.push(`${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${modelToY(unit).toFixed(2)}`);
   }
   return parts.join(" ");
 })();
@@ -48,7 +58,8 @@ export type GoldLiveSilhouette = {
 
 export function goldLiveSilhouette(nowMs: number): GoldLiveSilhouette {
   const { frac } = goldCycleProgress(nowMs);
-  const x = X0 + frac * W;
+  const u = (frac - GOLD_TROUGH_FRAC + 1) % 1;
+  const x = X0 + u * W;
   const y = modelToY(goldModelUnit(frac));
   return { pt: { x, y }, phaseLine: goldLivePhaseLine(nowMs) };
 }

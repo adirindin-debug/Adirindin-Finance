@@ -1,12 +1,20 @@
 /**
  * Anthony / Adirindin 46-year gold-led commodity cycle sketch.
  *
- * Peak-zone anchors (Jan-dated): 1934 → 1980 → 2026 → 2072 (~46y apart).
- * Shape per cycle (peak → next peak): post-peak settle → flat for years →
- * huge multi-year run → third-quarter pause → final run into peak zone.
+ * Peak-zone anchors (Jan-dated, LOCKED): 1934 → 1980 → 2026 → 2072 (~46y apart).
+ *
+ * ONE silhouette shape repeats identically on every ~46y lap — same approach as
+ * the bond yield / real estate / BTC cycle charts (one ridge, many laps):
+ *
+ *   peak zone → post-peak decline → trough zone (~20y after the peak)
+ *             → primary advance → mid-run pause (shoulder) → final run → next peak zone
+ *
+ * Trough zones are derived from the shape (peak + GOLD_TROUGH_OFFSET_YEARS), not
+ * separately locked — 2000 lines up with the 1999–2001 free-market low; 1954 sits
+ * in the US$35 peg era (model position only).
  *
  * Observational sketch only — not “the Kondratiev law”, not Cardo IP, not a
- * price target model. Tweak anchors / phase fractions HERE only. Educational · NFA.
+ * price target model. Tweak anchors / knots HERE only. Educational · NFA.
  */
 
 export const GOLD_CYCLE_YEARS = 46;
@@ -19,29 +27,100 @@ export const GOLD_PEAK_ANCHORS = [1934, 1980, 2026, 2072] as const;
 
 export type GoldPeakAnchor = (typeof GOLD_PEAK_ANCHORS)[number];
 
-/**
- * Phase fractions along one peak→peak lap (0 = prior peak, 1 = next peak).
- * Easy to retune after the first preview without touching chart glue.
- */
-export const GOLD_PHASE = {
-  /** Post-peak unwind finishes; flat base begins. */
-  settleEnd: 0.14,
-  /** Long flat / quiet base ends; primary run begins. */
-  flatEnd: 0.42,
-  /** Huge multi-year run ends; third-quarter pause begins. */
-  runEnd: 0.68,
-  /** Pause ends; final run into peak zone. */
-  pauseEnd: 0.82,
-} as const;
+/** Years from a peak-zone marker to the derived trough zone on the same lap. */
+export const GOLD_TROUGH_OFFSET_YEARS = 20;
 
-/** Model unit heights (0 = cycle base, 1 = peak zone). Illustrative only. */
-export const GOLD_MODEL_LEVELS = {
-  afterPeak: 1,
-  flat: 0.1,
-  runShoulder: 0.72,
-  pauseDip: 0.66,
-  peak: 1,
-} as const;
+/** Trough position as a fraction along one peak→peak lap. */
+export const GOLD_TROUGH_FRAC = GOLD_TROUGH_OFFSET_YEARS / GOLD_CYCLE_YEARS;
+
+/** Last year treated as observed history (later markers are theoretical *). */
+export const GOLD_LAST_OBSERVED_YEAR = 2026;
+
+export function isTheoreticalGoldYear(year: number): boolean {
+  return year > GOLD_LAST_OBSERVED_YEAR;
+}
+
+/**
+ * The single repeating silhouette: [frac along peak→peak lap, unit height]
+ * (0 = trough zone, 1 = peak zone). Shape language only — not data.
+ */
+const SHAPE_KNOTS: [number, number][] = [
+  [0, 1],
+  [0.025, 0.93],
+  [0.06, 0.74],
+  [0.11, 0.52],
+  [0.17, 0.38],
+  [0.26, 0.21],
+  [0.35, 0.08],
+  [GOLD_TROUGH_FRAC, 0],
+  [0.5, 0.05],
+  [0.57, 0.19],
+  [0.64, 0.39],
+  [0.7, 0.53],
+  [0.755, 0.585],
+  [0.8, 0.6],
+  [0.85, 0.67],
+  [0.91, 0.81],
+  [0.955, 0.92],
+  [0.983, 0.98],
+  [1, 1],
+];
+
+/** Monotone cubic (Fritsch–Carlson) tangents → smooth, no overshoot. */
+const SHAPE_TANGENTS: number[] = (() => {
+  const k = SHAPE_KNOTS;
+  const n = k.length;
+  const d: number[] = [];
+  for (let i = 0; i < n - 1; i++) {
+    d.push((k[i + 1]![1] - k[i]![1]) / (k[i + 1]![0] - k[i]![0]));
+  }
+  const m: number[] = new Array(n).fill(0);
+  // Flat tangent at the summit (frac 0 ≡ 1) → rounded peak zone, same on every lap
+  m[0] = 0;
+  m[n - 1] = 0;
+  for (let i = 1; i < n - 1; i++) {
+    m[i] = d[i - 1]! * d[i]! <= 0 ? 0 : (d[i - 1]! + d[i]!) / 2;
+  }
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i]! / d[i]!;
+    const b = m[i + 1]! / d[i]!;
+    const s = a * a + b * b;
+    if (s > 9) {
+      const t = 3 / Math.sqrt(s);
+      m[i] = t * a * d[i]!;
+      m[i + 1] = t * b * d[i]!;
+    }
+  }
+  return m;
+})();
+
+/**
+ * Model unit in [0, 1] for a fraction along one peak→peak lap.
+ * Identical on every lap — this is the one repeating silhouette.
+ */
+export function goldModelUnit(frac: number): number {
+  const f = ((frac % 1) + 1) % 1;
+  const k = SHAPE_KNOTS;
+  let i = 0;
+  while (i < k.length - 2 && f > k[i + 1]![0]) i++;
+  const [x0, y0] = k[i]!;
+  const [x1, y1] = k[i + 1]!;
+  const h = x1 - x0;
+  const t = (f - x0) / h;
+  const t2 = t * t;
+  const t3 = t2 * t;
+  const v =
+    (2 * t3 - 3 * t2 + 1) * y0 +
+    (t3 - 2 * t2 + t) * h * SHAPE_TANGENTS[i]! +
+    (-2 * t3 + 3 * t2) * y1 +
+    (t3 - t2) * h * SHAPE_TANGENTS[i + 1]!;
+  return Math.min(1, Math.max(0, v));
+}
 
 export function janMs(year: number): number {
   return Date.UTC(year, 0, 1, 0, 0, 0, 0);
@@ -50,19 +129,60 @@ export function janMs(year: number): number {
 /** Expand anchors forward/back so Live / chart never fall off the ends. */
 export function goldPeakYearsCovering(fromYear: number, toYear: number): number[] {
   const out: number[] = [...GOLD_PEAK_ANCHORS];
-  const first = out[0]!;
-  const last = out[out.length - 1]!;
-  let y = first - GOLD_CYCLE_YEARS;
+  let y = out[0]! - GOLD_CYCLE_YEARS;
   while (y >= fromYear - GOLD_CYCLE_YEARS) {
     out.unshift(y);
     y -= GOLD_CYCLE_YEARS;
   }
-  y = last + GOLD_CYCLE_YEARS;
+  y = out[out.length - 1]! + GOLD_CYCLE_YEARS;
   while (y <= toYear + GOLD_CYCLE_YEARS) {
     out.push(y);
     y += GOLD_CYCLE_YEARS;
   }
   return out;
+}
+
+export type GoldMarker = {
+  year: number;
+  kind: "peak" | "trough";
+  /** Fraction along a peak→peak lap (0 for peaks, GOLD_TROUGH_FRAC for troughs). */
+  frac: number;
+  locked: boolean;
+  theoretical: boolean;
+};
+
+/** All peak + trough zone markers whose Jan date falls within [fromYear, toYear]. */
+export function goldMarkersBetween(fromYear: number, toYear: number): GoldMarker[] {
+  const out: GoldMarker[] = [];
+  for (const p of goldPeakYearsCovering(fromYear, toYear)) {
+    const tr = p + GOLD_TROUGH_OFFSET_YEARS;
+    if (p >= fromYear && p <= toYear) {
+      out.push({
+        year: p,
+        kind: "peak",
+        frac: 0,
+        locked: (GOLD_PEAK_ANCHORS as readonly number[]).includes(p),
+        theoretical: isTheoreticalGoldYear(p),
+      });
+    }
+    if (tr >= fromYear && tr <= toYear) {
+      out.push({
+        year: tr,
+        kind: "trough",
+        frac: GOLD_TROUGH_FRAC,
+        locked: false,
+        theoretical: isTheoreticalGoldYear(tr),
+      });
+    }
+  }
+  return out.sort((a, b) => a.year - b.year);
+}
+
+/** Fractional calendar year (UTC) for a timestamp. */
+function fracYear(ms: number): number {
+  const year = new Date(ms).getUTCFullYear();
+  const start = janMs(year);
+  return year + (ms - start) / Math.max(janMs(year + 1) - start, 1);
 }
 
 /**
@@ -74,10 +194,7 @@ export function goldCycleProgress(ms: number): {
   nextPeak: number;
   frac: number;
 } {
-  const year = new Date(ms).getUTCFullYear();
-  const start = janMs(year);
-  const nextJan = janMs(year + 1);
-  const y = year + (ms - start) / Math.max(nextJan - start, 1);
+  const y = fracYear(ms);
   const peaks = goldPeakYearsCovering(y - GOLD_CYCLE_YEARS, y + GOLD_CYCLE_YEARS);
   let i = 0;
   while (i < peaks.length - 2 && peaks[i + 1]! <= y) i++;
@@ -87,72 +204,35 @@ export function goldCycleProgress(ms: number): {
   return { priorPeak, nextPeak, frac };
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
-function smoothstep(t: number): number {
-  const x = Math.min(1, Math.max(0, t));
-  return x * x * (3 - 2 * x);
-}
-
-/**
- * Illustrative model unit in [0, 1] for a fraction along one lap.
- * Smooth curved silhouette matching Anthony’s phase description.
- */
-export function goldModelUnit(frac: number): number {
-  const { settleEnd, flatEnd, runEnd, pauseEnd } = GOLD_PHASE;
-  const L = GOLD_MODEL_LEVELS;
-  const f = Math.min(1, Math.max(0, frac));
-
-  if (f <= settleEnd) {
-    const t = smoothstep(f / settleEnd);
-    return lerp(L.afterPeak, L.flat, t);
-  }
-  if (f <= flatEnd) {
-    return L.flat;
-  }
-  if (f <= runEnd) {
-    const t = smoothstep((f - flatEnd) / (runEnd - flatEnd));
-    return lerp(L.flat, L.runShoulder, t);
-  }
-  if (f <= pauseEnd) {
-    const t = smoothstep((f - runEnd) / (pauseEnd - runEnd));
-    return lerp(L.runShoulder, L.pauseDip, t);
-  }
-  const t = smoothstep((f - pauseEnd) / (1 - pauseEnd));
-  return lerp(L.pauseDip, L.peak, t);
-}
-
 /** Model unit at an absolute timestamp. */
 export function goldModelUnitAt(ms: number): number {
   return goldModelUnit(goldCycleProgress(ms).frac);
 }
 
-export type GoldPhaseName =
-  | "Post-peak settle"
-  | "Flat base"
-  | "Primary run"
-  | "Third-quarter pause"
-  | "Final run to peak zone";
+export type GoldPhaseName = "Post-peak decline" | "Advance from trough" | "Final run to peak zone";
+
+/** Mid-run pause shoulder ends here; final run into the peak zone follows. */
+export const GOLD_FINAL_RUN_FRAC = 0.8;
 
 export function goldPhaseName(frac: number): GoldPhaseName {
-  const { settleEnd, flatEnd, runEnd, pauseEnd } = GOLD_PHASE;
-  if (frac < settleEnd) return "Post-peak settle";
-  if (frac < flatEnd) return "Flat base";
-  if (frac < runEnd) return "Primary run";
-  if (frac < pauseEnd) return "Third-quarter pause";
+  if (frac < GOLD_TROUGH_FRAC) return "Post-peak decline";
+  if (frac < GOLD_FINAL_RUN_FRAC) return "Advance from trough";
   return "Final run to peak zone";
 }
 
+/** Next marker (trough or peak zone) ahead of the timestamp, sibling-style Live copy. */
 export function goldLivePhaseLine(nowMs: number): string {
   const { priorPeak, nextPeak, frac } = goldCycleProgress(nowMs);
+  const y = fracYear(nowMs);
+  const troughYear = priorPeak + GOLD_TROUGH_OFFSET_YEARS;
+  const toTrough = frac < GOLD_TROUGH_FRAC;
+  const zoneYear = toTrough ? troughYear : nextPeak;
+  const kind = toTrough ? "trough" : "peak";
+  const years = Math.max(0, Math.round(zoneYear - y));
+  const theo = isTheoreticalGoldYear(zoneYear) ? " theoretical" : "";
   const phase = goldPhaseName(frac);
-  const yearsToPeak = Math.max(0, Math.round((1 - frac) * (nextPeak - priorPeak)));
-  if (yearsToPeak < 1) {
-    return `Near ~Jan ${nextPeak} peak-zone marker · ${phase}`;
-  }
-  return `~${yearsToPeak}y to ~Jan ${nextPeak} peak-zone marker · ${phase}`;
+  if (years < 1) return `Near ~${zoneYear}${theo} ${kind} zone · ${phase}`;
+  return `~${years}y to ~${zoneYear}${theo} ${kind} zone · ${phase}`;
 }
 
 export const GOLD_ANCHOR_NOTES: Record<number, string> = {
@@ -164,6 +244,12 @@ export const GOLD_ANCHOR_NOTES: Record<number, string> = {
   2072: "Theoretical next peak-zone marker from the ~46-year spacing — illustrative only.",
 };
 
+export const GOLD_TROUGH_NOTES: Record<number, string> = {
+  1954: "Peg era (official US$35/oz) — model trough position only, not a market low.",
+  2000: "Lines up with the 1999–2001 free-market low zone.",
+  2046: "Theoretical trough zone from the repeating shape — illustrative only.",
+};
+
 export const GOLD_CAVEAT_SHORT =
   "Anthony / Adirindin observational sketch · gold-led · ~46y peak zones · not Kondratiev-as-law · NFA";
 
@@ -171,4 +257,4 @@ export const GOLD_SOURCE_LINE =
   "Gold USD: datasets/gold-prices (historical monthly) + Yahoo Finance GC=F for recent closes · peg-era levels are documented official/historical series, not invented";
 
 export const GOLD_CAPTION =
-  "Long-run gold (USD/oz, log) with Anthony’s ~46-year gold-led commodity cycle silhouette. Peak-zone markers Jan 1934 / 1980 / 2026 / 2072.";
+  "Long-run gold (USD/oz, log) with Anthony’s ~46-year gold-led commodity cycle silhouette — one shape repeating every lap. Peak zones Jan 1934 / 1980 / 2026 / 2072*; trough zones ~1954 / ~2000 / ~2046*.";

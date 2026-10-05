@@ -1,7 +1,10 @@
 /**
  * Gold-led ~46-year commodity cycle desk chart.
  * Real long-run gold (USD/oz, log) + Anthony’s illustrative model silhouette.
- * No shaded areas · smooth model curve · vertical peak-zone markers.
+ * ONE silhouette shape repeats identically on every ~46y lap (sampled per lap,
+ * same as the sibling cycle charts’ single ridge). Cream #f5f0e6 dots sit on
+ * every peak / trough zone along the model, with the dates labelled on-chart
+ * and listed under it (no hover needed). No shaded areas · clean lines.
  * Educational observational sketch · NFA.
  */
 
@@ -16,16 +19,20 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import {
+  GOLD_ANCHOR_NOTES,
   GOLD_CAPTION,
+  GOLD_CYCLE_YEARS,
   GOLD_PEAK_ANCHORS,
   GOLD_SOURCE_LINE,
-  goldCycleProgress,
+  GOLD_TROUGH_NOTES,
+  GOLD_TROUGH_OFFSET_YEARS,
   goldLivePhaseLine,
+  goldMarkersBetween,
   goldModelUnit,
   goldModelUnitAt,
   goldPeakYearsCovering,
-  goldPhaseName,
   janMs,
+  type GoldMarker,
 } from "@/lib/goldCommodityCycle";
 import { useLiveNow } from "@/lib/useLiveNow";
 
@@ -57,7 +64,7 @@ const TIMEFRAMES: { key: TfKey; label: string; years: number | null }[] = [
 
 const W = 860;
 const H = 420;
-const PAD = { top: 36, right: 28, bottom: 48, left: 62 };
+const PAD = { top: 40, right: 28, bottom: 48, left: 62 };
 
 const GOLD_LINE = "#e8c547";
 const MODEL_LINE = "#7ec8ff";
@@ -65,6 +72,10 @@ const GRID = "#1c2430";
 const AXIS = "#8a97a8";
 const MARKER = "#f5f0e6";
 const LIVE_CREAM = "#f5f0e6";
+const YEAR_SEC = 365.2425 * 86400;
+/** Model band inside the log axis (fractions of the padded log range). */
+const MODEL_LO_FRAC = 0.1;
+const MODEL_HI_FRAC = 0.04;
 
 type HoverState = { svgX: number; svgY: number; point: Point };
 
@@ -116,7 +127,23 @@ export default function GoldCommodityCycleChart() {
   const [tf, setTf] = useState<TfKey>("FULL");
   const [hover, setHover] = useState<HoverState | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  /** Narrow (phone) layout: bigger on-chart labels so the dates stay readable. */
+  const [narrow, setNarrow] = useState(false);
   const nowMs = useLiveNow();
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? el.clientWidth;
+      setNarrow(w > 0 && w < 560);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const fs = narrow ? 1.9 : 1;
+  const axisFs = narrow ? 1.5 : 1;
 
   useEffect(() => {
     let cancelled = false;
@@ -154,7 +181,7 @@ export default function GoldCommodityCycleChart() {
     setHover(null);
   }, [tf]);
 
-  const allPoints = data?.points ?? [];
+  const allPoints = useMemo(() => data?.points ?? [], [data]);
 
   const windowed = useMemo(() => {
     if (allPoints.length < 2) return [];
@@ -183,11 +210,12 @@ export default function GoldCommodityCycleChart() {
 
     const t0 = points[0]!.t;
     const t1 = points[points.length - 1]!.t;
-    // Extend x slightly past last print so 2026/2072 markers can sit on-canvas when in view
+    // FULL shows the sketch horizon through the theoretical 2072 peak (+ a little air)
     const lastAnchorSec = Math.floor(janMs(GOLD_PEAK_ANCHORS[GOLD_PEAK_ANCHORS.length - 1]) / 1000);
-    const tMax = Math.max(t1, Math.min(lastAnchorSec, t1 + 50 * 365.2425 * 86400));
-    // For FULL, show through ~2072 sketch horizon
-    const tRight = tf === "FULL" ? Math.max(tMax, lastAnchorSec) : t1;
+    const tRight =
+      tf === "FULL"
+        ? Math.max(t1, lastAnchorSec + 3 * YEAR_SEC)
+        : t1 + Math.max((t1 - t0) * 0.02, 86400 * 7);
 
     let cMin = Infinity;
     let cMax = -Infinity;
@@ -218,36 +246,65 @@ export default function GoldCommodityCycleChart() {
       .join(" ");
 
     // Model silhouette: unit curve scaled into the same log band (illustrative, not a fit)
-    const modelLo = yLog0 + (yLog1 - yLog0) * 0.06;
-    const modelHi = yLog1 - (yLog1 - yLog0) * 0.04;
-    const modelSteps = 160;
-    const modelParts: string[] = [];
-    for (let i = 0; i <= modelSteps; i++) {
-      const t = t0 + ((tRight - t0) * i) / modelSteps;
-      const unit = goldModelUnitAt(t * 1000);
-      const logV = modelLo + unit * (modelHi - modelLo);
-      const x = xOf(t);
-      const y = yOfLog(logV);
-      modelParts.push(`${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`);
-    }
-    const modelPath = modelParts.join(" ");
+    const modelLo = yLog0 + (yLog1 - yLog0) * MODEL_LO_FRAC;
+    const modelHi = yLog1 - (yLog1 - yLog0) * MODEL_HI_FRAC;
+    const modelYOfUnit = (unit: number) => yOfLog(modelLo + unit * (modelHi - modelLo));
 
     const yFrom = new Date(t0 * 1000).getUTCFullYear();
     const yTo = new Date(tRight * 1000).getUTCFullYear();
-    const peakYears = goldPeakYearsCovering(yFrom, yTo).filter((y) => {
-      const t = Math.floor(janMs(y) / 1000);
-      return t >= t0 - 86400 * 30 && t <= tRight + 86400 * 30;
-    });
+
+    // Sample the SAME lap shape on every lap (peak → peak) so each lap is identical.
+    const spanYears = Math.max((tRight - t0) / YEAR_SEC, 0.25);
+    const perLap = Math.min(20000, Math.max(240, Math.ceil((500 * GOLD_CYCLE_YEARS) / spanYears)));
+    const samples: { t: number; u: number }[] = [
+      { t: t0, u: goldModelUnitAt(t0 * 1000) },
+      { t: tRight, u: goldModelUnitAt(tRight * 1000) },
+    ];
+    for (const peak of goldPeakYearsCovering(yFrom, yTo)) {
+      const a = janMs(peak) / 1000;
+      const b = janMs(peak + GOLD_CYCLE_YEARS) / 1000;
+      if (b < t0 || a > tRight) continue;
+      const iFrom = Math.max(0, Math.floor(((t0 - a) / (b - a)) * perLap));
+      const iTo = Math.min(perLap, Math.ceil(((tRight - a) / (b - a)) * perLap));
+      for (let i = iFrom; i <= iTo; i++) {
+        const frac = i / perLap;
+        const t = a + frac * (b - a);
+        if (t < t0 || t > tRight) continue;
+        samples.push({ t, u: goldModelUnit(frac) });
+      }
+    }
+    samples.sort((p, q) => p.t - q.t);
+    const modelPath = samples
+      .map(
+        (p, i) =>
+          `${i === 0 ? "M" : "L"} ${xOf(p.t).toFixed(2)} ${modelYOfUnit(p.u).toFixed(2)}`,
+      )
+      .join(" ");
+
+    const markers = goldMarkersBetween(yFrom - 1, yTo + 1)
+      .map((m) => {
+        const t = Math.floor(janMs(m.year) / 1000);
+        return {
+          ...m,
+          x: xOf(t),
+          y: modelYOfUnit(m.kind === "peak" ? 1 : 0),
+          t,
+        };
+      })
+      .filter((m) => m.t >= t0 - 86400 * 30 && m.t <= tRight + 86400 * 30);
 
     // Log tick candidates
-    const tickCandidates = [20, 35, 100, 200, 400, 800, 1000, 2000, 4000, 8000, 10000];
+    const tickCandidates = narrow
+      ? [35, 100, 200, 400, 1000, 2000, 4000]
+      : [20, 35, 100, 200, 400, 800, 1000, 2000, 4000, 8000, 10000];
     const yTicks = tickCandidates.filter(
       (v) => Math.log(v) >= yLog0 && Math.log(v) <= yLog1,
     );
 
     // Year ticks
     const spanY = yTo - yFrom;
-    const yearStep = spanY > 80 ? 20 : spanY > 40 ? 10 : spanY > 15 ? 5 : spanY > 5 ? 2 : 1;
+    const baseStep = spanY > 80 ? 20 : spanY > 40 ? 10 : spanY > 15 ? 5 : spanY > 5 ? 2 : 1;
+    const yearStep = narrow ? baseStep * 2 : baseStep;
     const xTicks: number[] = [];
     const startYear = Math.ceil(yFrom / yearStep) * yearStep;
     for (let y = startYear; y <= yTo; y += yearStep) xTicks.push(y);
@@ -258,47 +315,24 @@ export default function GoldCommodityCycleChart() {
       tRight,
       xOf,
       yOf,
-      yOfLog,
+      modelYOfUnit,
       pricePath,
       modelPath,
-      peakYears,
+      markers,
       yTicks,
       xTicks,
-      cMin,
-      cMax,
       spot: points[points.length - 1]!,
     };
-  }, [windowed, tf]);
+  }, [windowed, tf, narrow]);
 
   const live = useMemo(() => {
     if (!chart || nowMs == null) return null;
     const tSec = nowMs / 1000;
     if (tSec < chart.t0 || tSec > chart.tRight) return null;
-    const { frac, nextPeak } = goldCycleProgress(nowMs);
-    const unit = goldModelUnit(frac);
-    // Place Live on the model silhouette (calendar position on the sketch)
-    const modelLo =
-      Math.log(chart.cMin) -
-      (Math.log(chart.cMax) - Math.log(chart.cMin)) * 0.08;
-    // Recompute via chart helpers
-    const x = chart.xOf(Math.min(chart.tRight, Math.max(chart.t0, tSec)));
-    // Project model unit into same band as chart.modelPath
-    const logMin = Math.log(chart.cMin);
-    const logMax = Math.log(chart.cMax);
-    const pad = (logMax - logMin) * 0.08 || 0.2;
-    const yLog0 = logMin - pad;
-    const yLog1 = logMax + pad;
-    const modelLo2 = yLog0 + (yLog1 - yLog0) * 0.06;
-    const modelHi2 = yLog1 - (yLog1 - yLog0) * 0.04;
-    const logV = modelLo2 + unit * (modelHi2 - modelLo2);
-    const y = chart.yOfLog(logV);
-    void modelLo;
-    void nextPeak;
     return {
-      x,
-      y,
+      x: chart.xOf(tSec),
+      y: chart.modelYOfUnit(goldModelUnitAt(nowMs)),
       phaseLine: goldLivePhaseLine(nowMs),
-      phase: goldPhaseName(frac),
     };
   }, [chart, nowMs]);
 
@@ -371,19 +405,30 @@ export default function GoldCommodityCycleChart() {
             style={{ opacity: 0.95 }}
             aria-hidden
           />
-          Theory silhouette (illustrative)
+          Theory silhouette · one shape, repeats every ~{GOLD_CYCLE_YEARS}y
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
+            className="inline-block h-2 w-2 rounded-full border border-[#0a0a0a]"
+            style={{ background: MARKER, boxShadow: "0 0 0 1px #0a0a0a" }}
+            aria-hidden
+          />
+          Peak / trough zone markers (dated)
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span
             className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#1a1a1a]"
-            style={{ background: LIVE_CREAM }}
+            style={{ background: LIVE_CREAM, boxShadow: "0 0 0 2px rgba(245,240,230,0.35)" }}
             aria-hidden
           />
-          Live (calendar on silhouette)
+          Live (today on silhouette)
         </span>
       </div>
 
-      <div className="relative mt-3 overflow-hidden rounded-lg border border-[#222] bg-black">
+      <div
+        ref={boxRef}
+        className="relative mt-3 overflow-hidden rounded-lg border border-[#222] bg-black"
+      >
         {loading ? (
           <div className="flex h-[280px] items-center justify-center text-sm text-muted sm:h-[420px]">
             Loading gold history…
@@ -398,7 +443,7 @@ export default function GoldCommodityCycleChart() {
             viewBox={`0 0 ${W} ${H}`}
             className="h-auto w-full"
             role="img"
-            aria-label="Long-run gold price on a log scale with Anthony’s ~46-year gold-led commodity cycle silhouette and peak-zone markers at 1934, 1980, 2026 and 2072. Educational sketch only — not financial advice"
+            aria-label="Long-run gold price on a log scale with Anthony’s ~46-year gold-led commodity cycle silhouette repeating every lap. Peak zones Jan 1934, 1980, 2026 and 2072 (theoretical); trough zones about 1954, 2000 and 2046 (theoretical). Educational sketch only — not financial advice"
             onMouseMove={onMove}
             onMouseLeave={() => setHover(null)}
           >
@@ -417,10 +462,10 @@ export default function GoldCommodityCycleChart() {
                   />
                   <text
                     x={PAD.left - 8}
-                    y={y + 3}
+                    y={y + 3 * axisFs}
                     textAnchor="end"
                     fill={AXIS}
-                    fontSize={10}
+                    fontSize={10 * axisFs}
                     fontFamily="ui-monospace, monospace"
                   >
                     {fmtUsd(v)}
@@ -443,10 +488,10 @@ export default function GoldCommodityCycleChart() {
                   />
                   <text
                     x={x}
-                    y={H - PAD.bottom + 16}
+                    y={H - PAD.bottom + 16 + 6 * (axisFs - 1)}
                     textAnchor="middle"
                     fill={AXIS}
-                    fontSize={10}
+                    fontSize={10 * axisFs}
                     fontFamily="ui-monospace, monospace"
                   >
                     {y}
@@ -455,40 +500,37 @@ export default function GoldCommodityCycleChart() {
               );
             })}
 
-            {/* Peak-zone vertical markers — no fills */}
-            {chart.peakYears.map((year) => {
-              const x = chart.xOf(Math.floor(janMs(year) / 1000));
-              if (x < PAD.left - 4 || x > W - PAD.right + 4) return null;
-              const locked = (GOLD_PEAK_ANCHORS as readonly number[]).includes(year);
-              const theoretical = year > 2026;
-              return (
-                <g key={`peak-${year}`}>
-                  <line
-                    x1={x}
-                    x2={x}
-                    y1={PAD.top}
-                    y2={H - PAD.bottom}
-                    stroke={MARKER}
-                    strokeOpacity={locked ? 0.55 : 0.28}
-                    strokeWidth={1.25}
-                    strokeDasharray={theoretical ? "4 4" : undefined}
-                  />
-                  <text
-                    x={x + 4}
-                    y={PAD.top + 12}
-                    fill={MARKER}
-                    fillOpacity={locked ? 0.95 : 0.55}
-                    fontSize={11}
-                    fontFamily="ui-monospace, monospace"
-                    fontWeight={600}
-                  >
-                    {theoretical ? `~${year}*` : year}
-                  </text>
-                </g>
-              );
-            })}
+            <defs>
+              <style>{`
+                @keyframes gold-live-pulse {
+                  0% { opacity: 0.6; r: 6; }
+                  70% { opacity: 0; r: 18; }
+                  100% { opacity: 0; r: 18; }
+                }
+                .gold-live-ring {
+                  animation: gold-live-pulse 2.4s ease-out infinite;
+                }
+              `}</style>
+            </defs>
 
-            {/* Model silhouette — clean stroke only */}
+            {/* Zone verticals — peaks solid (dashed if theoretical), troughs dotted · no fills */}
+            {chart.markers.map((m) => (
+              <line
+                key={`v-${m.kind}-${m.year}`}
+                x1={m.x}
+                x2={m.x}
+                y1={PAD.top}
+                y2={H - PAD.bottom}
+                stroke={MARKER}
+                strokeOpacity={m.kind === "peak" ? (m.theoretical ? 0.4 : 0.5) : 0.22}
+                strokeWidth={m.kind === "peak" ? 1.25 : 1}
+                strokeDasharray={
+                  m.kind === "trough" ? "2 4" : m.theoretical ? "4 4" : undefined
+                }
+              />
+            ))}
+
+            {/* Model silhouette — same lap shape repeated, clean stroke only */}
             <path
               d={chart.modelPath}
               fill="none"
@@ -511,9 +553,23 @@ export default function GoldCommodityCycleChart() {
               vectorEffect="non-scaling-stroke"
             />
 
+            {/* Repeating cream dots on every peak / trough zone along the model + dates */}
+            {chart.markers.map((m) => (
+              <MarkerDot key={`dot-${m.kind}-${m.year}`} m={m} fs={fs} short={narrow} />
+            ))}
+
             {/* Live marker on silhouette */}
             {live ? (
-              <g>
+              <g data-live-dot="">
+                <circle
+                  className="gold-live-ring"
+                  cx={live.x}
+                  cy={live.y}
+                  r={6}
+                  fill="none"
+                  stroke={LIVE_CREAM}
+                  strokeWidth={2}
+                />
                 <circle cx={live.x} cy={live.y} r={10} fill="#0a0a0a" fillOpacity={0.45} />
                 <circle
                   cx={live.x}
@@ -524,6 +580,7 @@ export default function GoldCommodityCycleChart() {
                   strokeWidth={2}
                 />
                 <circle cx={live.x} cy={live.y} r={2} fill="#1a1a1a" />
+                <LivePill x={live.x} y={live.y} fs={fs} />
               </g>
             ) : null}
 
@@ -575,11 +632,168 @@ export default function GoldCommodityCycleChart() {
         </p>
       ) : null}
 
+      <CycleDatesList />
+
       <p className="mt-3 text-[11px] leading-relaxed text-muted sm:text-xs">
         {GOLD_CAPTION} Model amplitude is scaled to the visible log band for shape only — it is{" "}
         <strong className="font-medium text-foreground/80">not a price forecast</strong>.{" "}
         {data?.source ? `Source: ${data.source}.` : GOLD_SOURCE_LINE}
       </p>
     </div>
+  );
+}
+
+/** On-chart dated marker: cream dot on the model + always-visible year label. */
+function MarkerDot({
+  m,
+  fs = 1,
+  short = false,
+}: {
+  m: GoldMarker & { x: number; y: number };
+  fs?: number;
+  short?: boolean;
+}) {
+  const isPeak = m.kind === "peak";
+  const label = `${isPeak ? "" : "~"}${m.year}${m.theoretical ? "*" : ""}`;
+  const text = short ? label : `${isPeak ? "Peak" : "Trough"} ${label}`;
+  const nearRight = m.x > W - PAD.right - 40 * fs;
+  const nearLeft = m.x < PAD.left + 30 * fs;
+  const anchor = nearRight ? "end" : nearLeft ? "start" : "middle";
+  const lx = nearRight ? m.x + 4 : nearLeft ? m.x - 4 : m.x;
+  return (
+    <g>
+      <circle cx={m.x} cy={m.y} r={8} fill="#0a0a0a" fillOpacity={0.5} />
+      <circle
+        cx={m.x}
+        cy={m.y}
+        r={isPeak ? 4.75 : 4.25}
+        fill={MARKER}
+        stroke="#0a0a0a"
+        strokeWidth={2}
+      />
+      {isPeak ? (
+        <text
+          x={lx}
+          y={PAD.top - 12 + 2 * (fs - 1)}
+          textAnchor={anchor}
+          fill={MARKER}
+          fillOpacity={m.theoretical ? 0.75 : 0.95}
+          fontSize={12 * fs}
+          fontFamily="ui-monospace, monospace"
+          fontWeight={700}
+        >
+          {text}
+        </text>
+      ) : (
+        <text
+          x={lx}
+          y={m.y + 12 + 8 * fs}
+          textAnchor={anchor}
+          fill={MARKER}
+          fillOpacity={m.theoretical ? 0.7 : 0.85}
+          fontSize={11 * fs}
+          fontFamily="ui-monospace, monospace"
+          fontWeight={600}
+        >
+          {text}
+        </text>
+      )}
+    </g>
+  );
+}
+
+function LivePill({ x, y, fs = 1 }: { x: number; y: number; fs?: number }) {
+  const w = 34 * fs;
+  const h = 15 * fs;
+  const nearRight = x > W - PAD.right - w - 16;
+  const px = nearRight ? x - w - 12 : x + 12;
+  const py = y + 12;
+  return (
+    <g>
+      <rect
+        x={px}
+        y={py}
+        width={w}
+        height={h}
+        rx={3}
+        fill="#1a1712"
+        stroke={LIVE_CREAM}
+        strokeOpacity={0.8}
+        strokeWidth={1}
+      />
+      <text
+        x={px + w / 2}
+        y={py + h * 0.72}
+        textAnchor="middle"
+        fill={LIVE_CREAM}
+        fontSize={9.5 * fs}
+        fontFamily="system-ui, sans-serif"
+        fontWeight={800}
+      >
+        Live
+      </text>
+    </g>
+  );
+}
+
+/** Explicit dates list — few peaks / troughs, so show every one (no hover-only). */
+function CycleDatesList() {
+  const firstPeak = GOLD_PEAK_ANCHORS[0];
+  const lastPeak = GOLD_PEAK_ANCHORS[GOLD_PEAK_ANCHORS.length - 1];
+  const markers = goldMarkersBetween(firstPeak, lastPeak);
+  const peaks = markers.filter((m) => m.kind === "peak");
+  const troughs = markers.filter((m) => m.kind === "trough");
+  const row = (title: string, items: GoldMarker[], notes: Record<number, string>) => (
+    <div>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9eb0c8]">
+        {title}
+      </p>
+      <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((m) => (
+          <li
+            key={`${m.kind}-${m.year}`}
+            className="flex items-start gap-2 rounded-md border border-[#222] bg-[#0b0e12] px-3 py-2"
+          >
+            <span
+              className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ background: MARKER, boxShadow: "0 0 0 2px #0a0a0a, 0 0 0 3px #3a4558" }}
+              aria-hidden
+            />
+            <span className="min-w-0">
+              <span className="block font-mono text-sm font-semibold text-[#f5f0e6]">
+                {m.kind === "peak" ? "Jan " : "~"}
+                {m.year}
+                {m.theoretical ? "*" : ""}
+                {m.locked ? (
+                  <span className="ml-1.5 align-middle text-[9px] font-medium uppercase tracking-wide text-[#8a97a8]">
+                    locked
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted">
+                {notes[m.year] ?? (m.theoretical ? "Theoretical — illustrative only." : "")}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+  return (
+    <section
+      className="mt-4 space-y-3 rounded-lg border border-[#222] bg-black px-4 py-3"
+      aria-label="Gold cycle peak and trough zone dates"
+    >
+      <p className="text-sm font-semibold text-[#e8eef7]">Cycle dates</p>
+      {row("Peak zones · ~46y apart (Anthony’s anchors)", peaks, GOLD_ANCHOR_NOTES)}
+      {row(
+        `Trough zones · ~${GOLD_TROUGH_OFFSET_YEARS}y after each peak (from the repeating shape)`,
+        troughs,
+        GOLD_TROUGH_NOTES,
+      )}
+      <p className="text-[10px] italic text-[#7a8aa0]">
+        * theoretical (future) · zones, not exact tops or bottoms · NFA
+      </p>
+    </section>
   );
 }
