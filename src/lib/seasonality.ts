@@ -31,7 +31,7 @@ export type SeasonAssetDef = {
   /** How closes print in hover cards. */
   closeFmt: "usd" | "pts";
   /** Tile shade caps: a move this big (in %) gets the strongest colour. */
-  cap: { monthly: number; quarterly: number };
+  cap: { monthly: number; quarterly: number; yearly: number };
   /** Source note under the grid. */
   source: string;
 };
@@ -44,7 +44,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "BTC-USD",
     clock: "utc",
     closeFmt: "usd",
-    cap: { monthly: 40, quarterly: 80 },
+    cap: { monthly: 40, quarterly: 80, yearly: 160 },
     source:
       "Source: Yahoo Finance BTC-USD daily close (UTC) from 17 Sep 2014; Dec 2012 – 16 Sep 2014 use the blockchain.com average USD market price across major exchanges (a daily average, not a close). Earlier, thinly traded years are not shown. Recent-month fallback: Coinbase Exchange.",
   },
@@ -55,7 +55,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "ETH-USD",
     clock: "utc",
     closeFmt: "usd",
-    cap: { monthly: 50, quarterly: 100 },
+    cap: { monthly: 50, quarterly: 100, yearly: 200 },
     source: "Source: Yahoo Finance ETH-USD daily close (UTC), from 9 Nov 2017 (the start of Yahoo's history).",
   },
   {
@@ -65,7 +65,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "SOL-USD",
     clock: "utc",
     closeFmt: "usd",
-    cap: { monthly: 60, quarterly: 120 },
+    cap: { monthly: 60, quarterly: 120, yearly: 240 },
     source: "Source: Yahoo Finance SOL-USD daily close (UTC), from 10 Apr 2020 (the start of Yahoo's history).",
   },
   {
@@ -75,7 +75,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "XRP-USD",
     clock: "utc",
     closeFmt: "usd",
-    cap: { monthly: 50, quarterly: 100 },
+    cap: { monthly: 50, quarterly: 100, yearly: 200 },
     source: "Source: Yahoo Finance XRP-USD daily close (UTC), from 9 Nov 2017 (the start of Yahoo's history).",
   },
   {
@@ -85,7 +85,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "ZEC-USD",
     clock: "utc",
     closeFmt: "usd",
-    cap: { monthly: 50, quarterly: 100 },
+    cap: { monthly: 50, quarterly: 100, yearly: 200 },
     source: "Source: Yahoo Finance ZEC-USD daily close (UTC), from 9 Nov 2017 (the start of Yahoo's history).",
   },
   {
@@ -95,7 +95,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "LTC-USD",
     clock: "utc",
     closeFmt: "usd",
-    cap: { monthly: 40, quarterly: 80 },
+    cap: { monthly: 40, quarterly: 80, yearly: 160 },
     source: "Source: Yahoo Finance LTC-USD daily close (UTC), from 17 Sep 2014 (the start of Yahoo's history).",
   },
   {
@@ -105,7 +105,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "URTH",
     clock: "ny",
     closeFmt: "usd",
-    cap: { monthly: 8, quarterly: 16 },
+    cap: { monthly: 8, quarterly: 16, yearly: 32 },
     source:
       "Source: Yahoo Finance URTH daily close — the iShares MSCI World ETF, used as a stand-in because MSCI index data can't be republished. Price only (distributions excluded, after ETF fees), so it runs slightly under the index's total return. URTH history starts Jan 2012.",
   },
@@ -116,7 +116,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "^GSPC",
     clock: "ny",
     closeFmt: "pts",
-    cap: { monthly: 8, quarterly: 16 },
+    cap: { monthly: 8, quarterly: 16, yearly: 32 },
     source:
       "Source: Yahoo Finance ^GSPC daily close — the S&P 500 price index, excluding dividends, so total returns were higher. Shown from 1950 (base: Dec 1949 close); before March 1957 the series is S&P's 90-stock predecessor index.",
   },
@@ -127,7 +127,7 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     yahoo: "^IXIC",
     clock: "ny",
     closeFmt: "pts",
-    cap: { monthly: 10, quarterly: 20 },
+    cap: { monthly: 10, quarterly: 20, yearly: 40 },
     source:
       "Source: Yahoo Finance ^IXIC daily close — the Nasdaq Composite price index, excluding dividends, so total returns were higher. Shown from Feb 1971.",
   },
@@ -137,7 +137,7 @@ export const ASSET_DEF = Object.fromEntries(SEASON_ASSETS.map((a) => [a.key, a])
 export const MARKET_ASSETS = (m: SeasonMarket) => SEASON_ASSETS.filter((a) => a.market === m);
 export const isMarket = (m: unknown): m is SeasonMarket => m === "crypto" || m === "equities";
 export const MARKET_LABEL: Record<SeasonMarket, string> = { crypto: "Crypto", equities: "Equities" };
-export type SeasonPeriod = "monthly" | "quarterly";
+export type SeasonPeriod = "monthly" | "quarterly" | "yearly";
 
 /** [period key YYYY-MM, last trading date YYYY-MM-DD, close]. */
 export type MonthClose = [string, string, number];
@@ -176,6 +176,7 @@ export const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 export const QUARTER_LABELS = ["Q1", "Q2", "Q3", "Q4"];
+export const YEAR_LABELS = ["Annual"];
 
 export const ASSET_LABEL = Object.fromEntries(SEASON_ASSETS.map((a) => [a.key, a.label])) as Record<SeasonAsset, string>;
 
@@ -262,7 +263,7 @@ export function buildGrid(series: SeasonSeries, period: SeasonPeriod): SeasonGri
         avgSource: ys != null ? isAvg(date) || isAvg(prev?.[1] ?? null) : undefined,
       });
     }
-  } else {
+  } else if (period === "quarterly") {
     // Quarter close = last monthly record inside that quarter.
     const qs = new Map<number, { y: number; q: number; date: string; close: number; months: number }>();
     for (const [key, date, close] of series.months) {
@@ -291,14 +292,47 @@ export function buildGrid(series: SeasonSeries, period: SeasonPeriod): SeasonGri
         avgSource: ys != null ? isAvg(v.date) || isAvg(prevComplete ? prev!.date : null) : undefined,
       });
     }
+  } else {
+    // Year close = last monthly record in that calendar year; return vs previous Dec close.
+    const byYear = new Map<number, { date: string; close: number; hasDec: boolean }>();
+    for (const [key, date, close] of series.months) {
+      const y = Number(key.slice(0, 4));
+      const cur = byYear.get(y);
+      byYear.set(y, {
+        date,
+        close,
+        hasDec: key.endsWith("-12") || Boolean(cur?.hasDec),
+      });
+    }
+    const [cy] = series.currentMonth.split("-").map(Number) as [number, number];
+    for (const [y, v] of byYear) {
+      const prev = byYear.get(y - 1);
+      const prevComplete = prev != null && prev.hasDec;
+      const ret = prev && prevComplete ? (v.close / prev.close - 1) * 100 : null;
+      cells.set(cellKey(y, 0), {
+        year: y,
+        col: 0,
+        label: String(y),
+        ret,
+        inProgress: y === cy,
+        endDate: v.date,
+        close: v.close,
+        prevDate: prevComplete ? prev!.date : null,
+        prevClose: prevComplete ? prev!.close : null,
+        avgSource: ys != null ? isAvg(v.date) || isAvg(prevComplete ? prev!.date : null) : undefined,
+      });
+    }
   }
 
-  const cols = period === "monthly" ? MONTH_LABELS : QUARTER_LABELS;
+  const cols = period === "monthly" ? MONTH_LABELS : period === "quarterly" ? QUARTER_LABELS : YEAR_LABELS;
   const yearSet = new Set<number>();
   for (const c of cells.values()) if (c.ret != null || c.inProgress) yearSet.add(c.year);
 
   const [cy, cm] = series.currentMonth.split("-").map(Number) as [number, number];
-  const current = { year: cy, col: period === "monthly" ? cm - 1 : Math.floor((cm - 1) / 3) };
+  const current = {
+    year: cy,
+    col: period === "monthly" ? cm - 1 : period === "quarterly" ? Math.floor((cm - 1) / 3) : 0,
+  };
   yearSet.add(cy);
   const years = [...yearSet].sort((a, b) => b - a);
 

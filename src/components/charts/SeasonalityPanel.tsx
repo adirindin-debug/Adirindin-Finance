@@ -23,6 +23,7 @@ import {
 const PERIODS: Array<{ key: SeasonPeriod; label: string }> = [
   { key: "monthly", label: "Monthly" },
   { key: "quarterly", label: "Quarterly" },
+  { key: "yearly", label: "Yearly" },
 ];
 
 const toggleBtn = "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
@@ -104,9 +105,11 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
   const curName = grid?.current
     ? period === "monthly"
       ? new Date(Date.UTC(2000, grid.current.col, 1)).toLocaleString("en-AU", { month: "long", timeZone: "UTC" })
-      : `Q${grid.current.col + 1}`
+      : period === "quarterly"
+        ? `Q${grid.current.col + 1}`
+        : String(grid.current.year)
     : "";
-  const unit = period === "monthly" ? "month" : "quarter";
+  const unit = period === "monthly" ? "month" : period === "quarterly" ? "quarter" : "year";
   const def = ASSET_DEF[asset];
   const tz = def.clock === "utc" ? "UTC days" : "New York trading days";
 
@@ -114,7 +117,7 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
     <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-          {period === "monthly" ? "Monthly" : "Quarterly"} returns · {ASSET_LABEL[asset]}
+          {period === "monthly" ? "Monthly" : period === "quarterly" ? "Quarterly" : "Yearly"} returns · {ASSET_LABEL[asset]}
         </h2>
         <div ref={assetMenuRef} className="relative">
           <button
@@ -176,7 +179,7 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
 
       {grid && curStat ? (
         <p className="mt-3 text-sm text-foreground/85">
-          {curName} {grid.current!.year} so far:{" "}
+          {period === "yearly" ? `${grid.current!.year}` : `${curName} ${grid.current!.year}`} so far:{" "}
           <span
             className="font-mono font-semibold"
             style={{ color: curCell?.ret == null ? undefined : curCell.ret >= 0 ? "#3dcc9a" : "#ef6b6b" }}
@@ -184,7 +187,7 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
             {fmtRet(curCell?.ret)}
           </span>{" "}
           <span className="text-muted">(in progress{curCell ? `, to ${fmtDate(curCell.endDate)}` : ""})</span>. In past
-          years, {curName} closed green in{" "}
+          years, {period === "yearly" ? "the calendar year" : curName} closed green in{" "}
           <span className="font-mono font-semibold text-foreground">
             {curStat.green} of {curStat.n}
           </span>{" "}
@@ -200,7 +203,7 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
           </div>
         ) : (
           <div className="-mx-1 overflow-x-auto overscroll-x-contain pb-2 [scrollbar-color:#2a3340_transparent]">
-            <table className="w-full min-w-[720px] border-separate border-spacing-[3px] text-center font-mono text-[11px] sm:text-xs">
+            <table data-yearly={period === "yearly" ? "true" : undefined} className="w-full min-w-[720px] data-[yearly=true]:min-w-[280px] border-separate border-spacing-[3px] text-center font-mono text-[11px] sm:text-xs">
               <caption className="sr-only">
                 {ASSET_LABEL[asset]} {period} returns by year. Rows are years (newest first).
               </caption>
