@@ -329,6 +329,28 @@ const CATEGORIES: Category[] = [
       },
     ],
   },
+{
+    id: "seasonality",
+    label: "Seasonality",
+    tiles: [
+      {
+        id: "seasonality-crypto",
+        href: "/charts/seasonality/crypto",
+        title: "Crypto seasonality",
+        subtitle: "Bitcoin · monthly & quarterly returns",
+        endpoint: "/api/seasonality?market=crypto",
+        parse: seasonalityParser("btc"),
+      },
+      {
+        id: "seasonality-equities",
+        href: "/charts/seasonality/equities",
+        title: "Equities seasonality",
+        subtitle: "MSCI World · monthly & quarterly returns",
+        endpoint: "/api/seasonality?market=equities",
+        parse: seasonalityParser("msci"),
+      },
+    ],
+  },
   {
     id: "crypto-markets",
     label: "Crypto markets",
@@ -385,29 +407,7 @@ const CATEGORIES: Category[] = [
       },
     ],
   },
-  {
-    id: "seasonality",
-    label: "Seasonality",
-    tiles: [
-      {
-        id: "seasonality-crypto",
-        href: "/charts/seasonality/crypto",
-        title: "Crypto seasonality",
-        subtitle: "Bitcoin · monthly & quarterly returns",
-        endpoint: "/api/seasonality?market=crypto",
-        parse: seasonalityParser("btc"),
-      },
-      {
-        id: "seasonality-equities",
-        href: "/charts/seasonality/equities",
-        title: "Equities seasonality",
-        subtitle: "MSCI World · monthly & quarterly returns",
-        endpoint: "/api/seasonality?market=equities",
-        parse: seasonalityParser("msci"),
-      },
-    ],
-  },
-];
+  ];
 
 const ALL_TILES = CATEGORIES.flatMap((c) => c.tiles);
 
