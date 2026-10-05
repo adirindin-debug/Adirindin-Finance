@@ -305,9 +305,9 @@ function seasonalityParser(lead: SeasonAsset) {
     const soFar = odds.live?.ret != null ? ` · ${short} ${odds.grid.current?.year} so far ${fmtRet(odds.live.ret)}` : "";
     return {
       // At-a-glance: whichever side is more common for this month, plus the average return.
-      headline: `${topPct}% ${topWord}`,
+      headline: `${topPct}% ${topWord} · avg ${fmtRet(odds.stat.avg)}`,
       headlineColor: leanGreen ? "#3dcc9a" : "#ef6b6b",
-      secondary: `${label} ${odds.monthName}s: avg ${fmtRet(odds.stat.avg)} · ${odds.stat.green} of ${odds.stat.n} green${soFar} · history, not a forecast`,
+      secondary: `${label} ${odds.monthName}s: ${odds.stat.green} of ${odds.stat.n}${soFar} · history, not a forecast`,
       mini: { caption: `${label} monthly returns · last 5 years`, cols: MONTH_LABELS, rows },
       isLive: !series.snapshot,
     };
@@ -339,15 +339,7 @@ const CATEGORIES: Category[] = [
     id: "seasonality",
     label: "Seasonality",
     tiles: [
-{
-        id: "seasonality-crypto",
-        href: "/charts/seasonality/crypto",
-        title: "Crypto seasonality",
-        subtitle: "Bitcoin · monthly & quarterly returns",
-        endpoint: "/api/seasonality?market=crypto",
-        parse: seasonalityParser("btc"),
-      },
-            {
+      {
         id: "seasonality-equities",
         href: "/charts/seasonality/equities",
         title: "Equities seasonality",
@@ -355,6 +347,15 @@ const CATEGORIES: Category[] = [
         endpoint: "/api/seasonality?market=equities",
         parse: seasonalityParser("msci"),
       },
+      {
+        id: "seasonality-crypto",
+        href: "/charts/seasonality/crypto",
+        title: "Crypto seasonality",
+        subtitle: "Bitcoin · monthly & quarterly returns",
+        endpoint: "/api/seasonality?market=crypto",
+        parse: seasonalityParser("btc"),
+      },
+    
     ],
   },
   {
