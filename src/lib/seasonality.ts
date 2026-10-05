@@ -16,7 +16,7 @@
  * its history to src/data/seasonality-snapshot.json — the API, toggles, grid and
  * hub card pick it up from this list.
  */
-export type SeasonAsset = "btc" | "eth" | "sol" | "xrp" | "zec" | "ltc" | "msci" | "spx" | "nq";
+export type SeasonAsset = "btc" | "eth" | "sol" | "xrp" | "zec" | "ltc" | "doge" | "msci" | "spx" | "nq";
 export type SeasonMarket = "crypto" | "equities";
 
 export type SeasonAssetDef = {
@@ -98,6 +98,17 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     cap: { monthly: 40, quarterly: 80, yearly: 160 },
     source: "Source: Yahoo Finance LTC-USD daily close (UTC), from 17 Sep 2014 (the start of Yahoo's history).",
   },
+  {
+    key: "doge",
+    market: "crypto",
+    label: "Dogecoin",
+    yahoo: "DOGE-USD",
+    clock: "utc",
+    closeFmt: "usd",
+    cap: { monthly: 60, quarterly: 120, yearly: 200 },
+    source: "Source: Yahoo Finance DOGE-USD daily close (UTC).",
+  },
+
   {
     key: "msci",
     market: "equities",
