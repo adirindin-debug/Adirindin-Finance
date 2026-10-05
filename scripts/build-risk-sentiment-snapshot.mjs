@@ -9,8 +9,9 @@
  *   node scripts/build-risk-sentiment-snapshot.mjs
  *
  * Sources:
- *  - MSCI World Standard (price) index, USD (^990100-USD-STRD) daily close — Yahoo
- *    Finance chart API (delayed, third-party). Primary equity input.
+ *  - URTH (iShares MSCI World ETF) adjusted close — Yahoo Finance chart API
+ *    (delayed, third-party). Primary equity input; same pattern as global
+ *    equities / seasonality. Developed-markets proxy, not the licensed MSCI index.
  *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (delayed, third-party)
  *  - VIX close — FRED VIXCLS (CSV, citation required)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
@@ -39,13 +40,16 @@ async function getJson(url, headers = {}) {
   return r.json();
 }
 
-async function yahooDaily(symbol, label) {
+async function yahooDaily(symbol, label, { period1 = SPX_FROM, adj = false, minRows = 9000 } = {}) {
   const now = Math.floor(Date.now() / 1000);
+  const events = adj ? "&events=div%7Csplit" : "";
   const j = await getJson(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${SPX_FROM}&period2=${now}&interval=1d`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${period1}&period2=${now}&interval=1d${events}`,
   );
   const r = j.chart.result[0];
-  const close = r.indicators.quote[0].close;
+  const close = adj
+    ? (r.indicators.adjclose?.[0]?.adjclose ?? r.indicators.quote[0].close)
+    : r.indicators.quote[0].close;
   const rows = [];
   const seen = new Set();
   r.timestamp.forEach((t, i) => {
@@ -57,7 +61,7 @@ async function yahooDaily(symbol, label) {
     rows.push([d, Math.round(v * 100) / 100]);
   });
   // A frozen snapshot should hold closes only: drop a bar for today's New York
-  // session while it is still in progress (MSCI World ticks through Asia/Europe).
+  // session while it is still in progress (URTH / US equity session).
   const nyNow = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
     year: "numeric",
@@ -69,15 +73,18 @@ async function yahooDaily(symbol, label) {
   const part = (t) => nyNow.find((p) => p.type === t).value;
   const nyDate = `${part("year")}-${part("month")}-${part("day")}`;
   if (rows.at(-1)?.[0] === nyDate && Number(part("hour")) < 18) rows.pop();
-  if (rows.length < 9000) throw new Error(`${symbol} short (${rows.length})`);
+  if (rows.length < minRows) throw new Error(`${symbol} short (${rows.length})`);
   return { asOf: rows.at(-1)[0], source: label, rows };
 }
 
 const spx = () => yahooDaily("^GSPC", "Yahoo Finance ^GSPC daily close (delayed)");
+/** URTH listing ~12 Jan 2012 (same period1 as global equities). */
+const URTH_FROM = 1325376000;
 const world = () =>
   yahooDaily(
-    "^990100-USD-STRD",
-    "Yahoo Finance ^990100-USD-STRD — MSCI World Standard (price) index, USD, daily close (delayed)",
+    "URTH",
+    "Yahoo Finance URTH adjusted close — iShares MSCI World ETF (developed-markets proxy, delayed)",
+    { period1: URTH_FROM, adj: true, minRows: 1000 },
   );
 
 async function vix() {

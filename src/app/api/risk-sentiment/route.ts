@@ -3,11 +3,12 @@
  *
  * Live public feeds, each falling back on its own to the dated snapshot in
  * src/data/risk-sentiment-snapshot.json (refresh: scripts/build-risk-sentiment-snapshot.mjs):
- *  - MSCI World Standard (price) index, USD (^990100-USD-STRD) daily close — Yahoo
- *    Finance chart API (query1 → query2). Primary equity input (same series as the
- *    homepage MSCI World line)
+ *  - URTH (iShares MSCI World ETF) adjusted close — Yahoo Finance chart API
+ *    (query1 → query2), same pattern as global equities / seasonality. Primary
+ *    equity input; developed-markets proxy, not the licensed MSCI index series.
+ *    History from ~Jan 2012 — before that, S&P pair logic fills the equity block
  *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (query1 → query2).
- *    Secondary equity input; fills the equity block on days without World data
+ *    Secondary equity input; fills the equity block on days without URTH data
  *  - VIX close — FRED VIXCLS (API if FRED_API_KEY, else CSV)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
  *  - Crypto Fear & Greed — Alternative.me public API
@@ -37,7 +38,9 @@ const FRED_UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
 /** Equity history start (5 years of warm-up before the first displayed row). */
 const EQ_FROM = Date.UTC(1985, 0, 1) / 1000;
-const WORLD_SYMBOL = "^990100-USD-STRD";
+/** URTH listing ~12 Jan 2012 (same period1 as global equities / seasonality). */
+const URTH_FROM = 1325376000;
+const WORLD_SYMBOL = "URTH";
 
 type SnapBlock = { asOf: string; source: string; note?: string; rows: Series };
 type Snap = {
@@ -54,7 +57,7 @@ const SNAP = snapshot as unknown as Snap;
 let lastGood: { at: number; body: RsPayload } | null = null;
 const MEMO_MS = 30 * 60 * 1000;
 
-async function fetchYahooDaily(symbol: string): Promise<Series> {
+async function fetchYahooDaily(symbol: string, minRows = 9000): Promise<Series> {
   const errors: string[] = [];
   for (const host of ["query1", "query2"]) {
     try {
@@ -83,7 +86,52 @@ async function fetchYahooDaily(symbol: string): Promise<Series> {
         seen.add(d);
         out.push([d, Math.round(v * 100) / 100]);
       }
-      if (out.length < 9000) throw new Error(`Yahoo ${host}: short history (${out.length})`);
+      if (out.length < minRows) throw new Error(`Yahoo ${host}: short history (${out.length})`);
+      return out;
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : `Yahoo ${host} failed`);
+    }
+  }
+  throw new Error(errors.join("; "));
+}
+
+/** URTH adjusted close — same pattern as /api/global-equities (dividends reinvested). */
+async function fetchUrth(): Promise<Series> {
+  const errors: string[] = [];
+  for (const host of ["query1", "query2"]) {
+    try {
+      const url = `https://${host}.finance.yahoo.com/v8/finance/chart/URTH?period1=${URTH_FROM}&period2=${Math.floor(Date.now() / 1000)}&interval=1d&events=div%7Csplit`;
+      const res = await fetch(url, {
+        headers: { "User-Agent": UA, Accept: "application/json" },
+        next: { revalidate: 3600 },
+        signal: AbortSignal.timeout(FETCH_MS),
+      });
+      if (!res.ok) throw new Error(`Yahoo ${host}: HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        chart?: {
+          result?: Array<{
+            timestamp?: number[];
+            indicators?: {
+              adjclose?: Array<{ adjclose?: (number | null)[] }>;
+              quote?: Array<{ close?: (number | null)[] }>;
+            };
+          }>;
+        };
+      };
+      const r = json.chart?.result?.[0];
+      const ts = r?.timestamp ?? [];
+      const adj = r?.indicators?.adjclose?.[0]?.adjclose ?? r?.indicators?.quote?.[0]?.close ?? [];
+      const out: Series = [];
+      const seen = new Set<string>();
+      for (let i = 0; i < ts.length; i++) {
+        const v = adj[i];
+        if (v == null || !Number.isFinite(v) || v <= 0) continue;
+        const d = new Date(ts[i]! * 1000).toISOString().slice(0, 10);
+        if (seen.has(d)) continue;
+        seen.add(d);
+        out.push([d, Math.round(v * 100) / 100]);
+      }
+      if (out.length < 1000) throw new Error(`Yahoo ${host}: short history (${out.length})`);
       return out;
     } catch (e) {
       errors.push(e instanceof Error ? e.message : `Yahoo ${host} failed`);
@@ -93,7 +141,7 @@ async function fetchYahooDaily(symbol: string): Promise<Series> {
 }
 
 const fetchSpx = () => fetchYahooDaily("^GSPC");
-const fetchWorld = () => fetchYahooDaily(WORLD_SYMBOL);
+const fetchWorld = () => fetchUrth();
 
 async function fetchVix(): Promise<Series> {
   const key = process.env.FRED_API_KEY?.trim();
@@ -222,7 +270,7 @@ export async function GET() {
 
   const warnings: string[] = [];
   const [world, spx, vix, usFng, cryptoFng] = await Promise.all([
-    withFallback("world", `MSCI World (${WORLD_SYMBOL})`, fetchWorld, SNAP.world, warnings),
+    withFallback("world", `URTH (${WORLD_SYMBOL}) — MSCI World ETF proxy`, fetchWorld, SNAP.world, warnings),
     withFallback("spx", "S&P 500 (^GSPC)", fetchSpx, SNAP.spx, warnings),
     withFallback("vix", "VIX (FRED VIXCLS)", fetchVix, SNAP.vix, warnings),
     withFallback("usFng", "US stocks Fear & Greed (FearGreedChart.com)", fetchUsFng, SNAP.usFng, warnings),
@@ -250,7 +298,7 @@ export async function GET() {
         asOf: null,
         sources,
         warnings,
-        error: "MSCI World and S&P 500 history unavailable (live and snapshot)",
+        error: "URTH and S&P 500 history unavailable (live and snapshot)",
         generated: new Date().toISOString(),
       },
       60,

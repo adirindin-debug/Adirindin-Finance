@@ -6,9 +6,10 @@
  * data for a date it is dropped and the remaining weights are re-scaled — never
  * filled with invented values.
  *
- * Equity price risk is led by MSCI World (developed markets worldwide), with the
- * S&P 500 as a lighter cross-check; on days one of them has no data the other
- * takes the pair's full weight (see EQUITY_PAIRS / dayWeights).
+ * Equity price risk is led by URTH (iShares MSCI World ETF — developed-markets
+ * proxy), with the S&P 500 as a lighter cross-check; on days one of them has no
+ * data the other takes the pair's full weight (see EQUITY_PAIRS / dayWeights).
+ * Before URTH history (~Jan 2012) the S&P pair logic fills the equity block.
  *
  * Theoretical estimation and study aid only. Not a signal, not a timing model,
  * not financial advice (NFA).
@@ -42,7 +43,7 @@ export type ComponentMeta = {
   /** Percent when every input has data (sums to 100). */
   weight: number;
   /**
-   * Equity price inputs only: the weight this input takes when its MSCI World /
+   * Equity price inputs only: the weight this input takes when its URTH /
    * S&P 500 partner has no data that day (the pair's full share).
    */
   soloWeight?: number;
@@ -54,32 +55,32 @@ export type ComponentMeta = {
 export const COMPONENTS: ComponentMeta[] = [
   {
     key: "wDd",
-    label: "MSCI World distance from all-time high",
-    short: "World drawdown",
+    label: "URTH distance from all-time high",
+    short: "URTH drawdown",
     weight: 20,
     soloWeight: 25,
     group: "Price risk",
-    how: "100 at a fresh all-time high, falling in a straight line to 0 at −30% or worse (MSCI World daily close vs running high). Primary equity input — World spans developed markets, not just the US.",
+    how: "100 at a fresh all-time high, falling in a straight line to 0 at −30% or worse (URTH adjusted close vs running high). Primary equity input — iShares MSCI World ETF as a developed-markets proxy (not the licensed MSCI index series).",
     color: "#3dcc9a",
   },
   {
     key: "wRsiW",
-    label: "MSCI World weekly RSI (14)",
-    short: "World RSI weekly",
+    label: "URTH weekly RSI (14)",
+    short: "URTH RSI weekly",
     weight: 12,
     soloWeight: 15,
     group: "Price risk",
-    how: "Wilder 14-week RSI on MSCI World weekly closes; the current week uses the latest daily close. Used as-is (0–100).",
+    how: "Wilder 14-week RSI on URTH weekly adjusted closes; the current week uses the latest daily close. Used as-is (0–100).",
     color: "#4c9fff",
   },
   {
     key: "wRsiD",
-    label: "MSCI World daily RSI (14)",
-    short: "World RSI daily",
+    label: "URTH daily RSI (14)",
+    short: "URTH RSI daily",
     weight: 8,
     soloWeight: 10,
     group: "Price risk",
-    how: "Wilder 14-day RSI on MSCI World daily closes. Used as-is (0–100).",
+    how: "Wilder 14-day RSI on URTH daily adjusted closes. Used as-is (0–100).",
     color: "#38bdf8",
   },
   {
@@ -89,7 +90,7 @@ export const COMPONENTS: ComponentMeta[] = [
     weight: 5,
     soloWeight: 25,
     group: "Price risk",
-    how: "Same rule as World (0% → 100, −30% or worse → 0) on the S&P 500 daily close. Secondary check; takes the full 25% on any day MSCI World has no data.",
+    how: "Same rule as URTH (0% → 100, −30% or worse → 0) on the S&P 500 daily close. Secondary check; takes the full 25% on any day URTH has no data (including before URTH history ~Jan 2012).",
     color: "#1f9e74",
   },
   {
@@ -99,7 +100,7 @@ export const COMPONENTS: ComponentMeta[] = [
     weight: 3,
     soloWeight: 15,
     group: "Price risk",
-    how: "Wilder 14-week RSI on S&P 500 weekly closes. Secondary check; takes the full 15% on any day MSCI World has no data.",
+    how: "Wilder 14-week RSI on S&P 500 weekly closes. Secondary check; takes the full 15% on any day URTH has no data.",
     color: "#3672b8",
   },
   {
@@ -109,7 +110,7 @@ export const COMPONENTS: ComponentMeta[] = [
     weight: 2,
     soloWeight: 10,
     group: "Price risk",
-    how: "Wilder 14-day RSI on S&P 500 daily closes. Secondary check; takes the full 10% on any day MSCI World has no data.",
+    how: "Wilder 14-day RSI on S&P 500 daily closes. Secondary check; takes the full 10% on any day URTH has no data.",
     color: "#2a87ad",
   },
   {
@@ -169,8 +170,8 @@ export const COMPONENTS: ComponentMeta[] = [
 ];
 
 /**
- * Equity price pairs: [MSCI World key, S&P 500 key]. With both present they split
- * the pair's share 80/20 (World dominant); with one missing the other takes it all.
+ * Equity price pairs: [URTH key, S&P 500 key]. With both present they split
+ * the pair's share 80/20 (URTH dominant); with one missing the other takes it all.
  */
 export const EQUITY_PAIRS: Array<[ComponentKey, ComponentKey]> = [
   ["wDd", "dd"],
@@ -404,7 +405,7 @@ export type Series = Array<[string, number]>;
 export type RawInputs = {
   /** S&P 500 daily closes (secondary equity input). */
   spx: Series | null;
-  /** MSCI World daily closes (primary equity input). */
+  /** URTH (iShares MSCI World ETF) adjusted closes — primary equity input. */
   world: Series | null;
   vix: Series | null;
   usFng: Series | null;

@@ -11,14 +11,14 @@ export const metadata: Metadata = {
 
 const COVERAGE: { input: string; from: string; note: string }[] = [
   {
-    input: "MSCI World drawdown, daily + weekly RSI (primary)",
-    from: "Jan 1990 (history from Jan 1985 for warm-up)",
-    note: "Yahoo Finance ^990100-USD-STRD — the MSCI World Standard (price) index in US dollars, the same series as the homepage MSCI World line (delayed, third-party). Developed markets only, price index — no dividends, not ACWI, not net total return.",
+    input: "URTH drawdown, daily + weekly RSI (primary)",
+    from: "Jan 2012 (URTH listing)",
+    note: "Yahoo Finance URTH adjusted close — the iShares MSCI World ETF, used as a developed-markets proxy (same pattern as global equities / seasonality). Not the licensed MSCI index series. Dividends reinvested, after ETF fees.",
   },
   {
     input: "S&P 500 drawdown, daily + weekly RSI (confirmation)",
     from: "Jan 1990 (history from Jan 1985 for warm-up)",
-    note: "Yahoo Finance ^GSPC daily close (delayed, third-party). Price index — no dividends. Steps up to the full equity weight on any day MSCI World has no data.",
+    note: "Yahoo Finance ^GSPC daily close (delayed, third-party). Price index — no dividends. Steps up to the full equity weight on any day URTH has no data (including before URTH history ~Jan 2012).",
   },
   { input: "VIX 5-year percentile", from: "Jan 1990", note: "Cboe VIX close via FRED VIXCLS. First 5 years use the history available so far." },
   { input: "US stocks Fear & Greed", from: "Jan 2016", note: "FearGreedChart.com public API — independent methodology, not CNN's index." },
@@ -68,10 +68,11 @@ export default function RiskSentimentPage() {
           gaps are filled with made-up values. If less than {MIN_WEIGHT_FOR_SCORE}% of the weight has data, no score is shown.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          Equity price risk leans on <strong className="font-medium text-foreground">MSCI World</strong>, because it spans
-          developed markets worldwide rather than the US alone. Each price measure is a pair: with both series available,
-          MSCI World takes 80% of the pair and the S&amp;P 500 20% as a cross-check (all-time-high distance 20% + 5%,
-          weekly RSI 12% + 3%, daily RSI 8% + 2%). On any day one series has no data, the other takes the pair&apos;s full
+          Equity price risk leans on <strong className="font-medium text-foreground">URTH</strong> (iShares MSCI World ETF
+          proxy for developed markets) rather than the US alone — the same series as global equities and seasonality, not
+          the licensed MSCI index. Each price measure is a pair: with both series available, URTH takes 80% of the pair and
+          the S&amp;P 500 20% as a cross-check (all-time-high distance 20% + 5%, weekly RSI 12% + 3%, daily RSI 8% + 2%).
+          On any day one series has no data (including before URTH history ~Jan 2012), the other takes the pair&apos;s full
           share (25% / 15% / 10%), so the equity block stays at 50%.
         </p>
         <p className="mt-2 font-mono text-xs text-[#c8d0dc]">score = Σ (weightᵢ × subᵢ) ÷ Σ weightᵢ &nbsp;(over inputs with data)</p>
@@ -106,7 +107,7 @@ export default function RiskSentimentPage() {
           </table>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Group totals: price risk 50% (MSCI World 40% · S&amp;P 500 10%) · volatility 15% · sentiment 20% · attention 5% ·
+          Group totals: price risk 50% (URTH 40% · S&amp;P 500 10%) · volatility 15% · sentiment 20% · attention 5% ·
           cycle calendar 10% (kept light on purpose — frameworks, not measurements).
         </p>
 
@@ -164,9 +165,10 @@ export default function RiskSentimentPage() {
           </ul>
           <p className="mt-3 text-xs leading-relaxed text-muted">
             Known gaps: the blend has fewer inputs before 2016 (and before 2013 it is price and VIX only), so older
-            readings are not like-for-like with recent ones. MSCI World covers developed markets only (no emerging markets)
-            and, like the S&amp;P 500, is a price index without dividends. VIX and the US Fear &amp; Greed score are still
-            US-centric. Trends data is monthly and lags by up to a month.
+            readings are not like-for-like with recent ones. Before URTH (~Jan 2012) the equity block is S&amp;P-only via
+            the pair logic. URTH is a developed-markets ETF proxy (no emerging markets; after fees, dividends reinvested)
+            — not the licensed MSCI index series. VIX and the US Fear &amp; Greed score are still US-centric. Trends data
+            is monthly and lags by up to a month.
           </p>
         </div>
       </section>

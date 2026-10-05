@@ -115,7 +115,7 @@ function rawText(key: ComponentKey, r: RsRow): string | null {
   const [d, , spx, spxDd, spxRsiD, spxRsiW, wPx, wDd, wRsiD, wRsiW, vix, vixPct, usFng, cryptoFng, trRaw, trPct, btc, re] = r;
   switch (key) {
     case "wDd":
-      return wPx == null || wDd == null ? null : `${ddText(wDd)} · World ${fmtLevel(wPx)}`;
+      return wPx == null || wDd == null ? null : `${ddText(wDd)} · URTH ${fmtLevel(wPx)}`;
     case "wRsiW":
       return wRsiW == null ? null : `RSI ${wRsiW.toFixed(1)}`;
     case "wRsiD":
@@ -239,8 +239,8 @@ export function RiskSentimentPanel() {
       pen = true;
     });
 
-    // Context line on its own log scale (no axis; level shown in the tooltip): MSCI World,
-    // or the S&P 500 if World has no data in this window.
+    // Context line on its own log scale (no axis; level shown in the tooltip): URTH,
+    // or the S&P 500 if URTH has no data in this window.
     const overlayCol = rows.some((r) => r[6] != null) ? 6 : 2;
     const logs = rows.map((r) => {
       const v = r[overlayCol];
@@ -262,7 +262,7 @@ export function RiskSentimentPanel() {
         on = true;
       });
     }
-    const overlayLabel = overlayCol === 6 ? "MSCI World" : "S&P 500";
+    const overlayLabel = overlayCol === 6 ? "URTH" : "S&P 500";
 
     // ~5 date ticks
     const ticks: { x: number; label: string }[] = [];
@@ -589,7 +589,7 @@ export function RiskSentimentPanel() {
                 onClick={() => setShowOverlay((s) => !s)}
                 className={`${toggleBtn} border border-border/90 ${showOverlay ? "bg-white/10 text-foreground" : "text-muted hover:text-foreground"}`}
               >
-                {view?.overlayLabel ?? "MSCI World"} overlay
+                {view?.overlayLabel ?? "URTH"} overlay
               </button>
             </div>
           </div>
@@ -697,7 +697,7 @@ export function RiskSentimentPanel() {
                   </p>
                   {showOverlay && picked.row[6] != null && (
                     <p className="mt-1 flex justify-between gap-3 text-[11px] tabular-nums">
-                      <span className="text-muted">MSCI World</span>
+                      <span className="text-muted">URTH</span>
                       <span className="font-mono text-[#c8d0dc]">
                         {picked.row[6].toLocaleString("en-AU", { maximumFractionDigits: 2 })}
                       </span>
