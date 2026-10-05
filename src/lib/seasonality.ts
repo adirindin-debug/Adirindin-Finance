@@ -16,7 +16,7 @@
  * its history to src/data/seasonality-snapshot.json — the API, toggles, grid and
  * hub card pick it up from this list.
  */
-export type SeasonAsset = "btc" | "eth" | "msci" | "spx";
+export type SeasonAsset = "btc" | "eth" | "sol" | "xrp" | "zec" | "ltc" | "msci" | "spx" | "nq";
 export type SeasonMarket = "crypto" | "equities";
 
 export type SeasonAssetDef = {
@@ -59,6 +59,46 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     source: "Source: Yahoo Finance ETH-USD daily close (UTC), from 9 Nov 2017 (the start of Yahoo's history).",
   },
   {
+    key: "sol",
+    market: "crypto",
+    label: "Solana",
+    yahoo: "SOL-USD",
+    clock: "utc",
+    closeFmt: "usd",
+    cap: { monthly: 60, quarterly: 120 },
+    source: "Source: Yahoo Finance SOL-USD daily close (UTC), from 10 Apr 2020 (the start of Yahoo's history).",
+  },
+  {
+    key: "xrp",
+    market: "crypto",
+    label: "XRP",
+    yahoo: "XRP-USD",
+    clock: "utc",
+    closeFmt: "usd",
+    cap: { monthly: 50, quarterly: 100 },
+    source: "Source: Yahoo Finance XRP-USD daily close (UTC), from 9 Nov 2017 (the start of Yahoo's history).",
+  },
+  {
+    key: "zec",
+    market: "crypto",
+    label: "Zcash",
+    yahoo: "ZEC-USD",
+    clock: "utc",
+    closeFmt: "usd",
+    cap: { monthly: 50, quarterly: 100 },
+    source: "Source: Yahoo Finance ZEC-USD daily close (UTC), from 9 Nov 2017 (the start of Yahoo's history).",
+  },
+  {
+    key: "ltc",
+    market: "crypto",
+    label: "Litecoin",
+    yahoo: "LTC-USD",
+    clock: "utc",
+    closeFmt: "usd",
+    cap: { monthly: 40, quarterly: 80 },
+    source: "Source: Yahoo Finance LTC-USD daily close (UTC), from 17 Sep 2014 (the start of Yahoo's history).",
+  },
+  {
     key: "msci",
     market: "equities",
     label: "MSCI World",
@@ -79,6 +119,17 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     cap: { monthly: 8, quarterly: 16 },
     source:
       "Source: Yahoo Finance ^GSPC daily close — the S&P 500 price index, excluding dividends, so total returns were higher. Shown from 1950 (base: Dec 1949 close); before March 1957 the series is S&P's 90-stock predecessor index.",
+  },
+  {
+    key: "nq",
+    market: "equities",
+    label: "Nasdaq Composite",
+    yahoo: "^IXIC",
+    clock: "ny",
+    closeFmt: "pts",
+    cap: { monthly: 10, quarterly: 20 },
+    source:
+      "Source: Yahoo Finance ^IXIC daily close — the Nasdaq Composite price index, excluding dividends, so total returns were higher. Shown from Feb 1971.",
   },
 ];
 
@@ -297,9 +348,10 @@ export function fmtRet(r: number | null | undefined, dp = 1): string {
 export function fmtClose(asset: SeasonAsset, v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
   if (ASSET_DEF[asset].closeFmt === "usd") {
+    const dp = v < 1 ? 4 : v < 1000 ? 2 : 0;
     return `US$${v.toLocaleString("en-AU", {
-      minimumFractionDigits: v < 1000 ? 2 : 0,
-      maximumFractionDigits: v < 1000 ? 2 : 0,
+      minimumFractionDigits: dp,
+      maximumFractionDigits: dp,
     })}`;
   }
   return `${v.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} pts`;

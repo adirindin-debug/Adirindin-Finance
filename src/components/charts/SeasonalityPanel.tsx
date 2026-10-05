@@ -38,8 +38,10 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
   const [error, setError] = useState<string | null>(null);
   const [asset, setAsset] = useState<SeasonAsset>(assets[0]!.key);
   const [period, setPeriod] = useState<SeasonPeriod>("monthly");
+  const [assetOpen, setAssetOpen] = useState(false);
   const [hover, setHover] = useState<Hover | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const assetMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -81,6 +83,22 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
     };
   }, [hover]);
 
+  useEffect(() => {
+    if (!assetOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (assetMenuRef.current && !assetMenuRef.current.contains(e.target as Node)) setAssetOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setAssetOpen(false);
+    };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [assetOpen]);
+
   const curStat = grid?.current ? grid.stats[grid.current.col] : undefined;
   const curCell = grid?.current ? grid.cells.get(cellKey(grid.current.year, grid.current.col)) : undefined;
   const curName = grid?.current
@@ -98,21 +116,45 @@ export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
         <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
           {period === "monthly" ? "Monthly" : "Quarterly"} returns · {ASSET_LABEL[asset]}
         </h2>
-        <div className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Asset">
-          {assets.map((a) => (
-            <button
-              key={a.key}
-              type="button"
-              className={`${toggleBtn} ${asset === a.key ? toggleOn : toggleOff}`}
-              aria-pressed={asset === a.key}
-              onClick={() => {
-                setAsset(a.key);
-                setHover(null);
-              }}
+        <div ref={assetMenuRef} className="relative">
+          <button
+            type="button"
+            className={`${toggleBtn} inline-flex items-center gap-1.5 rounded-lg border border-border/90 ${assetOpen ? toggleOn : "bg-[#11161d] text-foreground/85 hover:bg-white/5 hover:text-foreground"}`}
+            aria-haspopup="listbox"
+            aria-expanded={assetOpen}
+            aria-label="Asset"
+            onClick={() => setAssetOpen((o) => !o)}
+          >
+            {ASSET_LABEL[asset]}
+            <svg aria-hidden viewBox="0 0 12 12" className={`h-3 w-3 opacity-90 transition-transform ${assetOpen ? "rotate-180" : ""}`}>
+              <path fill="currentColor" d="M2.2 4.2a.75.75 0 0 1 1.06 0L6 6.94l2.74-2.74a.75.75 0 1 1 1.06 1.06l-3.27 3.27a.75.75 0 0 1-1.06 0L2.2 5.26a.75.75 0 0 1 0-1.06z" />
+            </svg>
+          </button>
+          {assetOpen ? (
+            <ul
+              role="listbox"
+              aria-label="Assets"
+              className="absolute left-0 z-30 mt-1 min-w-[12rem] overflow-hidden rounded-lg border border-border/90 bg-[#11161d] py-1 shadow-lg"
             >
-              {a.label}
-            </button>
-          ))}
+              {assets.map((a) => (
+                <li key={a.key} role="option" aria-selected={asset === a.key}>
+                  <button
+                    type="button"
+                    className={`flex w-full items-center px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide transition-colors ${
+                      asset === a.key ? "bg-accent text-white" : "text-foreground/80 hover:bg-white/5 hover:text-foreground"
+                    }`}
+                    onClick={() => {
+                      setAsset(a.key);
+                      setAssetOpen(false);
+                      setHover(null);
+                    }}
+                  >
+                    {a.label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Period">
           {PERIODS.map((p) => (

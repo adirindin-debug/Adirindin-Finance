@@ -7,10 +7,14 @@
  * Thinner 2010–2012 markets are not used. Fallback for recent BTC months:
  * Coinbase Exchange daily candles.
  * ETH: Yahoo ETH-USD daily closes (UTC) from Nov 2017.
+ * SOL / XRP / ZEC / LTC: Yahoo *-USD daily closes (UTC) from the start of each
+ * Yahoo series (Apr 2020 / Nov 2017 / Nov 2017 / Sep 2014).
  * MSCI World: Yahoo URTH (iShares MSCI World ETF) daily closes from Jan 2012 — a
  * stand-in, as MSCI index data can't be republished. Price only.
  * S&P 500: Yahoo Finance ^GSPC daily closes from Dec 1949 — the price index only,
  * no dividends.
+ * Nasdaq Composite: Yahoo Finance ^IXIC daily closes from Feb 1971 — price index
+ * only, no dividends.
  *
  * ?market=crypto | equities returns that market's assets (default crypto). The
  * asset list comes from SEASON_ASSETS in src/lib/seasonality.ts.
