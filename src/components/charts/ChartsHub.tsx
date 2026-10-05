@@ -299,12 +299,15 @@ function seasonalityParser(lead: SeasonAsset) {
     }));
     const greenPct = Math.round(odds.stat.pctGreen);
     const redPct = 100 - greenPct;
+    const leanGreen = greenPct >= redPct;
+    const topPct = leanGreen ? greenPct : redPct;
+    const topWord = leanGreen ? "green" : "red";
     const soFar = odds.live?.ret != null ? ` · ${short} ${odds.grid.current?.year} so far ${fmtRet(odds.live.ret)}` : "";
     return {
-      // At-a-glance: this month's historical green vs red odds (completed years).
-      headline: `${greenPct}% green · ${redPct}% red`,
-      headlineColor: greenPct >= 50 ? "#3dcc9a" : "#ef6b6b",
-      secondary: `${label} ${odds.monthName}s: ${odds.stat.green} of ${odds.stat.n} · avg ${fmtRet(odds.stat.avg)}${soFar} · history, not a forecast`,
+      // At-a-glance: whichever side is more common for this month, plus the average return.
+      headline: `${topPct}% ${topWord}`,
+      headlineColor: leanGreen ? "#3dcc9a" : "#ef6b6b",
+      secondary: `${label} ${odds.monthName}s: avg ${fmtRet(odds.stat.avg)} · ${odds.stat.green} of ${odds.stat.n} green${soFar} · history, not a forecast`,
       mini: { caption: `${label} monthly returns · last 5 years`, cols: MONTH_LABELS, rows },
       isLive: !series.snapshot,
     };
