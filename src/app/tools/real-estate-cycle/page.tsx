@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CyclesBackLink } from "@/components/cycles/CyclesBackLink";
 import RealEstateCycleChart from "@/components/RealEstateCycleChart";
 
 export const metadata: Metadata = {
@@ -50,12 +51,7 @@ const PHASES = [
 export default function RealEstateCyclePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-        <Link href="/dashboard" className="hover:underline">
-          Cycle desk
-        </Link>{" "}
-        · Real estate
-      </p>
+      <CyclesBackLink category="Real estate" />
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
         18.6 Year Real Estate Cycle theory
       </h1>

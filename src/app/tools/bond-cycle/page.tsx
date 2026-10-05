@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CyclesBackLink } from "@/components/cycles/CyclesBackLink";
 import BondYieldCycleChart from "@/components/BondYieldCycleChart";
 
 export const metadata: Metadata = {
@@ -50,12 +51,7 @@ const PHASES = [
 export default function BondCyclePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-        <Link href="/dashboard" className="hover:underline">
-          Cycle desk
-        </Link>{" "}
-        · Bonds
-      </p>
+      <CyclesBackLink category="Bond yields" />
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
         US 10 Year Bond Yield Cycle theory
       </h1>
