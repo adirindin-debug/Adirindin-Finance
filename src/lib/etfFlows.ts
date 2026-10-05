@@ -7,6 +7,9 @@
 
 export type EtfAssetId = "btc" | "eth" | "sol" | "zcsh";
 
+/** Dropdown view: Total (sum of assets) or a single asset. */
+export type EtfViewId = "total" | EtfAssetId;
+
 export type EtfAgg = "daily" | "weekly" | "monthly" | "quarterly" | "yearly";
 
 export type EtfDay = { date: string; netFlowUsd: number };
@@ -47,10 +50,18 @@ export type EtfBucket = {
 
 export const ETF_ASSETS: EtfAssetId[] = ["btc", "eth", "sol", "zcsh"];
 
+/** Dropdown order — Total first (default). */
+export const ETF_VIEWS: EtfViewId[] = ["total", "btc", "eth", "sol", "zcsh"];
+
 export const ETF_ASSET_META: Record<
-  EtfAssetId,
+  EtfViewId,
   { label: string; short: string; color: string }
 > = {
+  total: {
+    label: "Total (all crypto ETFs)",
+    short: "Total",
+    color: "#9eb0c8",
+  },
   btc: { label: "Bitcoin", short: "BTC", color: "#f7931a" },
   eth: { label: "Ethereum", short: "ETH", color: "#627eea" },
   sol: { label: "Solana", short: "SOL", color: "#14f195" },
@@ -67,6 +78,65 @@ export const ETF_AGGS: { key: EtfAgg; label: string }[] = [
 
 export function isEtfAsset(v: string): v is EtfAssetId {
   return (ETF_ASSETS as string[]).includes(v);
+}
+
+export function isEtfView(v: string): v is EtfViewId {
+  return (ETF_VIEWS as string[]).includes(v);
+}
+
+/**
+ * Sum daily net flows across assets that have a print that day.
+ * Missing asset on a date contributes 0 (never invent). Only ok series with days.
+ * Cumulative of the result = total net inflows − outflows across included ETFs.
+ */
+export function buildTotalSeries(
+  assets: Record<EtfAssetId, EtfAssetSeries>,
+): EtfAssetSeries {
+  const byDate = new Map<string, number>();
+  const sources: string[] = [];
+  const urls: string[] = [];
+  let anyOk = false;
+
+  for (const id of ETF_ASSETS) {
+    const a = assets[id];
+    if (!a || a.status !== "ok" || !a.days.length) continue;
+    anyOk = true;
+    if (a.source) sources.push(`${ETF_ASSET_META[id].short}: ${a.source}`);
+    if (a.sourceUrl) urls.push(a.sourceUrl);
+    for (const d of a.days) {
+      byDate.set(d.date, (byDate.get(d.date) ?? 0) + d.netFlowUsd);
+    }
+  }
+
+  const dates = [...byDate.keys()].sort();
+  const days: EtfDay[] = dates.map((date) => ({
+    date,
+    netFlowUsd: byDate.get(date)!,
+  }));
+
+  return {
+    label: ETF_ASSET_META.total.label,
+    source: sources.length
+      ? `Sum of available series — ${sources.join("; ")}`
+      : "Sum of available crypto ETF flow series",
+    sourceUrl: urls[0] ?? "https://farside.co.uk/",
+    status: anyOk && days.length ? "ok" : "pending",
+    pendingReason: anyOk
+      ? undefined
+      : "No underlying asset series available yet",
+    firstDate: days[0]?.date ?? null,
+    lastDate: days[days.length - 1]?.date ?? null,
+    days,
+  };
+}
+
+/** Resolve a view (Total or single asset) to a series. */
+export function seriesForView(
+  payload: EtfFlowsPayload,
+  view: EtfViewId,
+): EtfAssetSeries | undefined {
+  if (view === "total") return buildTotalSeries(payload.assets);
+  return payload.assets[view];
 }
 
 export function isEtfAgg(v: string): v is EtfAgg {

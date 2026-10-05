@@ -27,9 +27,10 @@ import {
 } from "@/lib/seasonality";
 import {
   ETF_ASSET_META,
+  aggregateFlows,
+  buildTotalSeries,
   flowColor,
   fmtFlowUsd,
-  recentMonthlyBars,
   type EtfFlowsPayload,
 } from "@/lib/etfFlows";
 
@@ -334,19 +335,20 @@ function seasonalityParser(lead: SeasonAsset) {
  */
 function parseEtfFlows(json: unknown): Omit<TileLive, "status"> | null {
   const data = json as EtfFlowsPayload;
-  const btc = data?.ok ? data.assets?.btc : undefined;
-  if (!btc || btc.status !== "ok" || !btc.days?.length) return null;
-  const months = recentMonthlyBars(btc.days, 12);
+  if (!data?.ok || !data.assets) return null;
+  const total = buildTotalSeries(data.assets);
+  if (total.status !== "ok" || !total.days.length) return null;
+  const months = aggregateFlows(total.days, "monthly").slice(-12);
   if (!months.length) return null;
   const last = months[months.length - 1]!;
   const cum = last.cumulativeUsd;
   return {
-    headline: fmtFlowUsd(last.netFlowUsd),
-    headlineColor: flowColor(last.netFlowUsd),
-    secondary: `${last.label} net · cum ${fmtFlowUsd(cum)} · ${ETF_ASSET_META.btc.label}`,
+    headline: fmtFlowUsd(cum),
+    headlineColor: flowColor(cum),
+    secondary: `${last.label} · ${fmtFlowUsd(last.netFlowUsd)} · Total net ${fmtFlowUsd(cum)}`,
     secondaryColor: flowColor(last.netFlowUsd),
     miniBars: {
-      caption: "Monthly net flows · Bitcoin (US spot ETFs)",
+      caption: "Monthly net flows · Total (all crypto ETFs)",
       bars: months.map((m) => ({
         key: m.key,
         label: m.label.split(" ")[0]!.slice(0, 3),
@@ -354,7 +356,7 @@ function parseEtfFlows(json: unknown): Omit<TileLive, "status"> | null {
         title: `${m.label}: ${fmtFlowUsd(m.netFlowUsd)}`,
       })),
     },
-    isLive: !btc.snapshot,
+    isLive: !total.snapshot,
   };
 }
 
@@ -540,7 +542,7 @@ function MiniBarsChart({ bars }: { bars: MiniBars["bars"] }) {
   const maxAbs = Math.max(...bars.map((b) => Math.abs(b.v)), 1);
   return (
     <div className="flex h-[140px] flex-col" aria-hidden>
-      <div className="relative flex min-h-0 flex-1 items-stretch gap-[3px] sm:gap-1">
+      <div className="relative flex min-h-0 flex-1 items-stretch gap-px">
         <span
           className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-border/80"
           aria-hidden
@@ -554,18 +556,18 @@ function MiniBarsChart({ bars }: { bars: MiniBars["bars"] }) {
               title={b.title}
               className="relative flex min-w-0 flex-1 flex-col"
             >
-              <div className="flex h-1/2 items-end justify-center">
+              <div className="flex h-1/2 items-end justify-center px-px">
                 {positive ? (
                   <span
-                    className="w-[70%] max-w-[14px] rounded-t-[2px]"
+                    className="w-full rounded-t-[2px]"
                     style={{ height: `${pct * 2}%`, background: flowColor(b.v) }}
                   />
                 ) : null}
               </div>
-              <div className="flex h-1/2 items-start justify-center">
+              <div className="flex h-1/2 items-start justify-center px-px">
                 {!positive ? (
                   <span
-                    className="w-[70%] max-w-[14px] rounded-b-[2px]"
+                    className="w-full rounded-b-[2px]"
                     style={{ height: `${pct * 2}%`, background: flowColor(b.v) }}
                   />
                 ) : null}
@@ -574,11 +576,11 @@ function MiniBarsChart({ bars }: { bars: MiniBars["bars"] }) {
           );
         })}
       </div>
-      <div className="mt-1 flex gap-[3px] sm:gap-1">
+      <div className="mt-1 flex gap-px">
         {bars.map((b) => (
           <span
             key={`l-${b.key}`}
-            className="min-w-0 flex-1 text-center text-[8px] uppercase text-muted"
+            className="min-w-0 flex-1 truncate text-center text-[8px] uppercase text-muted"
           >
             {b.label}
           </span>

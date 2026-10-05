@@ -1,17 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
 import {
   ETF_AGGS,
-  ETF_ASSETS,
   ETF_ASSET_META,
+  ETF_VIEWS,
   aggregateFlows,
   flowColor,
   fmtFlowUsd,
+  seriesForView,
   type EtfAgg,
-  type EtfAssetId,
   type EtfBucket,
   type EtfFlowsPayload,
+  type EtfViewId,
 } from "@/lib/etfFlows";
 
 const W = 720;
@@ -150,7 +152,7 @@ function BarChart({
 export function EtfFlowsPanel() {
   const [data, setData] = useState<EtfFlowsPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [asset, setAsset] = useState<EtfAssetId>("btc");
+  const [asset, setAsset] = useState<EtfViewId>("total");
   const [agg, setAgg] = useState<EtfAgg>("monthly");
 
   useEffect(() => {
@@ -217,7 +219,7 @@ export function EtfFlowsPanel() {
     };
   }, []);
 
-  const series = data?.assets?.[asset];
+  const series = data ? seriesForView(data, asset) : undefined;
   const pending = series?.status === "pending" || (series?.days.length === 0 && series?.status !== "ok");
   const buckets = useMemo(
     () => (series?.days?.length ? aggregateFlows(series.days, agg) : []),
@@ -237,15 +239,15 @@ export function EtfFlowsPanel() {
         <select
           id="etf-asset"
           value={asset}
-          onChange={(e) => setAsset(e.target.value as EtfAssetId)}
+          onChange={(e) => setAsset(e.target.value as EtfViewId)}
           className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
         >
-          {ETF_ASSETS.map((id) => {
-            const a = data?.assets?.[id];
+          {ETF_VIEWS.map((id) => {
+            const a = data ? seriesForView(data, id) : undefined;
             const tag =
-              a?.status === "pending"
+              id !== "total" && a?.status === "pending"
                 ? " (source pending)"
-                : a?.status === "error"
+                : id !== "total" && a?.status === "error"
                   ? " (unavailable)"
                   : "";
             return (
@@ -311,9 +313,9 @@ export function EtfFlowsPanel() {
                 {latestBucket?.label ?? "—"}
               </p>
             </div>
-            <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Cumulative (shown window)
+            <div className="rounded-xl border border-accent/40 bg-accent/5 p-4 sm:col-span-1">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-accent">
+                Total net (in − out)
               </p>
               <p
                 className="mt-1 font-mono text-2xl font-bold"
@@ -324,7 +326,8 @@ export function EtfFlowsPanel() {
                 {totalCum != null ? fmtFlowUsd(totalCum) : "—"}
               </p>
               <p className="mt-1 text-xs text-muted">
-                Sum of {agg} buckets from first available day
+                Running sum of net flows since first print
+                {asset === "total" ? " across all listed ETFs" : ""} — not AUM
               </p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4">
