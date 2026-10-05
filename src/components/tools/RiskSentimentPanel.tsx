@@ -15,6 +15,9 @@ import {
   BASE_OVERLAY_STORAGE_KEY,
   COMPONENTS,
   DEFAULT_BASE_OVERLAY,
+  DEFAULT_SMOOTH,
+  SMOOTH_OPTIONS,
+  SMOOTH_STORAGE_KEY,
   ZONES,
   arcFraction,
   arcHeight,
@@ -22,12 +25,15 @@ import {
   blend,
   dayWeights,
   isBaseOverlayKey,
+  isSmoothKey,
+  smoothScores,
   subScores,
   zoneFor,
   type BaseOverlayKey,
   type ComponentKey,
   type RsPayload,
   type RsRow,
+  type SmoothKey,
 } from "@/lib/riskSentiment";
 
 type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "MAX";
@@ -106,10 +112,13 @@ function minusDays(d: string, n: number): string {
   return new Date(Date.parse(`${d}T00:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
 }
 
-/** Score ~3 months (91 calendar days) earlier, for the arc's rising/falling side. */
-function scoreThreeMonthsAgo(rows: RsRow[], d: string): number | null {
+/**
+ * Score ~3 months (91 calendar days) earlier, for the arc's rising/falling side.
+ * `scores` is aligned 1:1 with `rows` (raw or smoothed, matching the headline).
+ */
+function scoreThreeMonthsAgo(rows: RsRow[], scores: Array<number | null>, d: string): number | null {
   const j = indexAtOrBefore(rows, minusDays(d, 91));
-  return j >= 0 ? rows[j]![1] : null;
+  return j >= 0 ? scores[j] ?? null : null;
 }
 
 const fmtLevel = (n: number) => n.toLocaleString("en-AU", { maximumFractionDigits: 0 });
@@ -178,7 +187,8 @@ const ARC_LABELS: { text: string; score: number; rising: boolean; anchor: "start
   { text: "Unwind", score: 30, rising: false, anchor: "start", dx: 10, dy: 4 },
 ];
 
-type Picked = { idx: number; row: RsRow };
+/** idx = index in the visible window (scrub); all = index in the full history. */
+type Picked = { idx: number; all: number; row: RsRow };
 
 export function RiskSentimentPanel() {
   const [data, setData] = useState<RsPayload | null>(null);
@@ -186,6 +196,7 @@ export function RiskSentimentPanel() {
   const [tf, setTf] = useState<TfKey>(DEFAULT_TF);
   const [showOverlay, setShowOverlay] = useState(true);
   const [base, setBase] = useState<BaseOverlayKey>(DEFAULT_BASE_OVERLAY);
+  const [smooth, setSmooth] = useState<SmoothKey>(DEFAULT_SMOOTH);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -226,6 +237,8 @@ export function RiskSentimentPanel() {
       const b = window.localStorage.getItem(BASE_OVERLAY_STORAGE_KEY);
       if (isBaseOverlayKey(b)) setBase(b);
       if (window.localStorage.getItem(BASE_OVERLAY_SHOW_STORAGE_KEY) === "0") setShowOverlay(false);
+      const sm = window.localStorage.getItem(SMOOTH_STORAGE_KEY);
+      if (isSmoothKey(sm)) setSmooth(sm);
     } catch {
       /* storage blocked — keep defaults */
     }
@@ -249,9 +262,23 @@ export function RiskSentimentPanel() {
     persist(BASE_OVERLAY_SHOW_STORAGE_KEY, next ? "1" : "0");
   };
 
+  const chooseSmooth = (k: SmoothKey) => {
+    setSmooth(k);
+    persist(SMOOTH_STORAGE_KEY, k);
+  };
+
   const baseMeta = BASE_OVERLAYS.find((o) => o.key === base) ?? BASE_OVERLAYS[0]!;
+  const smoothMeta = SMOOTH_OPTIONS.find((o) => o.key === smooth) ?? SMOOTH_OPTIONS[0]!;
+  const isSmoothed = smoothMeta.span != null;
 
   const allRows = useMemo(() => data?.rows ?? [], [data]);
+
+  /**
+   * Score series that drives the line, big number, zone and mood arc — the raw
+   * daily composite or its EMA. Computed over the full history (not the visible
+   * window) so short timeframes start already warmed up.
+   */
+  const scores = useMemo(() => smoothScores(allRows, smoothMeta.span), [allRows, smoothMeta.span]);
 
   /** Selected base chart series, aligned 1:1 with allRows. */
   const baseValues = useMemo<Array<number | null>>(() => {
@@ -272,21 +299,28 @@ export function RiskSentimentPanel() {
     const rows = allRows.slice(offset);
     if (rows.length < 2) return null;
     const baseVals = baseValues.slice(offset);
+    const sc = scores.slice(offset);
     const d0 = dayNum(rows[0]![0]);
     const d1 = dayNum(rows[rows.length - 1]![0]);
     const xs = rows.map((r) => PAD.left + ((dayNum(r[0]) - d0) / Math.max(d1 - d0, 1)) * IW);
     const yOf = (v: number) => PAD.top + ((100 - v) / 100) * IH;
 
-    let score = "";
-    let pen = false;
-    rows.forEach((r, i) => {
-      if (r[1] == null) {
-        pen = false;
-        return;
-      }
-      score += `${pen ? "L" : "M"}${xs[i]!.toFixed(1)} ${yOf(r[1]).toFixed(1)}`;
-      pen = true;
-    });
+    const linePath = (vals: Array<number | null>) => {
+      let d = "";
+      let pen = false;
+      vals.forEach((v, i) => {
+        if (v == null) {
+          pen = false;
+          return;
+        }
+        d += `${pen ? "L" : "M"}${xs[i]!.toFixed(1)} ${yOf(v).toFixed(1)}`;
+        pen = true;
+      });
+      return d;
+    };
+    const score = linePath(sc);
+    // Faint raw daily line behind the smoothed one, so the averaging stays visible.
+    const rawScore = isSmoothed ? linePath(rows.map((r) => r[1])) : "";
 
     // Base chart: the selected equity series on its own log scale (no axis; level in
     // the tooltip). Visual context only — the score never depends on this choice.
@@ -322,29 +356,35 @@ export function RiskSentimentPanel() {
       const d = new Date((d0 + (k / (n - 1)) * (d1 - d0)) * 86_400_000).toISOString().slice(0, 10);
       ticks.push({ x: PAD.left + (k / (n - 1)) * IW, label: (meta.years ?? 99) <= 1 ? fmtDay(d) : fmtMonthYear(d) });
     }
-    return { rows, baseVals, xs, yOf, score, overlay, overlayFirst, baseLo, baseHi, ticks, d0, d1 };
-  }, [allRows, baseValues, tf]);
+    return { rows, offset, sc, baseVals, xs, yOf, score, rawScore, overlay, overlayFirst, baseLo, baseHi, ticks, d0, d1 };
+  }, [allRows, baseValues, scores, isSmoothed, tf]);
 
   const latest: Picked | null = useMemo(() => {
     if (!allRows.length) return null;
-    for (let i = allRows.length - 1; i >= 0; i--) if (allRows[i]![1] != null) return { idx: i, row: allRows[i]! };
+    for (let i = allRows.length - 1; i >= 0; i--) if (scores[i] != null) return { idx: i, all: i, row: allRows[i]! };
     return null;
-  }, [allRows]);
+  }, [allRows, scores]);
 
   const picked: Picked | null = useMemo(
-    () => (view && hoverIdx != null && view.rows[hoverIdx] ? { idx: hoverIdx, row: view.rows[hoverIdx]! } : latest),
+    () =>
+      view && hoverIdx != null && view.rows[hoverIdx]
+        ? { idx: hoverIdx, all: view.offset + hoverIdx, row: view.rows[hoverIdx]! }
+        : latest,
     [view, hoverIdx, latest],
   );
   const isScrub = view != null && hoverIdx != null;
 
-  const pickedScore = picked?.row[1] ?? null;
+  /** Headline score (raw or smoothed per the toggle) and that day's raw blend. */
+  const pickedScore = picked ? scores[picked.all] ?? null : null;
+  const pickedRaw = picked?.row[1] ?? null;
   const pickedZone = pickedScore != null ? zoneFor(pickedScore) : null;
-  const prevScore = picked ? scoreThreeMonthsAgo(allRows, picked.row[0]) : null;
+  const pickedRawZone = pickedRaw != null ? zoneFor(pickedRaw) : null;
+  const prevScore = picked ? scoreThreeMonthsAgo(allRows, scores, picked.row[0]) : null;
   const rising = pickedScore != null && prevScore != null ? pickedScore >= prevScore : true;
   const stage = pickedScore != null ? arcStage(pickedScore, rising) : null;
 
-  const latestScore = latest?.row[1] ?? null;
-  const latestPrev = latest ? scoreThreeMonthsAgo(allRows, latest.row[0]) : null;
+  const latestScore = latest ? scores[latest.all] ?? null : null;
+  const latestPrev = latest ? scoreThreeMonthsAgo(allRows, scores, latest.row[0]) : null;
   const latestRising = latestScore != null && latestPrev != null ? latestScore >= latestPrev : true;
 
   const pickAt = useCallback(
@@ -473,6 +513,20 @@ export function RiskSentimentPanel() {
                     </span>
                   )}
                   <p className="mt-2 text-xs text-muted">out of 100 · higher = hotter</p>
+                  {isSmoothed && (
+                    <p className="mt-0.5 text-xs text-muted" data-smooth-headline={smooth}>
+                      {smoothMeta.name}
+                      {pickedRaw != null ? (
+                        <>
+                          {" "}
+                          · raw day{" "}
+                          <span className="font-mono tabular-nums" style={{ color: pickedRawZone?.color }}>
+                            {Math.round(pickedRaw)}
+                          </span>
+                        </>
+                      ) : null}
+                    </p>
+                  )}
                 </div>
               </div>
               {pickedZone && <p className="mt-3 max-w-md text-sm leading-relaxed text-muted">{pickedZone.blurb}</p>}
@@ -637,6 +691,32 @@ export function RiskSentimentPanel() {
             </div>
           </div>
           <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+            <span id="rs-smooth-label" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Score line:
+            </span>
+            <div
+              className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+              role="group"
+              aria-labelledby="rs-smooth-label"
+            >
+              {SMOOTH_OPTIONS.map((o) => {
+                const on = smooth === o.key;
+                return (
+                  <button
+                    key={o.key}
+                    type="button"
+                    aria-pressed={on}
+                    title={o.span == null ? "Each day's composite exactly as computed" : `${o.name} of the daily composite`}
+                    onClick={() => chooseSmooth(o.key)}
+                    className={`${chipBtn} ${on ? "bg-white/10 text-foreground ring-1 ring-inset ring-white/15" : toggleOff}`}
+                  >
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
             <span id="rs-base-label" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
               Base chart:
             </span>
@@ -741,7 +821,25 @@ export function RiskSentimentPanel() {
                     data-base-overlay={base}
                   />
                 )}
-                <path d={view.score} fill="none" stroke="url(#rs-line)" strokeWidth={2} strokeLinejoin="round" />
+                {view.rawScore && (
+                  <path
+                    d={view.rawScore}
+                    fill="none"
+                    stroke="url(#rs-line)"
+                    strokeWidth={1}
+                    strokeLinejoin="round"
+                    opacity={0.22}
+                    data-score-raw-ghost
+                  />
+                )}
+                <path
+                  d={view.score}
+                  fill="none"
+                  stroke="url(#rs-line)"
+                  strokeWidth={isSmoothed ? 2.4 : 2}
+                  strokeLinejoin="round"
+                  data-score-line={smooth}
+                />
                 {view.ticks.map((t, i) => (
                   <text
                     key={i}
@@ -765,12 +863,12 @@ export function RiskSentimentPanel() {
                       strokeWidth={1}
                       strokeDasharray="3 3"
                     />
-                    {view.rows[hoverIdx]![1] != null && (
+                    {view.sc[hoverIdx] != null && (
                       <circle
                         cx={view.xs[hoverIdx]}
-                        cy={view.yOf(view.rows[hoverIdx]![1]!)}
+                        cy={view.yOf(view.sc[hoverIdx]!)}
                         r={4.5}
-                        fill={zoneFor(view.rows[hoverIdx]![1]!).color}
+                        fill={zoneFor(view.sc[hoverIdx]!).color}
                         stroke="#000"
                         strokeWidth={1.5}
                       />
@@ -785,7 +883,7 @@ export function RiskSentimentPanel() {
                 >
                   <p className="text-[11px] font-semibold text-[#e8eef7]">{fmtDay(picked.row[0])}</p>
                   <p className="mt-1 flex justify-between gap-3 text-[11px] tabular-nums">
-                    <span className="text-muted">Score</span>
+                    <span className="text-muted">{isSmoothed ? `Score (${smoothMeta.label} avg)` : "Score"}</span>
                     <span className="font-mono font-semibold" style={{ color: pickedZone?.color }}>
                       {pickedScore == null ? "—" : pickedScore.toFixed(1)}
                     </span>
@@ -793,6 +891,12 @@ export function RiskSentimentPanel() {
                   <p className="text-[11px]" style={{ color: pickedZone?.color }}>
                     {pickedZone?.label}
                   </p>
+                  {isSmoothed && (
+                    <p className="mt-1 flex justify-between gap-3 text-[11px] tabular-nums">
+                      <span className="text-muted">Raw day</span>
+                      <span className="font-mono text-[#c8d0dc]">{pickedRaw == null ? "—" : pickedRaw.toFixed(1)}</span>
+                    </p>
+                  )}
                   {showOverlay && hoverIdx != null && view.baseVals[hoverIdx] != null && (
                     <p className="mt-1 flex justify-between gap-3 text-[11px] tabular-nums">
                       <span style={{ color: baseMeta.color }}>{baseMeta.name}</span>
@@ -813,6 +917,12 @@ export function RiskSentimentPanel() {
                     : ` No ${baseMeta.name} data in this window.`
                   : ""}
                 {tf === "MAX" ? " Before 2016 the blend has fewer inputs (see coverage); rows older than 10 years are weekly." : ""}
+              </p>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted" data-smooth-note>
+                <strong className="font-medium text-foreground">Smoothing:</strong>{" "}
+                {isSmoothed
+                  ? `the line, big number, zone and mood arc show a ${smoothMeta.span}-trading-day exponential moving average (EMA) of the daily composite — recent days count most and older days fade out, so one-day jolts don't flip the zone. It trails real turns by a few sessions. The faint line behind is the raw daily score. Inputs, weights and the breakdown below are unchanged (the table shows the raw day).`
+                  : "off — each day's composite exactly as computed, so the line reacts to every daily move. Choose 5-, 10- or 21-day to see the averaged mood."}
               </p>
             </div>
           )}
@@ -870,12 +980,22 @@ export function RiskSentimentPanel() {
                     ))}
                     <tr className="border-t border-[#243041] bg-[#0b1017]">
                       <td className="px-3 py-2 font-semibold text-foreground" colSpan={4}>
-                        Composite score
+                        Composite score{isSmoothed ? " (raw day)" : ""}
                       </td>
-                      <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums" style={{ color: pickedZone?.color }}>
-                        {pickedScore == null ? "—" : pickedScore.toFixed(1)}
+                      <td className="px-3 py-2 text-right font-mono font-semibold tabular-nums" style={{ color: pickedRawZone?.color }}>
+                        {pickedRaw == null ? "—" : pickedRaw.toFixed(1)}
                       </td>
                     </tr>
+                    {isSmoothed && (
+                      <tr className="border-t border-[#141c27] bg-[#0b1017]">
+                        <td className="px-3 py-2 text-muted" colSpan={4}>
+                          {smoothMeta.name} — what the headline and chart show
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums" style={{ color: pickedZone?.color }}>
+                          {pickedScore == null ? "—" : pickedScore.toFixed(1)}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

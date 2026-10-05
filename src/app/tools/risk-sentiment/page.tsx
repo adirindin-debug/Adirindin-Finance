@@ -82,6 +82,15 @@ export default function RiskSentimentPage() {
           its own log scale for visual context. Switching it does not change the score or the weights above — the
           composite always uses the URTH / S&amp;P 500 pair as described.
         </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          <strong className="font-medium text-foreground">Smoothing.</strong> The daily composite can jump a few points
+          on one-day moves (a VIX pop, a Fear &amp; Greed swing), which made the mood zones twitchy. By default the
+          score line, big number, zone and mood arc show a 10-trading-day exponential moving average (EMA) of the daily
+          composite: recent days count most and older days fade out. 5- and 21-day versions are there too, and{" "}
+          <em>Raw</em> shows each day exactly as computed. Over the last ten years the 10-day average cuts zone changes
+          by roughly two-thirds and trails real turns by about three sessions. Smoothing is display-only — it does not
+          change any input, weight or the day&apos;s raw blend, which the breakdown table always shows.
+        </p>
         <p className="mt-2 font-mono text-xs text-[#c8d0dc]">score = Σ (weightᵢ × subᵢ) ÷ Σ weightᵢ &nbsp;(over inputs with data)</p>
         <div className="mt-4 overflow-x-auto rounded-lg border border-[#1d2633]">
           <table className="w-full min-w-[640px] text-left text-xs">

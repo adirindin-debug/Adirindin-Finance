@@ -379,6 +379,77 @@ export function isBaseOverlayKey(v: unknown): v is BaseOverlayKey {
   return v === "spx" || v === "ixic" || v === "urth";
 }
 
+/* -------------------------------------------------------------------------- */
+/* Display smoothing (client-side, never changes inputs or weights)           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Score line smoothing. "raw" is each day's blend exactly as computed; the EMA
+ * options are an exponential moving average of that daily composite over N
+ * trading sessions. Smoothing is display-only: inputs, weights and each day's
+ * raw composite are untouched (the breakdown table always shows the raw day).
+ */
+export type SmoothKey = "raw" | "ema5" | "ema10" | "ema21";
+
+export type SmoothMeta = { key: SmoothKey; label: string; span: number | null; name: string };
+
+export const SMOOTH_OPTIONS: SmoothMeta[] = [
+  { key: "raw", label: "Raw", span: null, name: "Raw daily score" },
+  { key: "ema5", label: "5-day", span: 5, name: "5-day average (EMA)" },
+  { key: "ema10", label: "10-day", span: 10, name: "10-day average (EMA)" },
+  { key: "ema21", label: "21-day", span: 21, name: "21-day average (EMA)" },
+];
+
+export const DEFAULT_SMOOTH: SmoothKey = "ema10";
+export const SMOOTH_STORAGE_KEY = "adirindin.riskSentiment.smoothing";
+
+export function isSmoothKey(v: unknown): v is SmoothKey {
+  return v === "raw" || v === "ema5" || v === "ema10" || v === "ema21";
+}
+
+/** Weekdays in (a, b] — trading sessions elapsed between two row dates (holidays ignored). */
+function weekdaysBetween(a: string, b: string): number {
+  const d0 = Date.parse(`${a}T00:00:00Z`) / 86_400_000;
+  const d1 = Date.parse(`${b}T00:00:00Z`) / 86_400_000;
+  let n = 0;
+  for (let d = d0 + 1; d <= d1; d++) {
+    const dow = new Date(d * 86_400_000).getUTCDay();
+    if (dow !== 0 && dow !== 6) n++;
+  }
+  return Math.max(1, n);
+}
+
+/**
+ * Session-aware EMA of the composite (row[1]). Alpha = 2 / (span + 1) per
+ * session; when rows are more than one session apart (older history is thinned
+ * to weekly) the decay is compounded over the sessions elapsed, so a 10-day
+ * average means ~10 trading days on weekly rows too. A missing score breaks the
+ * line and restarts the average — no values are carried across gaps.
+ */
+export function smoothScores(rows: RsRow[], span: number | null): Array<number | null> {
+  if (span == null || span <= 1) return rows.map((r) => r[1]);
+  const keep = 1 - 2 / (span + 1);
+  const out: Array<number | null> = new Array(rows.length).fill(null);
+  let ema: number | null = null;
+  let prevDate: string | null = null;
+  for (let i = 0; i < rows.length; i++) {
+    const v = rows[i]![1];
+    if (v == null || !Number.isFinite(v)) {
+      ema = null;
+      prevDate = null;
+      continue;
+    }
+    if (ema == null || prevDate == null) ema = v;
+    else {
+      const k = Math.pow(keep, weekdaysBetween(prevDate, rows[i]![0]));
+      ema = k * ema + (1 - k) * v;
+    }
+    prevDate = rows[i]![0];
+    out[i] = Math.round(ema * 10) / 10;
+  }
+  return out;
+}
+
 export type RsPayload = {
   ok: boolean;
   rows: RsRow[];
