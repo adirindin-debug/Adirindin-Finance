@@ -93,20 +93,30 @@ function CycleSilhouette({
       />
       {marker ? (
         <g>
+          {/*
+            Live marker: cream fill + dark rim so it stays high-contrast on every
+            tile stroke (RE green, BTC blue, Bond gold) — never match the line.
+          */}
           <circle
             cx={marker.x}
             cy={marker.y}
-            r="9"
-            fill="#2fd67b"
-            fillOpacity="0.25"
+            r="10"
+            fill="#0a0a0a"
+            fillOpacity="0.45"
           />
           <circle
             cx={marker.x}
             cy={marker.y}
-            r="5.5"
-            fill="#2fd67b"
-            stroke="#0a0a0a"
-            strokeWidth="1.5"
+            r="5.75"
+            fill="#f5f0e6"
+            stroke="#1a1a1a"
+            strokeWidth="2"
+          />
+          <circle
+            cx={marker.x}
+            cy={marker.y}
+            r="2"
+            fill="#1a1a1a"
           />
         </g>
       ) : null}

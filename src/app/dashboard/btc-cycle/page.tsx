@@ -59,7 +59,7 @@ export default function BtcCyclePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <CyclesBackLink category="Bitcoin" />
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         BTC 4 year cycle theory
       </h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
