@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Tools",
   description:
-    "Research tools desk: portfolio tracker and Australian property prices. Educational only — not financial advice.",
+    "Research tools desk: portfolio tracker, Australian property prices and a market risk & sentiment gauge (preview). Educational only — not financial advice.",
 };
 
 const tools = [
@@ -15,6 +15,15 @@ const tools = [
       "Personal holdings tracker that stays on your device. Track positions, returns and allocation for study — not a broker and not advice.",
     meta: "Local tracker · browser storage · educational",
     cta: "Open portfolio",
+  },
+  {
+    href: "/tools/risk-sentiment",
+    title: "Market risk & sentiment gauge",
+    badge: "Preview",
+    blurb:
+      "One 0–100 reading from washout to euphoria-leaning, blended from public S&P 500 drawdown and RSI, VIX, Fear & Greed, search attention and a light touch of the cycle calendars. Scrub the history. Study aid — not a signal.",
+    meta: "Composite · transparent weights · 3Y default · educational",
+    cta: "Open the gauge",
   },
   {
     href: "/property-prices",
@@ -32,7 +41,7 @@ export default function ToolsHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Research tools</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Desk for trackers and Australian property tools. Cycle theories live under{" "}
+        Desk for trackers, Australian property tools and a market risk &amp; sentiment gauge. Cycle theories live under{" "}
         <Link href="/cycles" className="text-accent hover:underline">
           Market cycles
         </Link>
@@ -47,7 +56,14 @@ export default function ToolsHubPage() {
             href={t.href}
             className="group flex flex-col rounded-xl border border-border bg-card p-6 transition hover:border-accent/50"
           >
-            <h2 className="text-lg font-semibold text-foreground group-hover:text-accent">{t.title}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-foreground group-hover:text-accent">{t.title}</h2>
+              {"badge" in t && t.badge ? (
+                <span className="rounded border border-[#8a6a20] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d4a017]">
+                  {t.badge}
+                </span>
+              ) : null}
+            </div>
             <p className="mt-3 flex-1 text-sm leading-relaxed text-muted">{t.blurb}</p>
             <p className="mt-4 text-xs text-muted/80">{t.meta}</p>
             <span className="mt-4 inline-flex text-sm font-medium text-accent">{t.cta} →</span>

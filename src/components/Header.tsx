@@ -10,11 +10,16 @@ const nav = [
   { href: "/contact", label: "Contact" },
 ];
 
+/** Cycle desks that live under /tools/ but belong to Market cycles in the nav. */
+const CYCLE_TOOL_PATHS = ["/tools/real-estate-cycle", "/tools/bond-cycle"];
+
 function isCurrent(path: string, href: string): boolean {
   if (href === "/") return path === "/";
-  // Tools family: hub + portfolio + property prices — not cycle detail pages
+  // Tools family: hub + /tools/* desks + portfolio + property prices — not cycle detail pages
   if (href === "/tools") {
-    return path === "/tools" || path === "/portfolio" || path === "/property-prices";
+    if (path === "/tools" || path === "/portfolio" || path === "/property-prices") return true;
+    if (!path.startsWith("/tools/")) return false;
+    return !CYCLE_TOOL_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
   }
   // Market cycles hub + its detail desks (BTC / RE / Bond)
   if (href === "/cycles") {

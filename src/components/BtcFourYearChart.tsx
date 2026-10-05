@@ -139,8 +139,46 @@ function nearestPoint(points: PctPoint[], t: number): PctPoint | null {
   return best;
 }
 
+/**
+ * Client (mouse) coords → SVG user-space coords via the screen CTM.
+ * The line chart has a fixed CSS height with a fluid width, so the viewBox is
+ * letterboxed (preserveAspectRatio xMidYMid meet). Dividing by rect.width
+ * ignored that offset/scale and put the hover line off the cursor; the CTM
+ * accounts for viewBox scale, letterboxing and any CSS transforms.
+ */
+function clientToSvgPoint(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const local = pt.matrixTransform(ctm.inverse());
+  return { x: local.x, y: local.y };
+}
+
+/** SVG user-space x → px offset from the left edge of `container` (for HTML tooltips). */
+function svgXToContainerPx(
+  svg: SVGSVGElement,
+  container: HTMLElement,
+  svgX: number,
+): number | null {
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return null;
+  const pt = svg.createSVGPoint();
+  pt.x = svgX;
+  pt.y = 0;
+  const screen = pt.matrixTransform(ctm);
+  return screen.x - container.getBoundingClientRect().left;
+}
+
 type LineHover = {
   svgX: number;
+  /** Hover line x in CSS px from the chart wrapper's left edge (tooltip anchor). */
+  px: number | null;
   t: number;
   dateLabel: string;
   values: Array<{
@@ -322,8 +360,8 @@ function buildBarLayout(series: SeriesPayload[]) {
 
   if (!values.length) return null;
 
-  let minPct = Math.min(0, ...values.map((v) => v.pct));
-  let maxPct = Math.max(0, ...values.map((v) => v.pct));
+  const minPct = Math.min(0, ...values.map((v) => v.pct));
+  const maxPct = Math.max(0, ...values.map((v) => v.pct));
   const padY = Math.max((maxPct - minPct) * 0.12, 8);
   const yRange = { min: minPct - padY, max: maxPct + padY };
 
@@ -420,6 +458,7 @@ export function BtcFourYearChart() {
   const [payload, setPayload] = useState<ApiPayload | null>(null);
   const [lineHover, setLineHover] = useState<LineHover | null>(null);
   const lineSvgRef = useRef<SVGSVGElement | null>(null);
+  const lineWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Read the homepage preference, preserving legacy shared-key choices.
   useEffect(() => {
@@ -545,10 +584,10 @@ export function BtcFourYearChart() {
       }
       const svg = lineSvgRef.current;
       if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      const svgX = ((e.clientX - rect.left) / rect.width) * W;
-      const svgY = ((e.clientY - rect.top) / rect.height) * H;
+      const local = clientToSvgPoint(svg, e.clientX, e.clientY);
+      if (!local) return;
+      const svgX = local.x;
+      const svgY = local.y;
       const iw = W - PAD.left - PAD.right;
       const ih = H - PAD.top - PAD.bottom;
       if (
@@ -587,8 +626,11 @@ export function BtcFourYearChart() {
         };
       });
 
+      const lineX = Math.max(PAD.left, Math.min(W - PAD.right, svgX));
+      const wrap = lineWrapRef.current;
       setLineHover({
-        svgX: Math.max(PAD.left, Math.min(W - PAD.right, svgX)),
+        svgX: lineX,
+        px: wrap ? svgXToContainerPx(svg, wrap, lineX) : null,
         t,
         dateLabel: fmtTooltipDate(t),
         values,
@@ -779,7 +821,7 @@ export function BtcFourYearChart() {
           </div>
         )}
         {status === "ready" && chartMode === "line" && chart && activeYScale && (
-          <div className="relative">
+          <div className="relative" ref={lineWrapRef}>
           <svg
             ref={lineSvgRef}
             viewBox={`0 0 ${W} ${H}`}
@@ -949,7 +991,10 @@ export function BtcFourYearChart() {
             <div
               className="pointer-events-none absolute z-10 min-w-[140px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
               style={{
-                left: `clamp(8px, calc(${(lineHover.svgX / W) * 100}% + 12px), calc(100% - 168px))`,
+                left:
+                  lineHover.px != null
+                    ? `clamp(8px, ${lineHover.px + 12}px, calc(100% - 168px))`
+                    : `clamp(8px, calc(${(lineHover.svgX / W) * 100}% + 12px), calc(100% - 168px))`,
                 top: 48,
               }}
             >
