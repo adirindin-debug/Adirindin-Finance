@@ -30,14 +30,8 @@ export function Footer() {
           <Link href="/charts" className="hover:text-accent">
             Charts
           </Link>
-          <Link href="/dashboard/btc-cycle" className="hover:text-accent">
-            BTC cycle
-          </Link>
-          <Link href="/tools/real-estate-cycle" className="hover:text-accent">
-            RE cycle
-          </Link>
-          <Link href="/tools/bond-cycle" className="hover:text-accent">
-            Bond cycle
+          <Link href="/cycles" className="hover:text-accent">
+            Market cycles
           </Link>
           <Link href="/tools" className="hover:text-accent">
             Tools

@@ -32,9 +32,12 @@ export default function ToolsHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Research tools</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Desk for trackers and Australian property tools. Cycle theories live in the top nav (BTC
-        cycle, RE cycle, Bond cycle). Educational framing only — not personal financial advice, not a
-        recommendation, and not a promise of returns. Anthony / Adirindin (@Dirindin533).
+        Desk for trackers and Australian property tools. Cycle theories live under{" "}
+        <Link href="/cycles" className="text-accent hover:underline">
+          Market cycles
+        </Link>
+        . Educational framing only — not personal financial advice, not a recommendation, and not a
+        promise of returns. Anthony / Adirindin (@Dirindin533).
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">

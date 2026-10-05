@@ -5,18 +5,28 @@ import { usePathname } from "next/navigation";
 const nav = [
   { href: "/", label: "Home" },
   { href: "/charts", label: "Charts" },
-  { href: "/dashboard/btc-cycle", label: "BTC cycle" },
-  { href: "/tools/real-estate-cycle", label: "RE cycle" },
-  { href: "/tools/bond-cycle", label: "Bond cycle" },
+  { href: "/cycles", label: "Market cycles" },
   { href: "/tools", label: "Tools" },
   { href: "/contact", label: "Contact" },
 ];
 
 function isCurrent(path: string, href: string): boolean {
   if (href === "/") return path === "/";
-  // Tools family: hub + portfolio + property prices — not RE / Bond cycle (own top tabs)
+  // Tools family: hub + portfolio + property prices — not cycle detail pages
   if (href === "/tools") {
     return path === "/tools" || path === "/portfolio" || path === "/property-prices";
+  }
+  // Market cycles hub + its detail desks (BTC / RE / Bond)
+  if (href === "/cycles") {
+    return (
+      path === "/cycles" ||
+      path === "/dashboard/btc-cycle" ||
+      path.startsWith("/dashboard/btc-cycle/") ||
+      path === "/tools/real-estate-cycle" ||
+      path.startsWith("/tools/real-estate-cycle/") ||
+      path === "/tools/bond-cycle" ||
+      path.startsWith("/tools/bond-cycle/")
+    );
   }
   return path === href || path.startsWith(`${href}/`);
 }

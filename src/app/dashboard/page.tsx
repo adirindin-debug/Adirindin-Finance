@@ -40,7 +40,11 @@ export default function DashboardHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Cycle desk</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Educational cycle desks for study. Cards below open the BTC 4-year theory schematic, the RE cycle tool and the US 10-year bond cycle sketch; the live BTC price map sits under Charts. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
+        Educational cycle desks for study. Prefer the tiled overview?{" "}
+        <Link href="/cycles" className="text-accent hover:underline">
+          Open Market cycles
+        </Link>
+        . Cards below open the BTC 4-year theory schematic, the RE cycle tool and the US 10-year bond cycle sketch; the live BTC price map sits under Charts. Framing only — not investment advice, not personal recommendations, and not a promise of returns.
         Anthony / Adirindin (@Dirindin533).
       </p>
 
