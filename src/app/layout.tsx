@@ -25,11 +25,17 @@ export const metadata: Metadata = {
   ],
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/icon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-48.png", sizes: "48x48", type: "image/png" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
       { url: "/favicon.svg", type: "image/svg+xml" },
     ],
-    apple: [{ url: "/logo-x.jpg" }],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
+  manifest: "/site.webmanifest",
+  themeColor: "#0f1419",
   openGraph: {
     type: "website",
     locale: "en_AU",
@@ -40,14 +46,14 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/og-default.jpg",
-        width: 400,
-        height: 400,
+        width: 1200,
+        height: 630,
         alt: "Adirindin Finance",
       },
     ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
     site: "@Dirindin533",
