@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Tools",
   description:
-    "Research tools desk: portfolio tracker, Australian property prices and a market risk & sentiment gauge (preview). Educational only — not financial advice.",
+    "Research tools desk: portfolio tracker, Australian property prices, a market risk & sentiment gauge and a compound interest calculator with historical asset growth rates (previews). Educational only — not financial advice.",
 };
 
 const tools = [
@@ -26,6 +26,15 @@ const tools = [
     cta: "Open the gauge",
   },
   {
+    href: "/tools/compound-interest",
+    title: "Compound interest calculator",
+    badge: "Preview",
+    blurb:
+      "Project a starting balance plus regular contributions at any rate — no cap — or at a real asset's historical growth rate by ticker. Optional inflation view in today's dollars. Rough gauge only.",
+    meta: "Calculator · ticker CAGR · optional inflation · illustrative",
+    cta: "Open the calculator",
+  },
+  {
     href: "/property-prices",
     title: "Australian Property Prices",
     blurb:
@@ -41,7 +50,7 @@ export default function ToolsHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Research tools</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Desk for trackers, Australian property tools and a market risk &amp; sentiment gauge. Cycle theories live under{" "}
+        Desk for trackers, Australian property tools, a market risk &amp; sentiment gauge and a compound interest calculator. Cycle theories live under{" "}
         <Link href="/cycles" className="text-accent hover:underline">
           Market cycles
         </Link>
