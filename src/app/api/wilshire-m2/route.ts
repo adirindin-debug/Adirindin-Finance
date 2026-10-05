@@ -46,9 +46,10 @@ type WilshirePayload = {
 let lastGood: { at: number; body: WilshirePayload } | null = (() => {
   const snap = snapshotJson as unknown as WilshirePayload;
   if (snap?.ok && Array.isArray(snap.points) && snap.points.length >= 2) {
-    // Seed so the first Charts-hub hit never waits on cold FRED when the instance is fresh.
+    // Seed as "stale but within STALE_MS" so cold instances return the snapshot
+    // immediately and kick a background refresh (at:0 was older than STALE_MS).
     return {
-      at: 0, // force stale path → return snapshot immediately + background refresh
+      at: Date.now() - FRESH_MS - 60_000,
       body: { ...snap, snapshot: true },
     };
   }
