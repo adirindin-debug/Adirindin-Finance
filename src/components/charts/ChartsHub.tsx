@@ -15,6 +15,14 @@ import {
   summarise as summariseEquities,
   type EqPayload,
 } from "@/lib/globalEquities";
+import {
+  MONTH_LABELS,
+  cellKey,
+  currentMonthOdds,
+  fmtRet,
+  tileBg,
+  type SeasonPayload,
+} from "@/lib/seasonality";
 
 type TileStatus = "loading" | "ok" | "error";
 
@@ -35,6 +43,17 @@ type TileLive = {
   tooltip?: string;
   /** false = dated snapshot fallback (hides the Live badge). */
   isLive?: boolean;
+  /** Seasonality tile only: mini year × month heatmap instead of a sparkline. */
+  mini?: MiniHeat;
+};
+
+type MiniHeat = {
+  caption: string;
+  cols: string[];
+  rows: Array<{
+    year: number;
+    cells: Array<{ bg: string; title: string; current: boolean }>;
+  }>;
 };
 
 type Category = {
@@ -249,6 +268,38 @@ function parseGlobalEquities(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
+/** Monthly returns heatmap — current month's green odds (BTC + S&P 500) and a mini BTC grid. */
+function parseSeasonality(json: unknown): Omit<TileLive, "status"> | null {
+  const data = json as SeasonPayload;
+  if (!data?.ok || !data.assets?.btc?.months?.length || !data.assets?.spx?.months?.length) return null;
+  const btc = currentMonthOdds(data.assets.btc);
+  const spx = currentMonthOdds(data.assets.spx);
+  if (btc.stat.pctGreen == null) return null;
+  const pct = Math.round(btc.stat.pctGreen);
+  const color = pct >= 50 ? "#3dcc9a" : "#ef6b6b";
+  const years = btc.grid.years.slice(0, 5);
+  const rows = years.map((year) => ({
+    year,
+    cells: MONTH_LABELS.map((m, col) => {
+      const c = btc.grid.cells.get(cellKey(year, col));
+      const ret = c && (c.ret != null || c.inProgress) ? c.ret : null;
+      return {
+        bg: c && ret != null ? tileBg("btc", "monthly", ret) : "rgba(255,255,255,0.03)",
+        title: c && ret != null ? `${m} ${year}: ${fmtRet(ret)}${c.inProgress ? " (in progress)" : ""}` : `${m} ${year}`,
+        current: Boolean(c?.inProgress) || (year === btc.grid.current?.year && col === btc.grid.current.col),
+      };
+    }),
+  }));
+  const spxPct = spx.stat.pctGreen == null ? "—" : `${Math.round(spx.stat.pctGreen)}%`;
+  return {
+    headline: `${pct}% green`,
+    headlineColor: color,
+    secondary: `BTC ${btc.monthName}s: ${btc.stat.green} of ${btc.stat.n} closed higher · S&P 500 ${spx.monthName}s: ${spxPct} (${spx.stat.green} of ${spx.stat.n}) · history, not a forecast`,
+    mini: { caption: "BTC monthly returns · last 5 years", cols: MONTH_LABELS, rows },
+    isLive: !data.assets.btc.snapshot,
+  };
+}
+
 const CATEGORIES: Category[] = [
   {
     id: "sentiment",
@@ -326,6 +377,20 @@ const CATEGORIES: Category[] = [
       },
     ],
   },
+  {
+    id: "seasonality",
+    label: "Seasonality",
+    tiles: [
+      {
+        id: "seasonality",
+        href: "/charts/seasonality",
+        title: "Monthly & quarterly returns",
+        subtitle: "BTC · S&P 500 · year × month heatmap",
+        endpoint: "/api/seasonality",
+        parse: parseSeasonality,
+      },
+    ],
+  },
 ];
 
 const ALL_TILES = CATEGORIES.flatMap((c) => c.tiles);
@@ -372,6 +437,26 @@ function Sparkline({
         vectorEffect="non-scaling-stroke"
       />
     </svg>
+  );
+}
+
+function MiniRow({ row }: { row: MiniHeat["rows"][number] }) {
+  return (
+    <>
+      <span className="self-center font-mono text-[10px] text-foreground/75">{row.year}</span>
+      {row.cells.map((c, i) => (
+        <span
+          key={i}
+          title={c.title}
+          className="h-5 rounded-[3px] sm:h-6"
+          style={{
+            background: c.bg,
+            outline: c.current ? "1.5px dashed rgba(232,238,247,0.9)" : undefined,
+            outlineOffset: c.current ? "-1.5px" : undefined,
+          }}
+        />
+      ))}
+    </>
   );
 }
 
@@ -470,7 +555,27 @@ function ChartTile({
           {secondary}
         </p>
       )}
-      {live?.spark && live.spark.length >= 2 && status === "ok" ? (
+      {live?.mini && status === "ok" ? (
+        <div className="relative mt-3 flex-1">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+            {live.mini.caption}
+          </p>
+          <div
+            className="grid gap-[3px]"
+            style={{ gridTemplateColumns: `2.25rem repeat(${live.mini.cols.length}, minmax(0, 1fr))` }}
+          >
+            <span aria-hidden />
+            {live.mini.cols.map((c) => (
+              <span key={c} className="text-center text-[9px] uppercase text-muted">
+                {c.slice(0, 1)}
+              </span>
+            ))}
+            {live.mini.rows.map((row) => (
+              <MiniRow key={row.year} row={row} />
+            ))}
+          </div>
+        </div>
+      ) : live?.spark && live.spark.length >= 2 && status === "ok" ? (
         <div className="relative mt-3 flex-1">
           <Sparkline
             points={live.spark}
