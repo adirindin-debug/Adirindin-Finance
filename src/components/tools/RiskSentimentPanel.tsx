@@ -10,15 +10,21 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
+  BASE_OVERLAYS,
+  BASE_OVERLAY_SHOW_STORAGE_KEY,
+  BASE_OVERLAY_STORAGE_KEY,
   COMPONENTS,
+  DEFAULT_BASE_OVERLAY,
   ZONES,
   arcFraction,
   arcHeight,
   arcStage,
   blend,
   dayWeights,
+  isBaseOverlayKey,
   subScores,
   zoneFor,
+  type BaseOverlayKey,
   type ComponentKey,
   type RsPayload,
   type RsRow,
@@ -45,8 +51,6 @@ const IH = H - PAD.top - PAD.bottom;
 const AW = 400;
 const AH = 182;
 const ARC = { x0: 92, x1: 308, base: 148, top: 30 };
-
-const OVERLAY_COLOR = "#5b6b80";
 
 function dayNum(d: string): number {
   return Date.parse(`${d}T00:00:00Z`) / 86_400_000;
@@ -181,6 +185,7 @@ export function RiskSentimentPanel() {
   const [loading, setLoading] = useState(true);
   const [tf, setTf] = useState<TfKey>(DEFAULT_TF);
   const [showOverlay, setShowOverlay] = useState(true);
+  const [base, setBase] = useState<BaseOverlayKey>(DEFAULT_BASE_OVERLAY);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -214,15 +219,59 @@ export function RiskSentimentPanel() {
 
   useEffect(() => setHoverIdx(null), [tf]);
 
+  // Base chart preference (localStorage, like other chart prefs). Read after mount
+  // so server and first client render agree (S&P 500 default).
+  useEffect(() => {
+    try {
+      const b = window.localStorage.getItem(BASE_OVERLAY_STORAGE_KEY);
+      if (isBaseOverlayKey(b)) setBase(b);
+      if (window.localStorage.getItem(BASE_OVERLAY_SHOW_STORAGE_KEY) === "0") setShowOverlay(false);
+    } catch {
+      /* storage blocked — keep defaults */
+    }
+  }, []);
+  const persist = (key: string, value: string) => {
+    try {
+      window.localStorage.setItem(key, value);
+    } catch {
+      /* ignore */
+    }
+  };
+  const chooseBase = (k: BaseOverlayKey) => {
+    setBase(k);
+    setShowOverlay(true);
+    persist(BASE_OVERLAY_STORAGE_KEY, k);
+    persist(BASE_OVERLAY_SHOW_STORAGE_KEY, "1");
+  };
+  const toggleOverlay = () => {
+    const next = !showOverlay;
+    setShowOverlay(next);
+    persist(BASE_OVERLAY_SHOW_STORAGE_KEY, next ? "1" : "0");
+  };
+
+  const baseMeta = BASE_OVERLAYS.find((o) => o.key === base) ?? BASE_OVERLAYS[0]!;
+
   const allRows = useMemo(() => data?.rows ?? [], [data]);
+
+  /** Selected base chart series, aligned 1:1 with allRows. */
+  const baseValues = useMemo<Array<number | null>>(() => {
+    if (base === "spx") return allRows.map((r) => r[2]);
+    if (base === "urth") return allRows.map((r) => r[6]);
+    const ix = data?.ixic;
+    return allRows.map((_, i) => ix?.[i] ?? null);
+  }, [allRows, base, data]);
 
   const view = useMemo(() => {
     if (allRows.length < 2) return null;
     const last = allRows[allRows.length - 1]![0];
     const meta = TIMEFRAMES.find((t) => t.key === tf)!;
     const from = meta.years == null ? allRows[0]![0] : cutoff(last, meta.years);
-    const rows = allRows.filter((r) => r[0] >= from);
+    // Window is a contiguous tail of allRows (sorted), so overlay values share the offset.
+    const offset = allRows.findIndex((r) => r[0] >= from);
+    if (offset < 0) return null;
+    const rows = allRows.slice(offset);
     if (rows.length < 2) return null;
+    const baseVals = baseValues.slice(offset);
     const d0 = dayNum(rows[0]![0]);
     const d1 = dayNum(rows[rows.length - 1]![0]);
     const xs = rows.map((r) => PAD.left + ((dayNum(r[0]) - d0) / Math.max(d1 - d0, 1)) * IW);
@@ -239,16 +288,18 @@ export function RiskSentimentPanel() {
       pen = true;
     });
 
-    // Context line on its own log scale (no axis; level shown in the tooltip): URTH,
-    // or the S&P 500 if URTH has no data in this window.
-    const overlayCol = rows.some((r) => r[6] != null) ? 6 : 2;
-    const logs = rows.map((r) => {
-      const v = r[overlayCol];
-      return v == null || v <= 0 ? null : Math.log(v);
-    });
+    // Base chart: the selected equity series on its own log scale (no axis; level in
+    // the tooltip). Visual context only — the score never depends on this choice.
+    const logs = baseVals.map((v) => (v == null || v <= 0 ? null : Math.log(v)));
     const valid = logs.filter((v): v is number => v != null);
     let overlay = "";
+    let overlayFirst: string | null = null;
+    let baseLo: number | null = null;
+    let baseHi: number | null = null;
     if (valid.length) {
+      baseLo = Math.exp(Math.min(...valid));
+      baseHi = Math.exp(Math.max(...valid));
+      overlayFirst = rows[logs.findIndex((v) => v != null)]![0];
       const lo = Math.min(...valid);
       const hi = Math.max(...valid);
       const oy = (lv: number) => PAD.top + 6 + (1 - (lv - lo) / Math.max(hi - lo, 1e-9)) * (IH - 12);
@@ -262,7 +313,6 @@ export function RiskSentimentPanel() {
         on = true;
       });
     }
-    const overlayLabel = overlayCol === 6 ? "URTH" : "S&P 500";
 
     // ~5 date ticks
     const ticks: { x: number; label: string }[] = [];
@@ -272,8 +322,8 @@ export function RiskSentimentPanel() {
       const d = new Date((d0 + (k / (n - 1)) * (d1 - d0)) * 86_400_000).toISOString().slice(0, 10);
       ticks.push({ x: PAD.left + (k / (n - 1)) * IW, label: (meta.years ?? 99) <= 1 ? fmtDay(d) : fmtMonthYear(d) });
     }
-    return { rows, xs, yOf, score, overlay, overlayLabel, ticks, d0, d1 };
-  }, [allRows, tf]);
+    return { rows, baseVals, xs, yOf, score, overlay, overlayFirst, baseLo, baseHi, ticks, d0, d1 };
+  }, [allRows, baseValues, tf]);
 
   const latest: Picked | null = useMemo(() => {
     if (!allRows.length) return null;
@@ -383,6 +433,7 @@ export function RiskSentimentPanel() {
   const toggleBtn = "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
   const toggleOn = "bg-accent text-white shadow-sm";
   const toggleOff = "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
+  const chipBtn = "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors";
 
   const curPt = latestScore != null ? arcPoint(latestScore, latestRising) : null;
   const scrubPt = isScrub && pickedScore != null ? arcPoint(pickedScore, rising) : null;
@@ -583,20 +634,58 @@ export function RiskSentimentPanel() {
                   </button>
                 ))}
               </div>
-              <button
-                type="button"
-                aria-pressed={showOverlay}
-                onClick={() => setShowOverlay((s) => !s)}
-                className={`${toggleBtn} border border-border/90 ${showOverlay ? "bg-white/10 text-foreground" : "text-muted hover:text-foreground"}`}
-              >
-                {view?.overlayLabel ?? "URTH"} overlay
-              </button>
             </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+            <span id="rs-base-label" className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
+              Base chart:
+            </span>
+            <div
+              className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+              role="group"
+              aria-labelledby="rs-base-label"
+            >
+              {BASE_OVERLAYS.map((o) => {
+                const on = showOverlay && base === o.key;
+                return (
+                  <button
+                    key={o.key}
+                    type="button"
+                    aria-pressed={on}
+                    title={`${o.name} (${o.symbol}) — ${o.note}`}
+                    onClick={() => chooseBase(o.key)}
+                    className={`${chipBtn} inline-flex items-center gap-1.5 ${on ? "bg-white/10 text-foreground ring-1 ring-inset ring-white/15" : toggleOff}`}
+                  >
+                    <span className="h-0.5 w-3 rounded-full" style={{ background: o.color, opacity: on ? 1 : 0.55 }} aria-hidden />
+                    {o.label}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              aria-pressed={!showOverlay}
+              onClick={toggleOverlay}
+              className={`${chipBtn} border border-border/90 ${showOverlay ? "text-muted hover:text-foreground" : "bg-white/10 text-foreground"}`}
+            >
+              {showOverlay ? "Hide line" : "Show line"}
+            </button>
           </div>
 
           {/* History chart */}
+          {view && showOverlay && view.overlay && view.baseHi != null && view.baseLo != null && (
+            <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted">
+              <span className="inline-block h-0.5 w-4 rounded-full" style={{ background: baseMeta.color }} aria-hidden />
+              <span style={{ color: baseMeta.color }}>
+                {baseMeta.name} ({baseMeta.symbol})
+              </span>
+              <span>
+                · range in view {fmtLevel(view.baseLo)}–{fmtLevel(view.baseHi)} · own log scale, no axis
+              </span>
+            </p>
+          )}
           {view && (
-            <div ref={wrapRef} className="relative mt-3">
+            <div ref={wrapRef} className="relative mt-2">
               <svg
                 ref={svgRef}
                 viewBox={`0 0 ${W} ${H}`}
@@ -641,7 +730,16 @@ export function RiskSentimentPanel() {
                   </g>
                 ))}
                 {showOverlay && view.overlay && (
-                  <path d={view.overlay} fill="none" stroke={OVERLAY_COLOR} strokeWidth={1.2} opacity={0.8} />
+                  <path
+                    key={base}
+                    d={view.overlay}
+                    fill="none"
+                    stroke={baseMeta.color}
+                    strokeWidth={1.3}
+                    strokeLinejoin="round"
+                    opacity={0.85}
+                    data-base-overlay={base}
+                  />
                 )}
                 <path d={view.score} fill="none" stroke="url(#rs-line)" strokeWidth={2} strokeLinejoin="round" />
                 {view.ticks.map((t, i) => (
@@ -695,19 +793,11 @@ export function RiskSentimentPanel() {
                   <p className="text-[11px]" style={{ color: pickedZone?.color }}>
                     {pickedZone?.label}
                   </p>
-                  {showOverlay && picked.row[6] != null && (
+                  {showOverlay && hoverIdx != null && view.baseVals[hoverIdx] != null && (
                     <p className="mt-1 flex justify-between gap-3 text-[11px] tabular-nums">
-                      <span className="text-muted">URTH</span>
+                      <span style={{ color: baseMeta.color }}>{baseMeta.name}</span>
                       <span className="font-mono text-[#c8d0dc]">
-                        {picked.row[6].toLocaleString("en-AU", { maximumFractionDigits: 2 })}
-                      </span>
-                    </p>
-                  )}
-                  {showOverlay && picked.row[2] != null && (
-                    <p className="flex justify-between gap-3 text-[11px] tabular-nums">
-                      <span className="text-muted">S&amp;P 500</span>
-                      <span className="font-mono text-[#c8d0dc]">
-                        {picked.row[2].toLocaleString("en-AU", { maximumFractionDigits: 2 })}
+                        {view.baseVals[hoverIdx]!.toLocaleString("en-AU", { maximumFractionDigits: 2 })}
                       </span>
                     </p>
                   )}
@@ -715,8 +805,12 @@ export function RiskSentimentPanel() {
               )}
               <p className="mt-2 text-[11px] text-muted">
                 Hover, drag (touch) or focus and use ← → to scrub — the big number, mood arc and breakdown follow.
-                {showOverlay && view.overlay
-                  ? ` Grey line: ${view.overlayLabel} close on its own log scale, for context only.`
+                {showOverlay
+                  ? view.overlay
+                    ? ` Base chart: ${baseMeta.name} (${baseMeta.symbol}) close on its own log scale — visual context only; switching it does not change the score.${
+                        view.overlayFirst && view.overlayFirst > view.rows[0]![0] ? ` Data starts ${fmtMonthYear(view.overlayFirst)}.` : ""
+                      }`
+                    : ` No ${baseMeta.name} data in this window.`
                   : ""}
                 {tf === "MAX" ? " Before 2016 the blend has fewer inputs (see coverage); rows older than 10 years are weekly." : ""}
               </p>

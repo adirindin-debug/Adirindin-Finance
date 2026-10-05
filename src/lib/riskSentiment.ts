@@ -1,5 +1,5 @@
 /**
- * Market risk & sentiment gauge (Tools · PREVIEW) — shared weights, zones and maths.
+ * Market risk & sentiment gauge (Tools) — shared weights, zones and maths.
  *
  * A transparent 0–100 blend: higher = hotter / risk-on (euphoria-leaning),
  * lower = washout / fear. Every input is a public series; when an input has no
@@ -327,9 +327,66 @@ export type SourceStatus = {
   note?: string;
 };
 
+/**
+ * Base chart overlay — the equity price line drawn under the score history.
+ * Visual context only: the overlay choice never changes the score or its weights.
+ */
+export type BaseOverlayKey = "spx" | "ixic" | "urth";
+
+export type BaseOverlayMeta = {
+  key: BaseOverlayKey;
+  /** Toggle chip label. */
+  label: string;
+  /** Tooltip / legend label. */
+  name: string;
+  symbol: string;
+  color: string;
+  note: string;
+};
+
+export const BASE_OVERLAYS: BaseOverlayMeta[] = [
+  {
+    key: "spx",
+    label: "S&P 500",
+    name: "S&P 500",
+    symbol: "^GSPC",
+    color: "#8b9bb4",
+    note: "Yahoo Finance ^GSPC daily close — price index, no dividends.",
+  },
+  {
+    key: "ixic",
+    label: "Nasdaq",
+    name: "Nasdaq Composite",
+    symbol: "^IXIC",
+    color: "#8b93e0",
+    note: "Yahoo Finance ^IXIC daily close — price index, no dividends. Chart overlay only, not a score input.",
+  },
+  {
+    key: "urth",
+    label: "URTH",
+    name: "URTH (MSCI World ETF)",
+    symbol: "URTH",
+    color: "#5fb3a6",
+    note: "Yahoo Finance URTH adjusted close — iShares MSCI World ETF, developed-markets proxy from Jan 2012. Not the licensed MSCI index.",
+  },
+];
+
+export const DEFAULT_BASE_OVERLAY: BaseOverlayKey = "spx";
+export const BASE_OVERLAY_STORAGE_KEY = "adirindin.riskSentiment.baseChart";
+export const BASE_OVERLAY_SHOW_STORAGE_KEY = "adirindin.riskSentiment.baseChartShow";
+
+export function isBaseOverlayKey(v: unknown): v is BaseOverlayKey {
+  return v === "spx" || v === "ixic" || v === "urth";
+}
+
 export type RsPayload = {
   ok: boolean;
   rows: RsRow[];
+  /**
+   * Nasdaq Composite (^IXIC) close aligned 1:1 with `rows` (null when no close
+   * within a few days). Base chart overlay only — not part of the score.
+   */
+  ixic?: Array<number | null>;
   asOf: string | null;
   sources: SourceStatus[];
   warnings?: string[];
@@ -654,6 +711,16 @@ export function computeRows(inp: RawInputs): RsRow[] {
     rows.push(row);
   }
   return rows;
+}
+
+/** Align a daily close series to row dates (latest close ≤ row date, at most EQUITY_MAX_GAP days old). */
+export function alignToRows(rows: RsRow[], series: Series | null): Array<number | null> | undefined {
+  if (!series?.length) return undefined;
+  const at = makeAsOf(series, EQUITY_MAX_GAP);
+  return rows.map((r) => {
+    const hit = at(r[0]);
+    return hit ? hit.v : null;
+  });
 }
 
 /** Keep the last DAILY_YEARS daily; thin older rows to the last session of each week. */

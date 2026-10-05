@@ -506,7 +506,7 @@ export function CompoundInterestPanel() {
                     <>
                       <p className="flex flex-wrap items-baseline gap-x-2">
                         <span className="font-mono text-lg font-semibold text-foreground">{fmtPct(cagrData.cagr)}</span>
-                        <span className="text-muted">p.a. CAGR · {cagrData.ticker}</span>
+                        <span className="text-muted">p.a. historical CAGR · {cagrData.ticker}</span>
                       </p>
                       {cagrData.name ? <p className="mt-0.5 truncate text-muted">{cagrData.name}</p> : null}
                       <p className="mt-1 text-muted">
@@ -743,7 +743,7 @@ export function CompoundInterestPanel() {
           <p className="mt-5 rounded-lg border border-[#3a4558] bg-[#121820] px-4 py-3 text-xs leading-relaxed text-[#9eb0c8]">
             <strong className="font-semibold text-[#d0d8e4]">Illustrative only, not advice.</strong>{" "}
             {mode === "ticker"
-              ? "Asset projections assume the past growth rate simply repeats every year. Real markets are lumpy, past performance is not a reliable indicator of future returns, and the result ignores fees, taxes and currency moves. "
+              ? "Asset projections assume the ticker's historical growth rate simply repeats every year — that CAGR is history, not a forecast. Real markets are lumpy, past performance is not a reliable indicator of future returns, and the result ignores fees, taxes and currency moves. "
               : "Assumes a steady rate every year with no fees or taxes. "}
             A rough gauge for study — not a forecast, a recommendation or financial advice (NFA).
           </p>

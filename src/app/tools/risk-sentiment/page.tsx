@@ -4,7 +4,7 @@ import { RiskSentimentPanel } from "@/components/tools/RiskSentimentPanel";
 import { COMPONENTS, MIN_WEIGHT_FOR_SCORE, ZONES } from "@/lib/riskSentiment";
 
 export const metadata: Metadata = {
-  title: "Market risk & sentiment gauge (preview)",
+  title: "Market risk & sentiment gauge",
   description:
     "Transparent 0–100 blend of public price-risk, volatility, sentiment, search-attention and cycle-calendar inputs — from washout to euphoria-leaning. Theoretical study aid only, not a signal. Not financial advice (NFA).",
 };
@@ -19,6 +19,11 @@ const COVERAGE: { input: string; from: string; note: string }[] = [
     input: "S&P 500 drawdown, daily + weekly RSI (confirmation)",
     from: "Jan 1990 (history from Jan 1985 for warm-up)",
     note: "Yahoo Finance ^GSPC daily close (delayed, third-party). Price index — no dividends. Steps up to the full equity weight on any day URTH has no data (including before URTH history ~Jan 2012).",
+  },
+  {
+    input: "Nasdaq Composite (base chart only)",
+    from: "Jan 1990",
+    note: "Yahoo Finance ^IXIC daily close (delayed, third-party). Price index — no dividends. Drawn as an optional base chart under the score; not an input to the score.",
   },
   { input: "VIX 5-year percentile", from: "Jan 1990", note: "Cboe VIX close via FRED VIXCLS. First 5 years use the history available so far." },
   { input: "US stocks Fear & Greed", from: "Jan 2016", note: "FearGreedChart.com public API — independent methodology, not CNN's index." },
@@ -37,13 +42,8 @@ const SKIPPED: { what: string; why: string }[] = [
 export default function RiskSentimentPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <ToolsBackLink category="Sentiment · preview" />
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market risk &amp; sentiment gauge</h1>
-        <span className="rounded border border-[#8a6a20] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d4a017]">
-          Preview
-        </span>
-      </div>
+      <ToolsBackLink category="Sentiment" />
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market risk &amp; sentiment gauge</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         One number for how hot or washed-out risk appetite looks, built from public price, volatility, sentiment and
         attention data plus a light touch of the Adirindin cycle calendars. Higher means hotter and more risk-on; lower
@@ -51,7 +51,8 @@ export default function RiskSentimentPage() {
       </p>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
         <strong className="font-medium text-foreground">Theoretical estimation and study aid only.</strong> Not a signal,
-        not a timing model, and not financial advice (NFA).
+        not a timing model, and not financial advice (NFA). Past readings and past performance do not predict future
+        results.
       </p>
 
       <div className="mt-8">
@@ -74,6 +75,12 @@ export default function RiskSentimentPage() {
           the S&amp;P 500 20% as a cross-check (all-time-high distance 20% + 5%, weekly RSI 12% + 3%, daily RSI 8% + 2%).
           On any day one series has no data (including before URTH history ~Jan 2012), the other takes the pair&apos;s full
           share (25% / 15% / 10%), so the equity block stays at 50%.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          <strong className="font-medium text-foreground">Base chart.</strong> The line under the score history is a
+          price overlay you can switch between the S&amp;P 500 (default), the Nasdaq Composite and URTH. Each is drawn on
+          its own log scale for visual context. Switching it does not change the score or the weights above — the
+          composite always uses the URTH / S&amp;P 500 pair as described.
         </p>
         <p className="mt-2 font-mono text-xs text-[#c8d0dc]">score = Σ (weightᵢ × subᵢ) ÷ Σ weightᵢ &nbsp;(over inputs with data)</p>
         <div className="mt-4 overflow-x-auto rounded-lg border border-[#1d2633]">
@@ -174,12 +181,28 @@ export default function RiskSentimentPage() {
       </section>
 
       <aside className="mt-8 rounded-xl border border-[#3a4558] bg-[#121820] px-5 py-4" role="note" aria-label="Not financial advice">
-        <p className="text-sm font-semibold text-[#d0d8e4]">Study aid, not a signal</p>
-        <p className="mt-1.5 text-xs leading-relaxed text-[#9eb0c8] sm:text-sm">
-          This gauge is a theoretical estimate assembled for research and education. Weights are judgement calls, the
-          inputs overlap, and hot readings can stay hot (and washouts can deepen) for a long time. It does not tell anyone
-          to buy, sell or hold anything. Past readings do not guarantee future results. Not financial advice (NFA).
-          Fear &amp; Greed and index names belong to their owners; no affiliation or endorsement implied.
+        <p className="text-sm font-semibold text-[#d0d8e4]">Study aid, not a signal · not financial advice</p>
+        <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs leading-relaxed text-[#9eb0c8] sm:text-sm">
+          <li>
+            This gauge is a theoretical estimate assembled for research and education. It is not a buy, sell or hold
+            signal, not a timing model and not a forecast of where markets go next.
+          </li>
+          <li>
+            Weights are judgement calls, the inputs overlap, and hot readings can stay hot (and washouts can deepen) for a
+            long time. A reading in any zone can be followed by gains or losses.
+          </li>
+          <li>
+            Past readings and past performance are not reliable indicators of future performance. The base chart shows
+            historical prices for context only.
+          </li>
+          <li>
+            Data is delayed, third-party and may contain errors or gaps. Nothing here considers your objectives, financial
+            situation or needs — it is general information only, not personal financial advice (NFA). Consider getting
+            advice from a licensed professional before acting.
+          </li>
+        </ul>
+        <p className="mt-2 text-[11px] leading-relaxed text-[#7f8ea3]">
+          Fear &amp; Greed, index and ETF names belong to their owners; no affiliation or endorsement implied.
         </p>
       </aside>
 

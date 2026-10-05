@@ -1,5 +1,5 @@
 /**
- * Same-origin data for /tools/risk-sentiment (Market risk & sentiment gauge · PREVIEW).
+ * Same-origin data for /tools/risk-sentiment (Market risk & sentiment gauge).
  *
  * Live public feeds, each falling back on its own to the dated snapshot in
  * src/data/risk-sentiment-snapshot.json (refresh: scripts/build-risk-sentiment-snapshot.mjs):
@@ -9,6 +9,8 @@
  *    History from ~Jan 2012 — before that, S&P pair logic fills the equity block
  *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (query1 → query2).
  *    Secondary equity input; fills the equity block on days without URTH data
+ *  - Nasdaq Composite (^IXIC) daily close — Yahoo Finance chart API. Base chart
+ *    overlay only (returned as `ixic`, aligned to rows) — NOT a score input
  *  - VIX close — FRED VIXCLS (API if FRED_API_KEY, else CSV)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
  *  - Crypto Fear & Greed — Alternative.me public API
@@ -19,6 +21,7 @@
 
 import snapshot from "@/data/risk-sentiment-snapshot.json";
 import {
+  alignToRows,
   computeRows,
   thinRows,
   type RawInputs,
@@ -46,6 +49,7 @@ type SnapBlock = { asOf: string; source: string; note?: string; rows: Series };
 type Snap = {
   fetched: string;
   spx?: SnapBlock;
+  ixic?: SnapBlock;
   world?: SnapBlock;
   vix?: SnapBlock;
   usFng?: SnapBlock;
@@ -141,6 +145,8 @@ async function fetchUrth(): Promise<Series> {
 }
 
 const fetchSpx = () => fetchYahooDaily("^GSPC");
+/** Nasdaq Composite — base chart overlay only (never feeds the score). */
+const fetchIxic = () => fetchYahooDaily("^IXIC");
 const fetchWorld = () => fetchUrth();
 
 async function fetchVix(): Promise<Series> {
@@ -269,12 +275,13 @@ export async function GET() {
   if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800);
 
   const warnings: string[] = [];
-  const [world, spx, vix, usFng, cryptoFng] = await Promise.all([
+  const [world, spx, vix, usFng, cryptoFng, ixic] = await Promise.all([
     withFallback("world", `URTH (${WORLD_SYMBOL}) — MSCI World ETF proxy`, fetchWorld, SNAP.world, warnings),
     withFallback("spx", "S&P 500 (^GSPC)", fetchSpx, SNAP.spx, warnings),
     withFallback("vix", "VIX (FRED VIXCLS)", fetchVix, SNAP.vix, warnings),
     withFallback("usFng", "US stocks Fear & Greed (FearGreedChart.com)", fetchUsFng, SNAP.usFng, warnings),
     withFallback("cryptoFng", "Crypto Fear & Greed (Alternative.me)", fetchCryptoFng, SNAP.cryptoFng, warnings),
+    withFallback("ixic", "Nasdaq Composite (^IXIC) — chart overlay only", fetchIxic, SNAP.ixic, warnings),
   ]);
   const tb = SNAP.trendsBitcoin;
   const trendsStatus: SourceStatus = tb?.rows?.length
@@ -288,7 +295,7 @@ export async function GET() {
       }
     : { key: "trends", label: 'Google Trends "bitcoin" (monthly)', origin: "missing", from: null, asOf: null, note: "Pending" };
 
-  const sources = [world.status, spx.status, vix.status, usFng.status, cryptoFng.status, trendsStatus];
+  const sources = [world.status, spx.status, vix.status, usFng.status, cryptoFng.status, trendsStatus, ixic.status];
 
   if (!spx.series && !world.series) {
     return respond(
@@ -317,6 +324,7 @@ export async function GET() {
   const body: RsPayload = {
     ok: true,
     rows,
+    ixic: alignToRows(rows, ixic.series),
     asOf: rows.length ? rows[rows.length - 1]![0] : null,
     sources,
     warnings: warnings.length ? warnings : undefined,

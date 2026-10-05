@@ -4,10 +4,12 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Tools",
   description:
-    "Research tools desk: portfolio tracker, Australian property prices, a market risk & sentiment gauge and a compound interest calculator with historical asset growth rates (previews). Educational only — not financial advice.",
+    "Research tools desk: portfolio tracker, Australian property prices, a market risk & sentiment gauge and a compound interest calculator with historical asset growth rates. Educational and illustrative only — not financial advice.",
 };
 
-const tools = [
+type ToolCard = { href: string; title: string; badge?: string; blurb: string; meta: string; cta: string };
+
+const tools: ToolCard[] = [
   {
     href: "/portfolio",
     title: "Portfolio",
@@ -19,19 +21,17 @@ const tools = [
   {
     href: "/tools/risk-sentiment",
     title: "Market risk & sentiment gauge",
-    badge: "Preview",
     blurb:
-      "One 0–100 reading from washout to euphoria-leaning, blended from public S&P 500 drawdown and RSI, VIX, Fear & Greed, search attention and a light touch of the cycle calendars. Scrub the history. Study aid — not a signal.",
-    meta: "Composite · transparent weights · 3Y default · educational",
+      "One 0–100 reading from washout to euphoria-leaning, blended from public URTH and S&P 500 drawdown and RSI, VIX, Fear & Greed, search attention and a light touch of the cycle calendars. Scrub the history over an S&P 500, Nasdaq or URTH base chart. Study aid — not a signal.",
+    meta: "Composite · transparent weights · 3Y default · educational · NFA",
     cta: "Open the gauge",
   },
   {
     href: "/tools/compound-interest",
     title: "Compound interest calculator",
-    badge: "Preview",
     blurb:
-      "Project a starting balance plus regular contributions at any rate — no cap — or at a real asset's historical growth rate by ticker. Optional inflation view in today's dollars. Rough gauge only.",
-    meta: "Calculator · ticker CAGR · optional inflation · illustrative",
+      "Project a starting balance plus regular contributions at any rate — no cap — or at a real asset's historical growth rate by ticker. Optional inflation view in today's dollars. Rough gauge only — historical rates are not a forecast.",
+    meta: "Calculator · ticker CAGR · optional inflation · illustrative · NFA",
     cta: "Open the calculator",
   },
   {
@@ -67,7 +67,7 @@ export default function ToolsHubPage() {
           >
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold text-foreground group-hover:text-accent">{t.title}</h2>
-              {"badge" in t && t.badge ? (
+              {t.badge ? (
                 <span className="rounded border border-[#8a6a20] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d4a017]">
                   {t.badge}
                 </span>

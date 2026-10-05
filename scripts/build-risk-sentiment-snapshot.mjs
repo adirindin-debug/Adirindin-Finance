@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Refresh src/data/risk-sentiment-snapshot.json — the dated build-time fallback
- * for /api/risk-sentiment (Tools → Market risk & sentiment gauge, preview).
+ * for /api/risk-sentiment (Tools → Market risk & sentiment gauge).
  *
  * Every number comes from a public feed; nothing is invented. If a source fails
  * the previous snapshot block for that source is kept (and the script says so).
@@ -13,6 +13,8 @@
  *    (delayed, third-party). Primary equity input; same pattern as global
  *    equities / seasonality. Developed-markets proxy, not the licensed MSCI index.
  *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (delayed, third-party)
+ *  - Nasdaq Composite (^IXIC) daily close — Yahoo Finance chart API. Base chart
+ *    overlay only, not a score input
  *  - VIX close — FRED VIXCLS (CSV, citation required)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
  *  - Crypto Fear & Greed — Alternative.me public API
@@ -78,6 +80,8 @@ async function yahooDaily(symbol, label, { period1 = SPX_FROM, adj = false, minR
 }
 
 const spx = () => yahooDaily("^GSPC", "Yahoo Finance ^GSPC daily close (delayed)");
+const ixic = () =>
+  yahooDaily("^IXIC", "Yahoo Finance ^IXIC daily close (delayed) — Nasdaq Composite, base chart overlay only");
 /** URTH listing ~12 Jan 2012 (same period1 as global equities). */
 const URTH_FROM = 1325376000;
 const world = () =>
@@ -160,7 +164,7 @@ async function trendsBitcoin() {
 }
 
 const out = { _note: "", fetched: new Date().toISOString() };
-for (const [key, fn] of Object.entries({ world, spx, vix, cryptoFng, usFng, trendsBitcoin })) {
+for (const [key, fn] of Object.entries({ world, spx, ixic, vix, cryptoFng, usFng, trendsBitcoin })) {
   try {
     out[key] = await fn();
     console.log(`${key}: ${out[key].rows.length} rows, ${out[key].rows[0][0]} → ${out[key].asOf}`);
