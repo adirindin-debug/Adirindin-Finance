@@ -327,13 +327,7 @@ const CATEGORIES: Category[] = [
         endpoint: "/api/fear-greed-crypto",
         parse: parseFearGreed,
       },
-    ],
-  },
 {
-    id: "seasonality",
-    label: "Seasonality",
-    tiles: [
-      {
         id: "seasonality-crypto",
         href: "/charts/seasonality/crypto",
         title: "Crypto seasonality",
@@ -341,7 +335,13 @@ const CATEGORIES: Category[] = [
         endpoint: "/api/seasonality?market=crypto",
         parse: seasonalityParser("btc"),
       },
-      {
+    ],
+  },
+{
+    id: "seasonality",
+    label: "Seasonality",
+    tiles: [
+            {
         id: "seasonality-equities",
         href: "/charts/seasonality/equities",
         title: "Equities seasonality",
