@@ -16,7 +16,7 @@
  * its history to src/data/seasonality-snapshot.json — the API, toggles, grid and
  * hub card pick it up from this list.
  */
-export type SeasonAsset = "btc" | "eth" | "sol" | "xrp" | "zec" | "ltc" | "doge" | "msci" | "spx" | "nq";
+export type SeasonAsset = "btc" | "eth" | "sol" | "xrp" | "zec" | "ltc" | "doge" | "msci" | "spx" | "nq" | "ndx" | "rut";
 export type SeasonMarket = "crypto" | "equities";
 
 export type SeasonAssetDef = {
@@ -142,6 +142,29 @@ export const SEASON_ASSETS: SeasonAssetDef[] = [
     source:
       "Source: Yahoo Finance ^IXIC daily close — the Nasdaq Composite price index, excluding dividends, so total returns were higher. Shown from Feb 1971.",
   },
+  {
+    key: "ndx",
+    market: "equities",
+    label: "Nasdaq 100",
+    yahoo: "^NDX",
+    clock: "ny",
+    closeFmt: "pts",
+    cap: { monthly: 10, quarterly: 20, yearly: 40 },
+    source:
+      "Source: Yahoo Finance ^NDX daily close — the Nasdaq-100 price index, excluding dividends. History from Oct 1985.",
+  },
+  {
+    key: "rut",
+    market: "equities",
+    label: "Russell 2000",
+    yahoo: "^RUT",
+    clock: "ny",
+    closeFmt: "pts",
+    cap: { monthly: 10, quarterly: 20, yearly: 40 },
+    source:
+      "Source: Yahoo Finance ^RUT daily close — the Russell 2000 price index, excluding dividends. History from Sep 1987.",
+  },
+
 ];
 
 export const ASSET_DEF = Object.fromEntries(SEASON_ASSETS.map((a) => [a.key, a])) as Record<SeasonAsset, SeasonAssetDef>;
