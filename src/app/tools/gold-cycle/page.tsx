@@ -136,6 +136,12 @@ export default function GoldCyclePage() {
               language scaled to the chart — not a USD price path.
             </li>
             <li>
+              <strong className="font-medium text-[#d0d8e4]">15 Aug 1971</strong> marks the
+              Nixon Shock — end of Bretton Woods dollar convertibility into gold (the usual
+              public date for the US leaving the gold standard). Historical context only; not
+              a cycle peak or trough zone.
+            </li>
+            <li>
               <strong className="font-medium text-[#d0d8e4]">Trough zones</strong> (~1954,
               ~2000, ~2046*) come from the repeating shape (~{GOLD_TROUGH_OFFSET_YEARS}y after
               each peak), not separate anchors. ~2000 lines up with the 1999–2001 low; ~1954

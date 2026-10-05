@@ -235,6 +235,33 @@ export function goldLivePhaseLine(nowMs: number): string {
   return `~${years}y to ~${zoneYear}${theo} ${kind} zone · ${phase}`;
 }
 
+
+/** Extra historical data points (not peak/trough zone anchors). */
+export type GoldHistoricalPoint = {
+  /** UTC ms of the event. */
+  t: number;
+  /** Short on-chart label (Australian date style). */
+  label: string;
+  /** Longer note for the Cycle dates list. */
+  note: string;
+};
+
+/**
+ * 15 Aug 1971 — Nixon Shock / end of Bretton Woods dollar convertibility into gold.
+ * The usual public date cited for the US leaving the gold standard. Observational
+ * historical marker only — not a cycle peak or trough zone.
+ */
+export const GOLD_NIXON_SHOCK_MS = Date.UTC(1971, 7, 15, 0, 0, 0, 0);
+
+export const GOLD_HISTORICAL_POINTS: readonly GoldHistoricalPoint[] = [
+  {
+    t: GOLD_NIXON_SHOCK_MS,
+    label: "15 Aug 1971",
+    note:
+      "Nixon Shock — end of Bretton Woods dollar convertibility into gold; the usual public date for the US leaving the gold standard. Historical context only, not a cycle peak or trough zone.",
+  },
+];
+
 export const GOLD_ANCHOR_NOTES: Record<number, string> = {
   1934:
     "Revaluation / policy era (US Gold Reserve Act lifted the official price to $35/oz) — not a free-market peak like 1980.",
@@ -257,4 +284,4 @@ export const GOLD_SOURCE_LINE =
   "Gold USD: datasets/gold-prices (historical monthly) + Yahoo Finance GC=F for recent closes · peg-era levels are documented official/historical series, not invented";
 
 export const GOLD_CAPTION =
-  "Long-run gold (USD/oz, log) with an illustrative ~46-year gold-led commodity cycle silhouette — one shape repeating every lap. Peak zones Jan 1934 / 1980 / 2026 / 2072*; trough zones ~1954 / ~2000 / ~2046*. Observational study of public gold history — not a predictive model or forecast. Markers and the price series update as new data comes in.";
+  "Long-run gold (USD/oz, log) with an illustrative ~46-year gold-led commodity cycle silhouette — one shape repeating every lap. Peak zones Jan 1934 / 1980 / 2026 / 2072*; trough zones ~1954 / ~2000 / ~2046*; historical marker 15 Aug 1971 (Nixon Shock / end of US$ gold convertibility). Observational study of public gold history — not a predictive model or forecast. Markers and the price series update as new data comes in.";

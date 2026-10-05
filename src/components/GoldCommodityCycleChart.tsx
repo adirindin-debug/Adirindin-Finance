@@ -22,6 +22,7 @@ import {
   GOLD_ANCHOR_NOTES,
   GOLD_CAPTION,
   GOLD_CYCLE_YEARS,
+  GOLD_HISTORICAL_POINTS,
   GOLD_PEAK_ANCHORS,
   GOLD_SOURCE_LINE,
   GOLD_TROUGH_NOTES,
@@ -32,6 +33,7 @@ import {
   goldModelUnitAt,
   goldPeakYearsCovering,
   janMs,
+  type GoldHistoricalPoint,
   type GoldMarker,
 } from "@/lib/goldCommodityCycle";
 import { useLiveNow } from "@/lib/useLiveNow";
@@ -71,6 +73,8 @@ const MODEL_LINE = "#7ec8ff";
 const GRID = "#1c2430";
 const AXIS = "#8a97a8";
 const MARKER = "#f5f0e6";
+/** Historical data-point markers (e.g. Nixon Shock) — distinct from peak/trough cream. */
+const HISTORICAL = "#f0a05a";
 const LIVE_CREAM = "#f5f0e6";
 const YEAR_SEC = 365.2425 * 86400;
 /** Model band inside the log axis (fractions of the padded log range). */
@@ -309,6 +313,11 @@ export default function GoldCommodityCycleChart() {
     const startYear = Math.ceil(yFrom / yearStep) * yearStep;
     for (let y = startYear; y <= yTo; y += yearStep) xTicks.push(y);
 
+    const historicalMarkers = GOLD_HISTORICAL_POINTS.map((h) => {
+      const t = Math.floor(h.t / 1000);
+      return { ...h, x: xOf(t), t };
+    }).filter((h) => h.t >= t0 - 86400 * 30 && h.t <= tRight + 86400 * 30);
+
     return {
       t0,
       t1,
@@ -319,6 +328,7 @@ export default function GoldCommodityCycleChart() {
       pricePath,
       modelPath,
       markers,
+      historicalMarkers,
       yTicks,
       xTicks,
       spot: points[points.length - 1]!,
@@ -417,6 +427,14 @@ export default function GoldCommodityCycleChart() {
         </span>
         <span className="inline-flex items-center gap-1.5">
           <span
+            className="inline-block h-2 w-0.5 rounded-sm"
+            style={{ background: HISTORICAL, boxShadow: "0 0 0 1px rgba(240,160,90,0.35)" }}
+            aria-hidden
+          />
+          Historical data point (e.g. US off gold standard)
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span
             className="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#1a1a1a]"
             style={{ background: LIVE_CREAM, boxShadow: "0 0 0 2px rgba(245,240,230,0.35)" }}
             aria-hidden
@@ -443,7 +461,7 @@ export default function GoldCommodityCycleChart() {
             viewBox={`0 0 ${W} ${H}`}
             className="h-auto w-full"
             role="img"
-            aria-label="Long-run gold price on a log scale with an illustrative ~46-year gold-led commodity cycle silhouette repeating every lap. Peak zones Jan 1934, 1980, 2026 and 2072 (theoretical); trough zones about 1954, 2000 and 2046 (theoretical). Observational study only — not a predictive model or financial advice"
+            aria-label="Long-run gold price on a log scale with an illustrative ~46-year gold-led commodity cycle silhouette repeating every lap. Peak zones Jan 1934, 1980, 2026 and 2072 (theoretical); trough zones about 1954, 2000 and 2046 (theoretical); historical marker 15 Aug 1971 for the end of US dollar convertibility into gold (Nixon Shock). Observational study only — not a predictive model or financial advice"
             onMouseMove={onMove}
             onMouseLeave={() => setHover(null)}
           >
@@ -528,6 +546,11 @@ export default function GoldCommodityCycleChart() {
                   m.kind === "trough" ? "2 4" : m.theoretical ? "4 4" : undefined
                 }
               />
+            ))}
+
+            {/* Historical data points (e.g. 15 Aug 1971 Nixon Shock) */}
+            {chart.historicalMarkers.map((h) => (
+              <HistoricalMarker key={`hist-${h.t}`} h={h} fs={fs} short={narrow} />
             ))}
 
             {/* Model silhouette — same lap shape repeated, clean stroke only */}
@@ -738,6 +761,73 @@ function LivePill({ x, y, fs = 1 }: { x: number; y: number; fs?: number }) {
   );
 }
 
+
+/** Amber vertical + label for a historical data point (not a peak/trough zone). */
+function HistoricalMarker({
+  h,
+  fs = 1,
+  short = false,
+}: {
+  h: GoldHistoricalPoint & { x: number };
+  fs?: number;
+  short?: boolean;
+}) {
+  const nearRight = h.x > W - PAD.right - 70 * fs;
+  const nearLeft = h.x < PAD.left + 40 * fs;
+  const anchor = nearRight ? "end" : nearLeft ? "start" : "middle";
+  const lx = nearRight ? h.x + 4 : nearLeft ? h.x - 4 : h.x;
+  const line1 = h.label;
+  const line2 = short ? "Off gold std" : "US off gold standard";
+  // Sit the label in the upper band so it does not collide with peak labels at PAD.top - 12
+  const labelY = PAD.top + 14 + 4 * (fs - 1);
+  return (
+    <g>
+      <line
+        x1={h.x}
+        x2={h.x}
+        y1={PAD.top}
+        y2={H - PAD.bottom}
+        stroke={HISTORICAL}
+        strokeOpacity={0.7}
+        strokeWidth={1.5}
+        strokeDasharray="5 4"
+      />
+      <circle
+        cx={h.x}
+        cy={H - PAD.bottom}
+        r={3.5}
+        fill={HISTORICAL}
+        stroke="#0a0a0a"
+        strokeWidth={1.5}
+      />
+      <text
+        x={lx}
+        y={labelY}
+        textAnchor={anchor}
+        fill={HISTORICAL}
+        fillOpacity={0.95}
+        fontSize={11 * fs}
+        fontFamily="ui-monospace, monospace"
+        fontWeight={700}
+      >
+        {line1}
+      </text>
+      <text
+        x={lx}
+        y={labelY + 12 * fs}
+        textAnchor={anchor}
+        fill={HISTORICAL}
+        fillOpacity={0.85}
+        fontSize={9.5 * fs}
+        fontFamily="system-ui, sans-serif"
+        fontWeight={600}
+      >
+        {line2}
+      </text>
+    </g>
+  );
+}
+
 /** Explicit dates list — few peaks / troughs, so show every one (no hover-only). */
 function CycleDatesList() {
   const firstPeak = GOLD_PEAK_ANCHORS[0];
@@ -784,7 +874,7 @@ function CycleDatesList() {
   return (
     <section
       className="mt-4 space-y-3 rounded-lg border border-[#222] bg-black px-4 py-3"
-      aria-label="Gold cycle peak and trough zone dates"
+      aria-label="Gold cycle peak and trough zone dates, plus historical data points"
     >
       <p className="text-sm font-semibold text-[#e8eef7]">Cycle dates</p>
       {row("Peak zones · ~46y apart (study anchors)", peaks, GOLD_ANCHOR_NOTES)}
@@ -793,8 +883,41 @@ function CycleDatesList() {
         troughs,
         GOLD_TROUGH_NOTES,
       )}
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#9eb0c8]">
+          Historical data points
+        </p>
+        <ul className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {GOLD_HISTORICAL_POINTS.map((h) => (
+            <li
+              key={`hist-list-${h.t}`}
+              className="flex items-start gap-2 rounded-md border border-[#3a2a18] bg-[#120e0a] px-3 py-2 sm:col-span-2"
+            >
+              <span
+                className="mt-1 inline-block h-2.5 w-2.5 shrink-0 rounded-sm"
+                style={{
+                  background: HISTORICAL,
+                  boxShadow: "0 0 0 2px #0a0a0a, 0 0 0 3px rgba(240,160,90,0.45)",
+                }}
+                aria-hidden
+              />
+              <span className="min-w-0">
+                <span className="block font-mono text-sm font-semibold text-[#f0a05a]">
+                  {h.label}
+                  <span className="ml-1.5 align-middle text-[9px] font-medium uppercase tracking-wide text-[#8a97a8]">
+                    historical
+                  </span>
+                </span>
+                <span className="mt-0.5 block text-[11px] leading-snug text-muted">
+                  {h.note}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
       <p className="text-[10px] italic text-[#7a8aa0]">
-        * theoretical (future) · zones, not exact tops or bottoms · NFA
+        * theoretical (future) · zones, not exact tops or bottoms · historical markers are context only · NFA
       </p>
     </section>
   );
