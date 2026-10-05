@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { CyclesBackLink } from "@/components/cycles/CyclesBackLink";
 import RealEstateCycleChart from "@/components/RealEstateCycleChart";
 
@@ -52,7 +51,7 @@ export default function RealEstateCyclePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <CyclesBackLink category="Real estate" />
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         18.6 Year Real Estate Cycle theory
       </h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">

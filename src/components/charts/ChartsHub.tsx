@@ -25,6 +25,13 @@ import {
   type SeasonAsset,
   type SeasonPayload,
 } from "@/lib/seasonality";
+import {
+  ETF_ASSET_META,
+  flowColor,
+  fmtFlowUsd,
+  recentMonthlyBars,
+  type EtfFlowsPayload,
+} from "@/lib/etfFlows";
 
 type TileStatus = "loading" | "ok" | "error";
 
@@ -47,6 +54,8 @@ type TileLive = {
   isLive?: boolean;
   /** Seasonality tile only: mini year × month heatmap instead of a sparkline. */
   mini?: MiniHeat;
+  /** ETF flows tile: recent monthly net-flow bars. */
+  miniBars?: MiniBars;
 };
 
 type MiniHeat = {
@@ -56,6 +65,11 @@ type MiniHeat = {
     year: number;
     cells: Array<{ bg: string; title: string; current: boolean }>;
   }>;
+};
+
+type MiniBars = {
+  caption: string;
+  bars: Array<{ key: string; label: string; v: number; title: string }>;
 };
 
 type Category = {
@@ -314,6 +328,36 @@ function seasonalityParser(lead: SeasonAsset) {
   };
 }
 
+/**
+ * Crypto ETF flows — Bitcoin monthly net bars at a glance; detail page has
+ * daily/weekly/monthly/quarterly/yearly for BTC/ETH/SOL/ZCSH.
+ */
+function parseEtfFlows(json: unknown): Omit<TileLive, "status"> | null {
+  const data = json as EtfFlowsPayload;
+  const btc = data?.ok ? data.assets?.btc : undefined;
+  if (!btc || btc.status !== "ok" || !btc.days?.length) return null;
+  const months = recentMonthlyBars(btc.days, 12);
+  if (!months.length) return null;
+  const last = months[months.length - 1]!;
+  const cum = last.cumulativeUsd;
+  return {
+    headline: fmtFlowUsd(last.netFlowUsd),
+    headlineColor: flowColor(last.netFlowUsd),
+    secondary: `${last.label} net · cum ${fmtFlowUsd(cum)} · ${ETF_ASSET_META.btc.label}`,
+    secondaryColor: flowColor(last.netFlowUsd),
+    miniBars: {
+      caption: "Monthly net flows · Bitcoin (US spot ETFs)",
+      bars: months.map((m) => ({
+        key: m.key,
+        label: m.label.split(" ")[0]!.slice(0, 3),
+        v: m.netFlowUsd,
+        title: `${m.label}: ${fmtFlowUsd(m.netFlowUsd)}`,
+      })),
+    },
+    isLive: !btc.snapshot,
+  };
+}
+
 const CATEGORIES: Category[] = [
   {
     id: "sentiment",
@@ -362,6 +406,14 @@ const CATEGORIES: Category[] = [
     id: "crypto-markets",
     label: "Crypto markets",
     tiles: [
+      {
+        id: "etf-flows",
+        href: "/charts/etf-flows",
+        title: "Crypto ETF flows",
+        subtitle: "US spot · BTC · ETH · SOL · ZCSH",
+        endpoint: "/api/etf-flows",
+        parse: parseEtfFlows,
+      },
       {
         id: "market-volume",
         href: "/charts/market-volume",
@@ -483,6 +535,59 @@ function MiniRow({ row }: { row: MiniHeat["rows"][number] }) {
   );
 }
 
+function MiniBarsChart({ bars }: { bars: MiniBars["bars"] }) {
+  if (!bars.length) return null;
+  const maxAbs = Math.max(...bars.map((b) => Math.abs(b.v)), 1);
+  return (
+    <div className="flex h-[140px] flex-col" aria-hidden>
+      <div className="relative flex min-h-0 flex-1 items-stretch gap-[3px] sm:gap-1">
+        <span
+          className="pointer-events-none absolute inset-x-0 top-1/2 h-px bg-border/80"
+          aria-hidden
+        />
+        {bars.map((b) => {
+          const pct = Math.max(3, (Math.abs(b.v) / maxAbs) * 50);
+          const positive = b.v >= 0;
+          return (
+            <div
+              key={b.key}
+              title={b.title}
+              className="relative flex min-w-0 flex-1 flex-col"
+            >
+              <div className="flex h-1/2 items-end justify-center">
+                {positive ? (
+                  <span
+                    className="w-[70%] max-w-[14px] rounded-t-[2px]"
+                    style={{ height: `${pct * 2}%`, background: flowColor(b.v) }}
+                  />
+                ) : null}
+              </div>
+              <div className="flex h-1/2 items-start justify-center">
+                {!positive ? (
+                  <span
+                    className="w-[70%] max-w-[14px] rounded-b-[2px]"
+                    style={{ height: `${pct * 2}%`, background: flowColor(b.v) }}
+                  />
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex gap-[3px] sm:gap-1">
+        {bars.map((b) => (
+          <span
+            key={`l-${b.key}`}
+            className="min-w-0 flex-1 text-center text-[8px] uppercase text-muted"
+          >
+            {b.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChartTile({
   def,
   live,
@@ -578,7 +683,14 @@ function ChartTile({
           {secondary}
         </p>
       )}
-      {live?.mini && status === "ok" ? (
+      {live?.miniBars && status === "ok" ? (
+        <div className="relative mt-3 flex-1">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+            {live.miniBars.caption}
+          </p>
+          <MiniBarsChart bars={live.miniBars.bars} />
+        </div>
+      ) : live?.mini && status === "ok" ? (
         <div className="relative mt-3 flex-1">
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
             {live.mini.caption}
