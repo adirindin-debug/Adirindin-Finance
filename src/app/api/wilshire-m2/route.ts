@@ -4,21 +4,56 @@
  * M2 fallback: GitHub Neo-Solon / eco3min mirrors, then bundled CSV
  * (same pattern as four-year-gains) when live FRED is unreachable.
  * Concept similar to MacroMicro Wilshire/M2 — we do not scrape MacroMicro.
+ * Fast path: in-memory last-good + dated snapshot so Charts hub never hangs ~60s.
  * Educational only — NFA.
  */
 
 import { readFileSync } from "fs";
 import { join } from "path";
+import snapshotJson from "@/data/wilshire-m2-snapshot.json";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 20;
 
 type Obs = { t: number; v: number }; // unix sec, value
 type RatioPoint = { t: number; ratio: number; wilshire: number; m2: number };
 
 /** Soft network budget — fail through to mirrors/bundled before Vercel kills the request. */
-const FRED_TIMEOUT_MS = 20_000;
-const MIRROR_TIMEOUT_MS = 15_000;
+const FRED_TIMEOUT_MS = 8_000;
+const MIRROR_TIMEOUT_MS = 6_000;
+/** Serve last-good while refreshing; avoid ~60s cold hangs on the Charts tile. */
+const FRESH_MS = 6 * 60 * 60 * 1000;
+const STALE_MS = 7 * 24 * 60 * 60 * 1000;
+const LIVE_BUDGET_MS = 12_000;
+
+type WilshirePayload = {
+  ok: true;
+  current: { ratio: number; wilshire: number; m2: number; t: number };
+  points: RatioPoint[];
+  wilshireSource: string;
+  m2Source: string;
+  ratioDefinition: string;
+  fredCredits: string;
+  macroMicroUrl: string;
+  note: string;
+  errors?: string[];
+  asOf: string;
+  snapshot?: boolean;
+  stale?: boolean;
+};
+
+let lastGood: { at: number; body: WilshirePayload } | null = (() => {
+  const snap = snapshotJson as unknown as WilshirePayload;
+  if (snap?.ok && Array.isArray(snap.points) && snap.points.length >= 2) {
+    // Seed so the first Charts-hub hit never waits on cold FRED when the instance is fresh.
+    return {
+      at: 0, // force stale path → return snapshot immediately + background refresh
+      body: { ...snap, snapshot: true },
+    };
+  }
+  return null;
+})();
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -340,96 +375,157 @@ function downsample(points: RatioPoint[], maxPts: number): RatioPoint[] {
 }
 
 export async function GET() {
-  const apiKey = process.env.FRED_API_KEY?.trim() || undefined;
-  const errors: string[] = [];
-  let m2: Obs[] | null = null;
-  let wilshire: Obs[] | null = null;
-  let wilshireSource = "";
-  let m2Source = "";
+  const now = Date.now();
+  if (lastGood && now - lastGood.at < FRESH_MS) {
+    return Response.json(lastGood.body, {
+      headers: {
+        "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=43200",
+        "X-Wilshire-Cache": "memory-fresh",
+      },
+    });
+  }
+
+  // Stale-while-revalidate: return last-good immediately and refresh in background
+  // when we already have usable data (avoids Charts hub tile stuck on Loading).
+  if (lastGood && now - lastGood.at < STALE_MS) {
+    void refreshLive().catch(() => {});
+    return Response.json(
+      { ...lastGood.body, stale: true },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=43200",
+          "X-Wilshire-Cache": "memory-stale",
+        },
+      },
+    );
+  }
 
   try {
-    const loaded = await fetchM2(apiKey);
-    m2 = loaded.obs;
-    m2Source = loaded.origin;
+    const body = await Promise.race([
+      refreshLive(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("live budget exceeded")), LIVE_BUDGET_MS),
+      ),
+    ]);
+    return Response.json(body, {
+      headers: {
+        "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=43200",
+        "X-Wilshire-Cache": "live",
+      },
+    });
   } catch (e) {
-    errors.push(e instanceof Error ? e.message : "M2SL failed");
-  }
-
-  for (const id of ["WILL5000PR", "WILL5000IND"] as const) {
-    try {
-      wilshire = await fetchFredWilshire(id, apiKey);
-      wilshireSource = apiKey
-        ? `FRED API ${id}`
-        : `FRED CSV ${id}`;
-      break;
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : `${id} failed`);
+    if (lastGood) {
+      return Response.json(
+        { ...lastGood.body, stale: true, errors: [e instanceof Error ? e.message : "live failed"] },
+        {
+          headers: {
+            "Cache-Control": "public, s-maxage=60, stale-while-revalidate=43200",
+            "X-Wilshire-Cache": "memory-fallback",
+          },
+        },
+      );
     }
-  }
-
-  if (!wilshire) {
-    try {
-      wilshire = await fetchYahooWilshireMonthly();
-      wilshireSource = "Yahoo Finance ^W5000 (monthly) — Wilshire 5000 fallback";
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : "Yahoo Wilshire failed");
+    const snap = snapshotJson as unknown as WilshirePayload;
+    if (snap?.ok && Array.isArray(snap.points) && snap.points.length >= 2) {
+      return Response.json(
+        {
+          ...snap,
+          snapshot: true,
+          stale: true,
+          note:
+            (snap.note ?? "") +
+            " Serving dated snapshot while live FRED/Yahoo feeds are slow or unreachable.",
+          errors: [e instanceof Error ? e.message : "live failed"],
+        },
+        {
+          headers: {
+            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400",
+            "X-Wilshire-Cache": "snapshot",
+          },
+        },
+      );
     }
-  }
-
-  if (!m2 || !wilshire) {
     return Response.json(
       {
         ok: false,
         error: "Could not load Wilshire and/or M2",
-        errors,
+        errors: [e instanceof Error ? e.message : "live failed"],
       },
       { status: 502 },
     );
   }
+}
 
-  const ratio = buildRatio(wilshire, m2);
+async function refreshLive(): Promise<WilshirePayload> {
+  const apiKey = process.env.FRED_API_KEY?.trim() || undefined;
+  const errors: string[] = [];
+
+  // Parallel: M2 path and Wilshire path (FRED series then Yahoo) — was sequential (~60s).
+  const [m2Result, wilshireResult] = await Promise.all([
+    fetchM2(apiKey).catch((e) => {
+      errors.push(e instanceof Error ? e.message : "M2SL failed");
+      return null;
+    }),
+    (async (): Promise<{ obs: Obs[]; source: string } | null> => {
+      for (const id of ["WILL5000PR", "WILL5000IND"] as const) {
+        try {
+          const obs = await fetchFredWilshire(id, apiKey);
+          return {
+            obs,
+            source: apiKey ? `FRED API ${id}` : `FRED CSV ${id}`,
+          };
+        } catch (e) {
+          errors.push(e instanceof Error ? e.message : `${id} failed`);
+        }
+      }
+      try {
+        const obs = await fetchYahooWilshireMonthly();
+        return {
+          obs,
+          source: "Yahoo Finance ^W5000 (monthly) — Wilshire 5000 fallback",
+        };
+      } catch (e) {
+        errors.push(e instanceof Error ? e.message : "Yahoo Wilshire failed");
+        return null;
+      }
+    })(),
+  ]);
+
+  if (!m2Result || !wilshireResult) {
+    throw new Error(errors.join("; ") || "Could not load Wilshire and/or M2");
+  }
+
+  const ratio = buildRatio(wilshireResult.obs, m2Result.obs);
   if (ratio.length < 2) {
-    return Response.json(
-      {
-        ok: false,
-        error: "Insufficient overlapping Wilshire/M2 months",
-        errors: [
-          ...errors,
-          `overlap=${ratio.length} wilshireMonths=${new Set(wilshire.map((o) => ymKey(o.t))).size} m2Months=${m2.length}`,
-        ],
-      },
-      { status: 502 },
+    throw new Error(
+      `Insufficient overlapping Wilshire/M2 months (overlap=${ratio.length})`,
     );
   }
 
   const points = downsample(ratio, 500);
-  const latest = points[points.length - 1];
+  const latest = points[points.length - 1]!;
 
-  return Response.json(
-    {
-      ok: true,
-      current: {
-        ratio: latest.ratio,
-        wilshire: latest.wilshire,
-        m2: latest.m2,
-        t: latest.t,
-      },
-      points,
-      wilshireSource,
-      m2Source,
-      ratioDefinition:
-        "Ratio = Wilshire 5000 index level ÷ M2SL (FRED, billions USD, seasonally adjusted). Monthly alignment: last Wilshire observation in each M2 month.",
-      fredCredits: "Data via FRED®, Federal Reserve Bank of St. Louis.",
-      macroMicroUrl:
-        "https://en.macromicro.me/collections/34/us-stock-relative/24033/wilshire5000-to-us-m2",
-      note: "Educational valuation framing (concept similar to MacroMicro Wilshire/M2). Not a forecast or financial advice (NFA).",
-      errors: errors.length ? errors : undefined,
-      asOf: new Date().toISOString(),
+  const body: WilshirePayload = {
+    ok: true,
+    current: {
+      ratio: latest.ratio,
+      wilshire: latest.wilshire,
+      m2: latest.m2,
+      t: latest.t,
     },
-    {
-      headers: {
-        "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=43200",
-      },
-    },
-  );
+    points,
+    wilshireSource: wilshireResult.source,
+    m2Source: m2Result.origin,
+    ratioDefinition:
+      "Ratio = Wilshire 5000 index level ÷ M2SL (FRED, billions USD, seasonally adjusted). Monthly alignment: last Wilshire observation in each M2 month.",
+    fredCredits: "Data via FRED®, Federal Reserve Bank of St. Louis.",
+    macroMicroUrl:
+      "https://en.macromicro.me/collections/34/us-stock-relative/24033/wilshire5000-to-us-m2",
+    note: "Educational valuation framing (concept similar to MacroMicro Wilshire/M2). Not a forecast or financial advice (NFA).",
+    errors: errors.length ? errors : undefined,
+    asOf: new Date().toISOString(),
+  };
+
+  lastGood = { at: Date.now(), body };
+  return body;
 }

@@ -1,0 +1,5 @@
+# Adirindin Finance — public research desk (educational / NFA)
+User-agent: *
+Allow: /
+
+Sitemap: https://adirindinfinance.com/sitemap.xml

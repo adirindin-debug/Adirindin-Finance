@@ -52,3 +52,11 @@ body {
   background: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--foreground);
 }
+
+/* Mobile: keep chart desks from blowing out the viewport width */
+html {
+  overflow-x: clip;
+}
+main {
+  overflow-x: clip;
+}

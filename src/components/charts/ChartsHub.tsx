@@ -754,8 +754,12 @@ export function ChartsHub() {
     let cancelled = false;
 
     async function loadTile(def: TileDef) {
+      const ac = new AbortController();
+      // Wilshire/M2 and other cold feeds must not leave the tile on Loading forever.
+      const ms = def.id === "wilshire-m2" ? 20_000 : 35_000;
+      const timer = setTimeout(() => ac.abort(), ms);
       try {
-        const res = await fetch(def.endpoint, { cache: "no-store" });
+        const res = await fetch(def.endpoint, { cache: "no-store", signal: ac.signal });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: unknown = await res.json();
         const parsed = def.parse(json);
@@ -785,6 +789,8 @@ export function ChartsHub() {
             secondary: "Unavailable",
           },
         }));
+      } finally {
+        clearTimeout(timer);
       }
     }
 

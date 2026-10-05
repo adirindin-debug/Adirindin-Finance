@@ -165,7 +165,7 @@ export function PortfolioSummary({
           <div ref={menuRef} className="relative">
             <button
               type="button"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-white hover:border-zinc-700"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-white hover:border-zinc-700 sm:min-h-0 sm:py-1.5"
               aria-haspopup="listbox"
               aria-expanded={menuOpen}
               aria-label={`Display currency: ${displayCurrency}`}
@@ -187,7 +187,7 @@ export function PortfolioSummary({
                   <li key={c} role="option" aria-selected={displayCurrency === c}>
                     <button
                       type="button"
-                      className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition-colors ${
+                      className={`flex min-h-10 w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs transition-colors sm:min-h-0 sm:py-1.5 ${
                         displayCurrency === c
                           ? "bg-emerald-600 text-white"
                           : "text-zinc-300 hover:bg-zinc-900 hover:text-white"

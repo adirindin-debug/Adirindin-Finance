@@ -430,16 +430,16 @@ export function RiskSentimentPanel() {
     });
   }, [picked]);
 
-  const toggleBtn = "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
+  const toggleBtn = "min-h-10 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors sm:min-h-0 sm:py-1.5";
   const toggleOn = "bg-accent text-white shadow-sm";
   const toggleOff = "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
-  const chipBtn = "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors";
+  const chipBtn = "min-h-10 rounded-md px-3 py-2 text-xs font-semibold transition-colors sm:min-h-0 sm:py-1.5";
 
   const curPt = latestScore != null ? arcPoint(latestScore, latestRising) : null;
   const scrubPt = isScrub && pickedScore != null ? arcPoint(pickedScore, rising) : null;
 
   return (
-    <section className="rounded-xl border border-border bg-black p-4 sm:p-6">
+    <section className="rounded-xl border border-border bg-[#0f1419] p-4 sm:p-6">
       {loading && <p className="py-20 text-center text-sm text-muted">Loading risk &amp; sentiment inputs…</p>}
       {!loading && data && !data.ok && (
         <p className="py-16 text-center text-sm text-red-400">

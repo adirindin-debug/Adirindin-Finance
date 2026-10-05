@@ -96,17 +96,25 @@ export function WilshireM2Panel() {
 
   useEffect(() => {
     let cancelled = false;
+    const ac = new AbortController();
+    // Server should answer from memory/snapshot well under this; avoid infinite Loading.
+    const hardStop = setTimeout(() => ac.abort(), 18_000);
     (async () => {
       try {
         // Full monthly history once; window toggles filter client-side.
-        const res = await fetch("/api/wilshire-m2");
+        const res = await fetch("/api/wilshire-m2", { signal: ac.signal });
         const json = (await res.json()) as Payload;
         if (!cancelled) setData(json);
       } catch (e) {
         if (!cancelled) {
           setData({
             ok: false,
-            error: e instanceof Error ? e.message : "Fetch failed",
+            error:
+              e instanceof Error
+                ? e.name === "AbortError"
+                  ? "Timed out loading Wilshire/M2"
+                  : e.message
+                : "Fetch failed",
           });
         }
       } finally {
@@ -115,6 +123,8 @@ export function WilshireM2Panel() {
     })();
     return () => {
       cancelled = true;
+      clearTimeout(hardStop);
+      ac.abort();
     };
   }, []);
 
@@ -226,7 +236,7 @@ export function WilshireM2Panel() {
   const hasWindowPoints = windowedPoints.length >= 2;
 
   const toggleBtn =
-    "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
+    "min-h-10 shrink-0 rounded-md px-2.5 py-2 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs";
   const toggleOn = "bg-accent text-white shadow-sm";
   const toggleOff =
     "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";

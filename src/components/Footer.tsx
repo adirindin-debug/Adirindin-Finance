@@ -39,6 +39,12 @@ export function Footer() {
           <Link href="/disclaimer" className="hover:text-accent">
             Disclaimer
           </Link>
+          <Link href="/privacy" className="hover:text-accent">
+            Privacy
+          </Link>
+          <Link href="/terms" className="hover:text-accent">
+            Terms
+          </Link>
           <a
             href="https://x.com/Dirindin533"
             target="_blank"

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 const nav = [
   { href: "/", label: "Home" },
   { href: "/charts", label: "Charts" },
-  { href: "/cycles", label: "Market cycles" },
+  { href: "/cycles", label: "Market cycles", shortLabel: "Cycles" },
   { href: "/tools", label: "Tools" },
   { href: "/contact", label: "Contact" },
 ];
@@ -40,32 +40,45 @@ export function Header() {
   const path = usePathname();
   return (
     <header className="sticky top-0 z-50 border-b border-border/80 bg-navy/90 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-        <Link href="/" className="flex items-center gap-2">
+      <div className="mx-auto flex max-w-6xl items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
+        <Link href="/" className="flex min-w-0 shrink-0 items-center gap-2">
           {/* Local asset — unavatar.io was 429ing in production */}
           <img
             src="/logo-x.jpg"
             alt="Adirindin Finance"
             width={36}
             height={36}
-            className="h-9 w-9 rounded-md object-cover ring-1 ring-border"
+            className="h-8 w-8 rounded-md object-cover ring-1 ring-border sm:h-9 sm:w-9"
           />
-          <span className="text-sm font-semibold text-foreground">Adirindin Finance</span>
+          <span className="hidden truncate text-sm font-semibold text-foreground min-[400px]:inline">
+            Adirindin Finance
+          </span>
         </Link>
-        <nav className="flex flex-wrap justify-end gap-1 text-sm">
+        <nav
+          className="ml-auto flex max-w-[min(100%,22rem)] flex-nowrap items-center justify-end gap-0.5 overflow-x-auto text-[13px] sm:max-w-none sm:gap-1 sm:text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          aria-label="Primary"
+        >
           {nav.map((n) => {
             const current = isCurrent(path, n.href);
+            const short = "shortLabel" in n ? n.shortLabel : undefined;
             return (
               <Link
                 key={n.href}
                 href={n.href}
                 className={
                   current
-                    ? "rounded-md px-2 py-1.5 text-foreground"
-                    : "rounded-md px-2 py-1.5 text-muted hover:text-foreground"
+                    ? "shrink-0 rounded-md px-1.5 py-2 text-foreground sm:px-2 sm:py-1.5"
+                    : "shrink-0 rounded-md px-1.5 py-2 text-muted hover:text-foreground sm:px-2 sm:py-1.5"
                 }
               >
-                {n.label}
+                {short ? (
+                  <>
+                    <span className="sm:hidden">{short}</span>
+                    <span className="hidden sm:inline">{n.label}</span>
+                  </>
+                ) : (
+                  n.label
+                )}
               </Link>
             );
           })}

@@ -31,6 +31,28 @@ function fmtPct(n: number) {
   return `${sign}${n.toFixed(1)}%`;
 }
 
+/** Stable UTC month+year — avoids Node vs browser `toLocaleDateString` hydration mismatch (#418). */
+function fmtNextHalvingHint(): string {
+  const d = new Date(NEXT_HALVING);
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
+  return `${months[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+const NEXT_HALVING_HINT = fmtNextHalvingHint();
+
 type ApiPayload = {
   ok: boolean;
   btcPrice: number | null;
@@ -53,14 +75,26 @@ async function loadStrip(signal: AbortSignal): Promise<ApiPayload> {
 }
 
 export function MarketStrip() {
+  // Defer Date.now()-based day counts until after mount so SSR HTML matches
+  // the first client render (React error #418 hydration mismatch).
   const [state, setState] = useState<StripState>({
     status: "loading",
     btcPrice: null,
     drawdownPct: null,
     ath: null,
-    daysSinceHalving: daysSinceHalving(),
-    daysUntilNextHalving: daysUntilNextHalving(),
+    daysSinceHalving: null,
+    daysUntilNextHalving: null,
   });
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setState((s) => ({
+      ...s,
+      daysSinceHalving: daysSinceHalving(),
+      daysUntilNextHalving: daysUntilNextHalving(),
+    }));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,6 +157,15 @@ export function MarketStrip() {
         ? "Unavailable"
         : "Loading";
 
+  const daySince =
+    mounted && state.daysSinceHalving != null
+      ? String(state.daysSinceHalving)
+      : "—";
+  const dayUntil =
+    mounted && state.daysUntilNextHalving != null
+      ? String(state.daysUntilNextHalving)
+      : "—";
+
   const cards = [
     {
       label: "BTC-USD",
@@ -149,18 +192,13 @@ export function MarketStrip() {
     },
     {
       label: "Days since halving",
-      value: state.daysSinceHalving != null ? String(state.daysSinceHalving) : "—",
+      value: daySince,
       hint: "Last halving 19 Apr 2024",
     },
     {
       label: "Days to halving",
-      value:
-        state.daysUntilNextHalving != null ? String(state.daysUntilNextHalving) : "—",
-      hint: `Estimated ~${new Date(NEXT_HALVING).toLocaleDateString("en-AU", {
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      })}`,
+      value: dayUntil,
+      hint: `Estimated ~${NEXT_HALVING_HINT}`,
     },
   ];
 

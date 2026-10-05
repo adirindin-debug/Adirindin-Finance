@@ -477,7 +477,7 @@ export function PortfolioShell({ seed }: Props) {
   })();
 
   return (
-    <div className="mx-auto max-w-2xl bg-black px-4 py-8 sm:px-6 sm:py-10">
+    <div className="mx-auto max-w-2xl bg-background px-4 py-8 sm:px-6 sm:py-10">
       <PortfolioSummary
         portfolioName={portfolio.name}
         hasHoldings={showSummary}

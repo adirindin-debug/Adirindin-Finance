@@ -227,12 +227,17 @@ export function MarketVolumePanel() {
     ? `${maWindow}-day MA · USD`
     : "24h total volume · USD";
 
+  const proxyLabel = data?.historySource?.toLowerCase().includes("coinmetrics")
+    ? "CoinMetrics major-asset sum"
+    : data?.historySource?.toLowerCase().includes("defillama")
+      ? "DefiLlama DEX volume"
+      : "labelled public proxy";
   const subtitle = data?.historyIsProxy
-    ? `Public-feed volume as a ${maWindow}-day moving average (fallback source labelled below — not CoinGecko). Compare on The Block for their spot desk series.`
+    ? `${proxyLabel} as a ${maWindow}-day moving average (fallback — not CoinGecko). Compare on The Block for their spot desk series.`
     : `CoinGecko total-market volume as a ${maWindow}-day moving average. Not The Block’s spot exchange desk — compare there for their series.`;
 
   const toggleBtn =
-    "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
+    "min-h-10 shrink-0 rounded-md px-2.5 py-2 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs";
   const toggleOn = "bg-accent text-white shadow-sm";
   const toggleOff =
     "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
@@ -444,18 +449,15 @@ export function MarketVolumePanel() {
         )}
         <p>
           {data?.disclaimer ??
-            `CoinGecko total-market volume as a ${maWindow}-day moving average. Compare on The Block for their spot desk series.`}{" "}
-          Prefer{" "}
-          <a
-            href="https://www.coingecko.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent hover:underline"
-          >
-            CoinGecko
-          </a>{" "}
-          as the labelled market-volume source when the primary feed is up; The Block
-          link is for comparison only (we do not scrape The Block). Educational only — NFA.
+            (data?.historyIsProxy
+              ? `Public-feed volume proxy as a ${maWindow}-day moving average (source labelled above — not CoinGecko when a fallback is in use). Compare on The Block for their spot desk series.`
+              : `CoinGecko total-market volume as a ${maWindow}-day moving average. Compare on The Block for their spot desk series.`)}{" "}
+          Attribution follows the live series above
+          {data?.historyIsProxy
+            ? " (currently a labelled fallback such as CoinMetrics, not CoinGecko)"
+            : " (CoinGecko when that feed is available)"}
+          . The Block link is for comparison only (we do not scrape The Block). Educational
+          only — NFA.
         </p>
       </div>
     </section>

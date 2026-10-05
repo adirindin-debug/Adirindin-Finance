@@ -644,7 +644,7 @@ export function BtcFourYearChart() {
   }, []);
 
   const toggleBtn =
-    "rounded-md px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors";
+    "min-h-10 shrink-0 rounded-md px-2.5 py-2 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs";
   const toggleOn = "bg-accent text-white shadow-sm";
   const toggleOff =
     "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";

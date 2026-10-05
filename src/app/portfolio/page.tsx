@@ -25,7 +25,7 @@ export default function PortfolioPage() {
   const seed = loadSeed();
 
   return (
-    <div className="min-h-full bg-black">
+    <div className="min-h-full bg-background">
       <PortfolioShell seed={seed} />
     </div>
   );
