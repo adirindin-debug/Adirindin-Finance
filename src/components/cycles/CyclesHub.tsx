@@ -14,6 +14,10 @@ import {
   RE_SILHOUETTE,
   reLiveSilhouette,
 } from "@/lib/cycles/reSilhouette";
+import {
+  GOLD_SILHOUETTE,
+  goldLiveSilhouette,
+} from "@/lib/cycles/goldSilhouette";
 
 type CycleTile = {
   id: string;
@@ -56,6 +60,16 @@ const TILES: CycleTile[] = [
     viewBox: BOND_SILHOUETTE.viewBox,
     color: BOND_SILHOUETTE.color,
     live: bondLiveSilhouette,
+  },
+  {
+    id: "gold",
+    href: "/tools/gold-cycle",
+    title: "Gold · commodities",
+    blurb: "Anthony ~46y gold-led sketch · observational",
+    path: GOLD_SILHOUETTE.path,
+    viewBox: GOLD_SILHOUETTE.viewBox,
+    color: GOLD_SILHOUETTE.color,
+    live: goldLiveSilhouette,
   },
 ];
 

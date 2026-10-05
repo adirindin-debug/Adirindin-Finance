@@ -11,7 +11,7 @@ const nav = [
 ];
 
 /** Cycle desks that live under /tools/ but belong to Market cycles in the nav. */
-const CYCLE_TOOL_PATHS = ["/tools/real-estate-cycle", "/tools/bond-cycle"];
+const CYCLE_TOOL_PATHS = ["/tools/real-estate-cycle", "/tools/bond-cycle", "/tools/gold-cycle"];
 
 function isCurrent(path: string, href: string): boolean {
   if (href === "/") return path === "/";
@@ -30,7 +30,9 @@ function isCurrent(path: string, href: string): boolean {
       path === "/tools/real-estate-cycle" ||
       path.startsWith("/tools/real-estate-cycle/") ||
       path === "/tools/bond-cycle" ||
-      path.startsWith("/tools/bond-cycle/")
+      path.startsWith("/tools/bond-cycle/") ||
+      path === "/tools/gold-cycle" ||
+      path.startsWith("/tools/gold-cycle/")
     );
   }
   return path === href || path.startsWith(`${href}/`);
