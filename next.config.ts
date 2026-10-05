@@ -16,11 +16,7 @@ const nextConfig: NextConfig = {
         destination: "/dashboard/btc-cycle",
         permanent: true,
       },
-      {
-        source: "/cycles",
-        destination: "/dashboard",
-        permanent: true,
-      },
+      // /cycles is the Market cycles hub (do not redirect)
       {
         source: "/btc-cycle",
         destination: "/dashboard/btc-cycle",
