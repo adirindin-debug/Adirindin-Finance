@@ -16,11 +16,13 @@ import {
   type EqPayload,
 } from "@/lib/globalEquities";
 import {
+  ASSET_DEF,
   MONTH_LABELS,
   cellKey,
   currentMonthOdds,
   fmtRet,
   tileBg,
+  type SeasonAsset,
   type SeasonPayload,
 } from "@/lib/seasonality";
 
@@ -268,35 +270,41 @@ function parseGlobalEquities(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
-/** Monthly returns heatmap — current month's green odds (BTC + S&P 500) and a mini BTC grid. */
-function parseSeasonality(json: unknown): Omit<TileLive, "status"> | null {
-  const data = json as SeasonPayload;
-  if (!data?.ok || !data.assets?.btc?.months?.length || !data.assets?.spx?.months?.length) return null;
-  const btc = currentMonthOdds(data.assets.btc);
-  const spx = currentMonthOdds(data.assets.spx);
-  if (btc.stat.pctGreen == null) return null;
-  const pct = Math.round(btc.stat.pctGreen);
-  const color = pct >= 50 ? "#3dcc9a" : "#ef6b6b";
-  const years = btc.grid.years.slice(0, 5);
-  const rows = years.map((year) => ({
-    year,
-    cells: MONTH_LABELS.map((m, col) => {
-      const c = btc.grid.cells.get(cellKey(year, col));
-      const ret = c && (c.ret != null || c.inProgress) ? c.ret : null;
-      return {
-        bg: c && ret != null ? tileBg("btc", "monthly", ret) : "rgba(255,255,255,0.03)",
-        title: c && ret != null ? `${m} ${year}: ${fmtRet(ret)}${c.inProgress ? " (in progress)" : ""}` : `${m} ${year}`,
-        current: Boolean(c?.inProgress) || (year === btc.grid.current?.year && col === btc.grid.current.col),
-      };
-    }),
-  }));
-  const spxPct = spx.stat.pctGreen == null ? "—" : `${Math.round(spx.stat.pctGreen)}%`;
-  return {
-    headline: `${pct}% green`,
-    headlineColor: color,
-    secondary: `BTC ${btc.monthName}s: ${btc.stat.green} of ${btc.stat.n} closed higher · S&P 500 ${spx.monthName}s: ${spxPct} (${spx.stat.green} of ${spx.stat.n}) · history, not a forecast`,
-    mini: { caption: "BTC monthly returns · last 5 years", cols: MONTH_LABELS, rows },
-    isLive: !data.assets.btc.snapshot,
+/**
+ * Seasonality cards — one per market, led by its headline asset (Bitcoin for
+ * crypto, MSCI World for equities): this month's average past return, its green
+ * odds, and a mini year × month grid.
+ */
+function seasonalityParser(lead: SeasonAsset) {
+  return (json: unknown): Omit<TileLive, "status"> | null => {
+    const data = json as SeasonPayload;
+    const series = data?.ok ? data.assets?.[lead] : undefined;
+    if (!series?.months?.length) return null;
+    const odds = currentMonthOdds(series);
+    if (odds.stat.avg == null || odds.stat.pctGreen == null) return null;
+    const short = odds.monthName.slice(0, 3);
+    const label = ASSET_DEF[lead].label;
+    const years = odds.grid.years.slice(0, 5);
+    const rows = years.map((year) => ({
+      year,
+      cells: MONTH_LABELS.map((m, col) => {
+        const c = odds.grid.cells.get(cellKey(year, col));
+        const ret = c && (c.ret != null || c.inProgress) ? c.ret : null;
+        return {
+          bg: c && ret != null ? tileBg(lead, "monthly", ret) : "rgba(255,255,255,0.03)",
+          title: c && ret != null ? `${m} ${year}: ${fmtRet(ret)}${c.inProgress ? " (in progress)" : ""}` : `${m} ${year}`,
+          current: Boolean(c?.inProgress) || (year === odds.grid.current?.year && col === odds.grid.current.col),
+        };
+      }),
+    }));
+    const soFar = odds.live?.ret != null ? ` · ${short} ${odds.grid.current?.year} so far ${fmtRet(odds.live.ret)}` : "";
+    return {
+      headline: `${fmtRet(odds.stat.avg)} avg ${short}`,
+      headlineColor: odds.stat.avg >= 0 ? "#3dcc9a" : "#ef6b6b",
+      secondary: `${label} ${odds.monthName}s: ${odds.stat.green} of ${odds.stat.n} green (${Math.round(odds.stat.pctGreen)}%)${soFar} · history, not a forecast`,
+      mini: { caption: `${label} monthly returns · last 5 years`, cols: MONTH_LABELS, rows },
+      isLive: !series.snapshot,
+    };
   };
 }
 
@@ -382,12 +390,20 @@ const CATEGORIES: Category[] = [
     label: "Seasonality",
     tiles: [
       {
-        id: "seasonality",
-        href: "/charts/seasonality",
-        title: "Monthly & quarterly returns",
-        subtitle: "BTC · S&P 500 · year × month heatmap",
-        endpoint: "/api/seasonality",
-        parse: parseSeasonality,
+        id: "seasonality-crypto",
+        href: "/charts/seasonality/crypto",
+        title: "Crypto seasonality",
+        subtitle: "Bitcoin · monthly & quarterly returns",
+        endpoint: "/api/seasonality?market=crypto",
+        parse: seasonalityParser("btc"),
+      },
+      {
+        id: "seasonality-equities",
+        href: "/charts/seasonality/equities",
+        title: "Equities seasonality",
+        subtitle: "MSCI World · monthly & quarterly returns",
+        endpoint: "/api/seasonality?market=equities",
+        parse: seasonalityParser("msci"),
       },
     ],
   },

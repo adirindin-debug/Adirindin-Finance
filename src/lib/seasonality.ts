@@ -11,7 +11,81 @@
  * History only — not a forecast. NFA.
  */
 
-export type SeasonAsset = "btc" | "spx";
+/**
+ * Asset registry. To add an asset: add its key here, a SEASON_ASSETS entry, and
+ * its history to src/data/seasonality-snapshot.json — the API, toggles, grid and
+ * hub card pick it up from this list.
+ */
+export type SeasonAsset = "btc" | "eth" | "msci" | "spx";
+export type SeasonMarket = "crypto" | "equities";
+
+export type SeasonAssetDef = {
+  key: SeasonAsset;
+  market: SeasonMarket;
+  /** Toggle / title label. */
+  label: string;
+  /** Yahoo Finance symbol for the live feed. */
+  yahoo: string;
+  /** Market clock: UTC days (crypto) or New York trading days. */
+  clock: "utc" | "ny";
+  /** How closes print in hover cards. */
+  closeFmt: "usd" | "pts";
+  /** Tile shade caps: a move this big (in %) gets the strongest colour. */
+  cap: { monthly: number; quarterly: number };
+  /** Source note under the grid. */
+  source: string;
+};
+
+export const SEASON_ASSETS: SeasonAssetDef[] = [
+  {
+    key: "btc",
+    market: "crypto",
+    label: "Bitcoin",
+    yahoo: "BTC-USD",
+    clock: "utc",
+    closeFmt: "usd",
+    cap: { monthly: 40, quarterly: 80 },
+    source:
+      "Source: Yahoo Finance BTC-USD daily close (UTC) from 17 Sep 2014; Dec 2012 – 16 Sep 2014 use the blockchain.com average USD market price across major exchanges (a daily average, not a close). Earlier, thinly traded years are not shown. Recent-month fallback: Coinbase Exchange.",
+  },
+  {
+    key: "eth",
+    market: "crypto",
+    label: "Ethereum",
+    yahoo: "ETH-USD",
+    clock: "utc",
+    closeFmt: "usd",
+    cap: { monthly: 50, quarterly: 100 },
+    source: "Source: Yahoo Finance ETH-USD daily close (UTC), from 9 Nov 2017 (the start of Yahoo's history).",
+  },
+  {
+    key: "msci",
+    market: "equities",
+    label: "MSCI World",
+    yahoo: "URTH",
+    clock: "ny",
+    closeFmt: "usd",
+    cap: { monthly: 8, quarterly: 16 },
+    source:
+      "Source: Yahoo Finance URTH daily close — the iShares MSCI World ETF, used as a stand-in because MSCI index data can't be republished. Price only (distributions excluded, after ETF fees), so it runs slightly under the index's total return. URTH history starts Jan 2012.",
+  },
+  {
+    key: "spx",
+    market: "equities",
+    label: "S&P 500",
+    yahoo: "^GSPC",
+    clock: "ny",
+    closeFmt: "pts",
+    cap: { monthly: 8, quarterly: 16 },
+    source:
+      "Source: Yahoo Finance ^GSPC daily close — the S&P 500 price index, excluding dividends, so total returns were higher. Shown from 1950 (base: Dec 1949 close); before March 1957 the series is S&P's 90-stock predecessor index.",
+  },
+];
+
+export const ASSET_DEF = Object.fromEntries(SEASON_ASSETS.map((a) => [a.key, a])) as Record<SeasonAsset, SeasonAssetDef>;
+export const MARKET_ASSETS = (m: SeasonMarket) => SEASON_ASSETS.filter((a) => a.market === m);
+export const isMarket = (m: unknown): m is SeasonMarket => m === "crypto" || m === "equities";
+export const MARKET_LABEL: Record<SeasonMarket, string> = { crypto: "Crypto", equities: "Equities" };
 export type SeasonPeriod = "monthly" | "quarterly";
 
 /** [period key YYYY-MM, last trading date YYYY-MM-DD, close]. */
@@ -23,7 +97,7 @@ export type SeasonSeries = {
   firstDate: string;
   /** Latest daily close in the series. */
   lastDate: string;
-  /** Calendar month "now" in the asset's market clock (UTC for BTC, New York for the S&P 500). */
+  /** Calendar month "now" in the asset's market clock (UTC for crypto, New York for equities). */
   currentMonth: string;
   /** BTC only: first date taken from Yahoo; earlier closes are blockchain.com daily averages. */
   yahooFrom?: string;
@@ -36,7 +110,9 @@ export type SeasonPayload = {
   updatedAt: string;
   snapshot?: boolean;
   snapshotAsOf?: string;
-  assets: Record<SeasonAsset, SeasonSeries>;
+  market?: SeasonMarket;
+  /** Only the requested market's assets are included. */
+  assets: Partial<Record<SeasonAsset, SeasonSeries>>;
   error?: string;
 };
 
@@ -50,7 +126,7 @@ export const MONTH_NAMES = [
 ];
 export const QUARTER_LABELS = ["Q1", "Q2", "Q3", "Q4"];
 
-export const ASSET_LABEL: Record<SeasonAsset, string> = { btc: "BTC", spx: "S&P 500" };
+export const ASSET_LABEL = Object.fromEntries(SEASON_ASSETS.map((a) => [a.key, a.label])) as Record<SeasonAsset, string>;
 
 export type SeasonCell = {
   year: number;
@@ -220,7 +296,7 @@ export function fmtRet(r: number | null | undefined, dp = 1): string {
 
 export function fmtClose(asset: SeasonAsset, v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  if (asset === "btc") {
+  if (ASSET_DEF[asset].closeFmt === "usd") {
     return `US$${v.toLocaleString("en-AU", {
       minimumFractionDigits: v < 1000 ? 2 : 0,
       maximumFractionDigits: v < 1000 ? 2 : 0,
@@ -240,7 +316,7 @@ export const GREEN_RGB = "61,204,154";
 export const RED_RGB = "239,107,107";
 export function tileBg(asset: SeasonAsset, period: SeasonPeriod, r: number | null): string {
   if (r == null || !Number.isFinite(r)) return "rgba(255,255,255,0.03)";
-  const cap = asset === "btc" ? (period === "monthly" ? 40 : 80) : period === "monthly" ? 8 : 16;
+  const cap = ASSET_DEF[asset].cap[period];
   const k = Math.min(Math.abs(r) / cap, 1);
   const a = 0.16 + 0.64 * Math.sqrt(k);
   return `rgba(${r >= 0 ? GREEN_RGB : RED_RGB},${a.toFixed(3)})`;

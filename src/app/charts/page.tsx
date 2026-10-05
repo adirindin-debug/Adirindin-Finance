@@ -4,7 +4,7 @@ import { ChartsHub } from "@/components/charts/ChartsHub";
 export const metadata: Metadata = {
   title: "Charts",
   description:
-    "Live tiled dashboard of Fear & Greed, crypto Fear & Greed, market volume, Bitcoin 200-week MA, Wilshire 5000 / US M2, the Philly Fed manufacturing survey, a global equities sentiment state, and a monthly / quarterly returns heatmap for BTC and the S&P 500 — educational charts for Adirindin Finance (NFA).",
+    "Live tiled dashboard of Fear & Greed, crypto Fear & Greed, market volume, Bitcoin 200-week MA, Wilshire 5000 / US M2, the Philly Fed manufacturing survey, a global equities sentiment state, and monthly / quarterly returns heatmaps for crypto (Bitcoin) and equities (MSCI World, S&P 500) — educational charts for Adirindin Finance (NFA).",
 };
 
 export default function ChartsPage() {

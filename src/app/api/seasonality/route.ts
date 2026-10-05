@@ -6,8 +6,14 @@
  * public series /api/btc-history splices in), frozen in the dated snapshot.
  * Thinner 2010–2012 markets are not used. Fallback for recent BTC months:
  * Coinbase Exchange daily candles.
+ * ETH: Yahoo ETH-USD daily closes (UTC) from Nov 2017.
+ * MSCI World: Yahoo URTH (iShares MSCI World ETF) daily closes from Jan 2012 — a
+ * stand-in, as MSCI index data can't be republished. Price only.
  * S&P 500: Yahoo Finance ^GSPC daily closes from Dec 1949 — the price index only,
  * no dividends.
+ *
+ * ?market=crypto | equities returns that market's assets (default crypto). The
+ * asset list comes from SEASON_ASSETS in src/lib/seasonality.ts.
  *
  * One record per calendar month: [YYYY-MM, last trading date, close]. History
  * before the snapshot's last month never changes, so the route fetches only the
@@ -17,7 +23,15 @@
  */
 
 import snapshot from "@/data/seasonality-snapshot.json";
-import type { MonthClose, SeasonAsset, SeasonPayload, SeasonSeries } from "@/lib/seasonality";
+import {
+  ASSET_DEF,
+  MARKET_ASSETS,
+  isMarket,
+  type MonthClose,
+  type SeasonAsset,
+  type SeasonPayload,
+  type SeasonSeries,
+} from "@/lib/seasonality";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +42,7 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 type SnapAsset = { firstDate: string; lastDate: string; yahooFrom?: string; months: MonthClose[] };
-type Snapshot = { asOf: string; btc: SnapAsset; spx: SnapAsset };
+type Snapshot = { asOf: string } & Record<SeasonAsset, SnapAsset>;
 const SNAP = snapshot as unknown as Snapshot;
 
 const lastGood: Partial<Record<SeasonAsset, SeasonSeries>> = {};
@@ -120,10 +134,11 @@ function splice(snap: SnapAsset, live: Daily): MonthClose[] {
 async function buildAsset(asset: SeasonAsset, warnings: string[]): Promise<SeasonSeries> {
   const snap = SNAP[asset];
   const p1 = liveStart(snap);
-  const currentMonth = asset === "btc" ? monthKeyIn("UTC") : monthKeyIn("America/New_York");
+  const def = ASSET_DEF[asset];
+  const currentMonth = def.clock === "utc" ? monthKeyIn("UTC") : monthKeyIn("America/New_York");
   let live: Daily | null = null;
   try {
-    live = await yahooDaily(asset === "btc" ? "BTC-USD" : "^GSPC", p1, asset === "spx");
+    live = await yahooDaily(def.yahoo, p1, def.clock === "ny");
   } catch (e) {
     warnings.push(e instanceof Error ? e.message : String(e));
     if (asset === "btc") {
@@ -158,15 +173,23 @@ async function buildAsset(asset: SeasonAsset, warnings: string[]): Promise<Seaso
   };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const q = new URL(req.url).searchParams.get("market");
+  const market = isMarket(q) ? q : "crypto";
+  const keys = MARKET_ASSETS(market).map((a) => a.key);
   const warnings: string[] = [];
-  const [btc, spx] = await Promise.all([buildAsset("btc", warnings), buildAsset("spx", warnings)]);
-  const anySnap = Boolean(btc.snapshot || spx.snapshot);
+  const built = await Promise.all(keys.map((k) => buildAsset(k, warnings)));
+  const assets: SeasonPayload["assets"] = {};
+  keys.forEach((k, i) => {
+    assets[k] = built[i];
+  });
+  const anySnap = built.some((b) => b.snapshot);
   const body: SeasonPayload & { warnings?: string[] } = {
     ok: true,
     updatedAt: new Date().toISOString(),
+    market,
     ...(anySnap ? { snapshot: true, snapshotAsOf: SNAP.asOf } : {}),
-    assets: { btc, spx },
+    assets,
     ...(warnings.length ? { warnings } : {}),
   };
   return Response.json(body, {

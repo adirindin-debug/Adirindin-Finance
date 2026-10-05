@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ASSET_DEF,
   ASSET_LABEL,
+  MARKET_ASSETS,
   SEASON_FOOTER,
   buildGrid,
   cellKey,
@@ -13,14 +15,11 @@ import {
   tileBg,
   type SeasonAsset,
   type SeasonCell,
+  type SeasonMarket,
   type SeasonPayload,
   type SeasonPeriod,
 } from "@/lib/seasonality";
 
-const ASSETS: Array<{ key: SeasonAsset; label: string }> = [
-  { key: "btc", label: "BTC" },
-  { key: "spx", label: "S&P 500" },
-];
 const PERIODS: Array<{ key: SeasonPeriod; label: string }> = [
   { key: "monthly", label: "Monthly" },
   { key: "quarterly", label: "Quarterly" },
@@ -32,17 +31,19 @@ const toggleOff = "bg-transparent text-foreground/70 hover:bg-white/5 hover:text
 
 type Hover = { cell: SeasonCell; x: number; y: number; below: boolean };
 
-export function SeasonalityPanel() {
+export function SeasonalityPanel({ market }: { market: SeasonMarket }) {
+  // Asset toggle comes straight from the registry: add an asset there and it appears here.
+  const assets = MARKET_ASSETS(market);
   const [data, setData] = useState<SeasonPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [asset, setAsset] = useState<SeasonAsset>("btc");
+  const [asset, setAsset] = useState<SeasonAsset>(assets[0]!.key);
   const [period, setPeriod] = useState<SeasonPeriod>("monthly");
   const [hover, setHover] = useState<Hover | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/seasonality", { cache: "no-store" })
+    fetch(`/api/seasonality?market=${market}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
       .then((j: SeasonPayload) => {
         if (cancelled) return;
@@ -55,7 +56,7 @@ export function SeasonalityPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [market]);
 
   const series = data?.assets[asset];
   const grid = useMemo(() => (series ? buildGrid(series, period) : null), [series, period]);
@@ -88,7 +89,8 @@ export function SeasonalityPanel() {
       : `Q${grid.current.col + 1}`
     : "";
   const unit = period === "monthly" ? "month" : "quarter";
-  const tz = asset === "btc" ? "UTC days" : "New York trading days";
+  const def = ASSET_DEF[asset];
+  const tz = def.clock === "utc" ? "UTC days" : "New York trading days";
 
   return (
     <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
@@ -97,7 +99,7 @@ export function SeasonalityPanel() {
           {period === "monthly" ? "Monthly" : "Quarterly"} returns · {ASSET_LABEL[asset]}
         </h2>
         <div className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Asset">
-          {ASSETS.map((a) => (
+          {assets.map((a) => (
             <button
               key={a.key}
               type="button"
@@ -182,72 +184,6 @@ export function SeasonalityPanel() {
                 </tr>
               </thead>
               <tbody>
-                {grid.years.map((y) => (
-                  <tr key={y}>
-                    <th
-                      scope="row"
-                      className="sticky left-0 z-10 bg-card px-1 text-left font-mono text-[11px] font-semibold text-foreground/85 sm:text-xs"
-                    >
-                      {y}
-                    </th>
-                    {grid.cols.map((_, col) => {
-                      const cell = grid.cells.get(cellKey(y, col));
-                      const isCur = grid.current?.year === y && grid.current.col === col;
-                      if (!cell || (cell.ret == null && !cell.inProgress)) {
-                        return (
-                          <td
-                            key={col}
-                            className="h-8 rounded-[5px] text-foreground/20"
-                            style={{
-                              background: "rgba(255,255,255,0.02)",
-                              outline: isCur ? "1.5px dashed rgba(232,238,247,0.55)" : undefined,
-                              outlineOffset: isCur ? "-1.5px" : undefined,
-                            }}
-                            title={isCur ? "In progress · no close yet" : undefined}
-                          >
-                            {isCur ? "·" : ""}
-                          </td>
-                        );
-                      }
-                      return (
-                        <td
-                          key={col}
-                          tabIndex={0}
-                          className="relative h-8 min-w-[52px] cursor-default rounded-[5px] px-1 font-semibold text-[#f3f6fb] outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                          style={{
-                            background: tileBg(asset, period, cell.ret),
-                            outline: cell.inProgress ? "1.5px dashed rgba(232,238,247,0.9)" : undefined,
-                            outlineOffset: cell.inProgress ? "-1.5px" : undefined,
-                          }}
-                          aria-label={`${cell.label}: ${fmtRet(cell.ret)}${cell.inProgress ? " (in progress)" : ""}`}
-                          onMouseEnter={(e) => showTip(cell, e.currentTarget)}
-                          onMouseLeave={() => setHover(null)}
-                          onFocus={(e) => showTip(cell, e.currentTarget)}
-                          onBlur={() => setHover(null)}
-                          onClick={(e) => showTip(cell, e.currentTarget)}
-                        >
-                          {fmtRet(cell.ret)}
-                          {cell.inProgress ? (
-                            <span
-                              aria-hidden
-                              className="absolute right-1 top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-[#e8eef7]"
-                            />
-                          ) : null}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colSpan={grid.cols.length + 1} className="pt-3">
-                    <div className="sticky left-0 w-fit text-left font-sans text-[11px] text-muted">
-                      <span className="font-semibold uppercase tracking-wide text-foreground/80">History, not a prediction</span>{" "}
-                      · completed years only ({coverageLabel(grid)}); the {unit} in progress is excluded.
-                    </div>
-                  </td>
-                </tr>
                 <tr>
                   <th
                     scope="row"
@@ -311,7 +247,73 @@ export function SeasonalityPanel() {
                     </td>
                   ))}
                 </tr>
-              </tfoot>
+                <tr>
+                  <td colSpan={grid.cols.length + 1} className="pb-1 pt-2">
+                    <div className="sticky left-0 w-fit max-w-[calc(100vw-4.5rem)] text-left font-sans text-[11px] text-muted sm:max-w-none">
+                      <span className="font-semibold uppercase tracking-wide text-foreground/80">History, not a prediction</span>{" "}
+                      · odds and averages from completed years only ({coverageLabel(grid)}); the {unit} in progress is excluded. Yearly tiles below.
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+              <tbody>
+                {grid.years.map((y) => (
+                  <tr key={y}>
+                    <th
+                      scope="row"
+                      className="sticky left-0 z-10 bg-card px-1 text-left font-mono text-[11px] font-semibold text-foreground/85 sm:text-xs"
+                    >
+                      {y}
+                    </th>
+                    {grid.cols.map((_, col) => {
+                      const cell = grid.cells.get(cellKey(y, col));
+                      const isCur = grid.current?.year === y && grid.current.col === col;
+                      if (!cell || (cell.ret == null && !cell.inProgress)) {
+                        return (
+                          <td
+                            key={col}
+                            className="h-8 rounded-[5px] text-foreground/20"
+                            style={{
+                              background: "rgba(255,255,255,0.02)",
+                              outline: isCur ? "1.5px dashed rgba(232,238,247,0.55)" : undefined,
+                              outlineOffset: isCur ? "-1.5px" : undefined,
+                            }}
+                            title={isCur ? "In progress · no close yet" : undefined}
+                          >
+                            {isCur ? "·" : ""}
+                          </td>
+                        );
+                      }
+                      return (
+                        <td
+                          key={col}
+                          tabIndex={0}
+                          className="relative h-8 min-w-[52px] cursor-default rounded-[5px] px-1 font-semibold text-[#f3f6fb] outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          style={{
+                            background: tileBg(asset, period, cell.ret),
+                            outline: cell.inProgress ? "1.5px dashed rgba(232,238,247,0.9)" : undefined,
+                            outlineOffset: cell.inProgress ? "-1.5px" : undefined,
+                          }}
+                          aria-label={`${cell.label}: ${fmtRet(cell.ret)}${cell.inProgress ? " (in progress)" : ""}`}
+                          onMouseEnter={(e) => showTip(cell, e.currentTarget)}
+                          onMouseLeave={() => setHover(null)}
+                          onFocus={(e) => showTip(cell, e.currentTarget)}
+                          onBlur={() => setHover(null)}
+                          onClick={(e) => showTip(cell, e.currentTarget)}
+                        >
+                          {fmtRet(cell.ret)}
+                          {cell.inProgress ? (
+                            <span
+                              aria-hidden
+                              className="absolute right-1 top-1 h-1.5 w-1.5 animate-pulse rounded-full bg-[#e8eef7]"
+                            />
+                          ) : null}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         )}
@@ -376,19 +378,7 @@ export function SeasonalityPanel() {
           trading day ({tz}). Odds = share of completed years in which that {unit} closed higher; averages and medians are
           simple, unweighted. Hover or tap a tile for the exact dates and closes.
         </p>
-        {asset === "btc" ? (
-          <p>
-            Source: Yahoo Finance BTC-USD daily close (UTC) from 17 Sep 2014; Dec 2012 – 16 Sep 2014 use the
-            blockchain.com average USD market price across major exchanges (a daily average, not a close). Earlier,
-            thinly traded years are not shown. Recent-month fallback: Coinbase Exchange.
-          </p>
-        ) : (
-          <p>
-            Source: Yahoo Finance ^GSPC daily close — the S&amp;P 500 price index, excluding dividends, so total returns were
-            higher. Shown from 1950 (base: Dec 1949 close); before March 1957 the series is S&amp;P&apos;s 90-stock
-            predecessor index.
-          </p>
-        )}
+        <p>{def.source}</p>
         <p>
           Data to {series ? fmtDate(series.lastDate) : "—"}
           {series?.snapshot && data?.snapshotAsOf ? ` · dated snapshot (${fmtDate(data.snapshotAsOf)})` : ""}. Updates
