@@ -540,7 +540,7 @@ export function GlobalEquitiesPanel() {
                   <rect x={PAD_L} y={TOP.y} width={W - PAD_L - PAD_R} height={TOP.h} />
                 </clipPath>
               </defs>
-              <rect x={0} y={0} width={W} height={H} fill="#000" />
+              <rect x={0} y={0} width={W} height={H} fill="#0f1419" />
               {/* Top pane */}
               {chart.pTicks.map((v) => (
                 <g key={`pt${v}`}>

@@ -22,6 +22,9 @@ type Payload = {
   note?: string;
   error?: string;
   errors?: string[];
+  asOf?: string;
+  snapshot?: boolean;
+  stale?: boolean;
 };
 
 type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
@@ -96,34 +99,48 @@ export function WilshireM2Panel() {
 
   useEffect(() => {
     let cancelled = false;
+    let softTimer: ReturnType<typeof setTimeout> | null = null;
     const ac = new AbortController();
     // Server should answer from memory/snapshot well under this; avoid infinite Loading.
     const hardStop = setTimeout(() => ac.abort(), 18_000);
-    (async () => {
+
+    async function load(signal: AbortSignal, soft: boolean) {
       try {
         // Full monthly history once; window toggles filter client-side.
-        const res = await fetch("/api/wilshire-m2", { signal: ac.signal });
+        const res = await fetch("/api/wilshire-m2", { signal });
         const json = (await res.json()) as Payload;
-        if (!cancelled) setData(json);
-      } catch (e) {
-        if (!cancelled) {
-          setData({
-            ok: false,
-            error:
-              e instanceof Error
-                ? e.name === "AbortError"
-                  ? "Timed out loading Wilshire/M2"
-                  : e.message
-                : "Fetch failed",
-          });
+        if (cancelled) return;
+        setData(json);
+        // Soft re-poll once after serving a snapshot/stale body so a background
+        // refresh on the server can land without another page reload.
+        if (!soft && json.ok && (json.snapshot || json.stale)) {
+          softTimer = setTimeout(() => {
+            if (cancelled) return;
+            const softAc = new AbortController();
+            void load(softAc.signal, true);
+          }, 4_000);
         }
+      } catch (e) {
+        if (cancelled || soft) return;
+        setData({
+          ok: false,
+          error:
+            e instanceof Error
+              ? e.name === "AbortError"
+                ? "Timed out loading Wilshire/M2"
+                : e.message
+              : "Fetch failed",
+        });
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled && !soft) setLoading(false);
       }
-    })();
+    }
+
+    void load(ac.signal, false);
     return () => {
       cancelled = true;
       clearTimeout(hardStop);
+      if (softTimer) clearTimeout(softTimer);
       ac.abort();
     };
   }, []);
@@ -297,6 +314,30 @@ export function WilshireM2Panel() {
           </div>
         )}
       </div>
+
+      {(data?.ok && (data.snapshot || data.stale)) && (
+        <p
+          className="mt-3 rounded-md border border-border/70 bg-[#121820] px-3 py-2 text-[11px] leading-relaxed text-muted sm:text-xs"
+          role="status"
+        >
+          {data.snapshot
+            ? "Showing dated snapshot while live FRED/Yahoo refresh in the background."
+            : "Showing last-good cache · refreshing live FRED/Yahoo in the background."}
+          {data.asOf ? (
+            <>
+              {" "}
+              Cached as of{" "}
+              <span className="font-mono text-foreground/80">
+                {new Date(data.asOf).toLocaleString("en-AU", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </span>
+              .
+            </>
+          ) : null}
+        </p>
+      )}
 
       <div className="mt-3 overflow-x-auto">
         {loading && (

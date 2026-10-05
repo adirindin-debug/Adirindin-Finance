@@ -286,7 +286,7 @@ export function FactoryMonitorPanel() {
               onPointerDown={onMove}
               onPointerLeave={() => setHover(null)}
             >
-              <rect x={0} y={0} width={W} height={H} fill="#000" />
+              <rect x={0} y={0} width={W} height={H} fill="#0f1419" />
               {chart.bands.map((b) => (
                 <rect
                   key={b.key}

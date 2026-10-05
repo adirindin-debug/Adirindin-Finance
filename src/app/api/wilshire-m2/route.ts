@@ -461,32 +461,49 @@ async function refreshLive(): Promise<WilshirePayload> {
   const apiKey = process.env.FRED_API_KEY?.trim() || undefined;
   const errors: string[] = [];
 
-  // Parallel: M2 path and Wilshire path (FRED series then Yahoo) — was sequential (~60s).
+  // Parallel: M2 path and Wilshire path (FRED races Yahoo) — was sequential (~60s).
   const [m2Result, wilshireResult] = await Promise.all([
     fetchM2(apiKey).catch((e) => {
       errors.push(e instanceof Error ? e.message : "M2SL failed");
       return null;
     }),
     (async (): Promise<{ obs: Obs[]; source: string } | null> => {
-      for (const id of ["WILL5000PR", "WILL5000IND"] as const) {
-        try {
-          const obs = await fetchFredWilshire(id, apiKey);
-          return {
-            obs,
-            source: apiKey ? `FRED API ${id}` : `FRED CSV ${id}`,
-          };
-        } catch (e) {
-          errors.push(e instanceof Error ? e.message : `${id} failed`);
+      // First success wins: FRED series race Yahoo so a blocked FRED path does not
+      // burn the live budget waiting on sequential timeouts.
+      type WillHit = { obs: Obs[]; source: string };
+      const fredAttempt = (async (): Promise<WillHit> => {
+        const fredErrors: string[] = [];
+        for (const id of ["WILL5000PR", "WILL5000IND"] as const) {
+          try {
+            const obs = await fetchFredWilshire(id, apiKey);
+            return {
+              obs,
+              source: apiKey ? `FRED API ${id}` : `FRED CSV ${id}`,
+            };
+          } catch (e) {
+            fredErrors.push(e instanceof Error ? e.message : `${id} failed`);
+          }
         }
-      }
-      try {
+        throw new Error(fredErrors.join("; ") || "FRED Wilshire failed");
+      })();
+      const yahooAttempt = (async (): Promise<WillHit> => {
         const obs = await fetchYahooWilshireMonthly();
         return {
           obs,
           source: "Yahoo Finance ^W5000 (monthly) — Wilshire 5000 fallback",
         };
-      } catch (e) {
-        errors.push(e instanceof Error ? e.message : "Yahoo Wilshire failed");
+      })();
+
+      try {
+        return await Promise.any([fredAttempt, yahooAttempt]);
+      } catch (agg) {
+        if (agg && typeof agg === "object" && "errors" in agg) {
+          for (const e of (agg as AggregateError).errors) {
+            errors.push(e instanceof Error ? e.message : String(e));
+          }
+        } else {
+          errors.push(agg instanceof Error ? agg.message : "Wilshire failed");
+        }
         return null;
       }
     })(),

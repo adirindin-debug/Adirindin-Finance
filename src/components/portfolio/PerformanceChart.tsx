@@ -310,7 +310,7 @@ export function PerformanceChart({
         </p>
       )}
 
-      <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-black">
+      <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-[#0f1419]">
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="h-48 w-full sm:h-56"
@@ -410,7 +410,7 @@ export function PerformanceChart({
 
         {(showEmptyOverlay || showLoadingOverlay || showErrorOverlay) && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4">
-            <p className="rounded-lg bg-black/70 px-4 py-2 text-center text-sm text-zinc-400">
+            <p className="rounded-lg bg-[#0f1419]/85 px-4 py-2 text-center text-sm text-zinc-400">
               {showEmptyOverlay
                 ? "Add holdings to see performance vs Nasdaq 100, S&P 500, and All Ords"
                 : showLoadingOverlay
