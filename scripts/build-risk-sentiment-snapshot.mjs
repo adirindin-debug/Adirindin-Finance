@@ -9,6 +9,8 @@
  *   node scripts/build-risk-sentiment-snapshot.mjs
  *
  * Sources:
+ *  - MSCI World Standard (price) index, USD (^990100-USD-STRD) daily close — Yahoo
+ *    Finance chart API (delayed, third-party). Primary equity input.
  *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (delayed, third-party)
  *  - VIX close — FRED VIXCLS (CSV, citation required)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
@@ -37,10 +39,10 @@ async function getJson(url, headers = {}) {
   return r.json();
 }
 
-async function spx() {
+async function yahooDaily(symbol, label) {
   const now = Math.floor(Date.now() / 1000);
   const j = await getJson(
-    `https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=${SPX_FROM}&period2=${now}&interval=1d`,
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${SPX_FROM}&period2=${now}&interval=1d`,
   );
   const r = j.chart.result[0];
   const close = r.indicators.quote[0].close;
@@ -54,9 +56,29 @@ async function spx() {
     seen.add(d);
     rows.push([d, Math.round(v * 100) / 100]);
   });
-  if (rows.length < 9000) throw new Error(`SPX short (${rows.length})`);
-  return { asOf: rows.at(-1)[0], source: "Yahoo Finance ^GSPC daily close (delayed)", rows };
+  // A frozen snapshot should hold closes only: drop a bar for today's New York
+  // session while it is still in progress (MSCI World ticks through Asia/Europe).
+  const nyNow = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+  const part = (t) => nyNow.find((p) => p.type === t).value;
+  const nyDate = `${part("year")}-${part("month")}-${part("day")}`;
+  if (rows.at(-1)?.[0] === nyDate && Number(part("hour")) < 18) rows.pop();
+  if (rows.length < 9000) throw new Error(`${symbol} short (${rows.length})`);
+  return { asOf: rows.at(-1)[0], source: label, rows };
 }
+
+const spx = () => yahooDaily("^GSPC", "Yahoo Finance ^GSPC daily close (delayed)");
+const world = () =>
+  yahooDaily(
+    "^990100-USD-STRD",
+    "Yahoo Finance ^990100-USD-STRD — MSCI World Standard (price) index, USD, daily close (delayed)",
+  );
 
 async function vix() {
   const r = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS", {
@@ -131,7 +153,7 @@ async function trendsBitcoin() {
 }
 
 const out = { _note: "", fetched: new Date().toISOString() };
-for (const [key, fn] of Object.entries({ spx, vix, cryptoFng, usFng, trendsBitcoin })) {
+for (const [key, fn] of Object.entries({ world, spx, vix, cryptoFng, usFng, trendsBitcoin })) {
   try {
     out[key] = await fn();
     console.log(`${key}: ${out[key].rows.length} rows, ${out[key].rows[0][0]} → ${out[key].asOf}`);

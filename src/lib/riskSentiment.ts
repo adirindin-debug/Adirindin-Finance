@@ -6,6 +6,10 @@
  * data for a date it is dropped and the remaining weights are re-scaled — never
  * filled with invented values.
  *
+ * Equity price risk is led by MSCI World (developed markets worldwide), with the
+ * S&P 500 as a lighter cross-check; on days one of them has no data the other
+ * takes the pair's full weight (see EQUITY_PAIRS / dayWeights).
+ *
  * Theoretical estimation and study aid only. Not a signal, not a timing model,
  * not financial advice (NFA).
  */
@@ -18,6 +22,9 @@ import { reLiveSilhouette } from "@/lib/cycles/reSilhouette";
 /* -------------------------------------------------------------------------- */
 
 export type ComponentKey =
+  | "wDd"
+  | "wRsiW"
+  | "wRsiD"
   | "dd"
   | "rsiW"
   | "rsiD"
@@ -32,7 +39,13 @@ export type ComponentMeta = {
   key: ComponentKey;
   label: string;
   short: string;
-  weight: number; // percent, sums to 100
+  /** Percent when every input has data (sums to 100). */
+  weight: number;
+  /**
+   * Equity price inputs only: the weight this input takes when its MSCI World /
+   * S&P 500 partner has no data that day (the pair's full share).
+   */
+  soloWeight?: number;
   group: "Price risk" | "Volatility" | "Sentiment" | "Attention" | "Cycle calendar";
   how: string;
   color: string;
@@ -40,31 +53,64 @@ export type ComponentMeta = {
 
 export const COMPONENTS: ComponentMeta[] = [
   {
-    key: "dd",
-    label: "S&P 500 distance from all-time high",
-    short: "SPX drawdown",
-    weight: 25,
+    key: "wDd",
+    label: "MSCI World distance from all-time high",
+    short: "World drawdown",
+    weight: 20,
+    soloWeight: 25,
     group: "Price risk",
-    how: "100 at a fresh all-time high, falling in a straight line to 0 at −30% or worse (S&P 500 daily close vs running high).",
+    how: "100 at a fresh all-time high, falling in a straight line to 0 at −30% or worse (MSCI World daily close vs running high). Primary equity input — World spans developed markets, not just the US.",
     color: "#3dcc9a",
   },
   {
-    key: "rsiW",
-    label: "S&P 500 weekly RSI (14)",
-    short: "SPX RSI weekly",
-    weight: 15,
+    key: "wRsiW",
+    label: "MSCI World weekly RSI (14)",
+    short: "World RSI weekly",
+    weight: 12,
+    soloWeight: 15,
     group: "Price risk",
-    how: "Wilder 14-week RSI on weekly closes; the current week uses the latest daily close. Used as-is (0–100).",
+    how: "Wilder 14-week RSI on MSCI World weekly closes; the current week uses the latest daily close. Used as-is (0–100).",
     color: "#4c9fff",
   },
   {
-    key: "rsiD",
-    label: "S&P 500 daily RSI (14)",
-    short: "SPX RSI daily",
-    weight: 10,
+    key: "wRsiD",
+    label: "MSCI World daily RSI (14)",
+    short: "World RSI daily",
+    weight: 8,
+    soloWeight: 10,
     group: "Price risk",
-    how: "Wilder 14-day RSI on daily closes. Used as-is (0–100).",
+    how: "Wilder 14-day RSI on MSCI World daily closes. Used as-is (0–100).",
     color: "#38bdf8",
+  },
+  {
+    key: "dd",
+    label: "S&P 500 distance from all-time high (confirmation)",
+    short: "SPX drawdown",
+    weight: 5,
+    soloWeight: 25,
+    group: "Price risk",
+    how: "Same rule as World (0% → 100, −30% or worse → 0) on the S&P 500 daily close. Secondary check; takes the full 25% on any day MSCI World has no data.",
+    color: "#1f9e74",
+  },
+  {
+    key: "rsiW",
+    label: "S&P 500 weekly RSI (14) (confirmation)",
+    short: "SPX RSI weekly",
+    weight: 3,
+    soloWeight: 15,
+    group: "Price risk",
+    how: "Wilder 14-week RSI on S&P 500 weekly closes. Secondary check; takes the full 15% on any day MSCI World has no data.",
+    color: "#3672b8",
+  },
+  {
+    key: "rsiD",
+    label: "S&P 500 daily RSI (14) (confirmation)",
+    short: "SPX RSI daily",
+    weight: 2,
+    soloWeight: 10,
+    group: "Price risk",
+    how: "Wilder 14-day RSI on S&P 500 daily closes. Secondary check; takes the full 10% on any day MSCI World has no data.",
+    color: "#2a87ad",
   },
   {
     key: "vix",
@@ -120,6 +166,16 @@ export const COMPONENTS: ComponentMeta[] = [
     how: "Height of the date on the Adirindin real estate (Anderson-style) silhouette (low 0 → major peak 100). Calendar framework only.",
     color: "#2dd4bf",
   },
+];
+
+/**
+ * Equity price pairs: [MSCI World key, S&P 500 key]. With both present they split
+ * the pair's share 80/20 (World dominant); with one missing the other takes it all.
+ */
+export const EQUITY_PAIRS: Array<[ComponentKey, ComponentKey]> = [
+  ["wDd", "dd"],
+  ["wRsiW", "rsiW"],
+  ["wRsiD", "rsiD"],
 ];
 
 export const COMPONENT_KEYS = COMPONENTS.map((c) => c.key);
@@ -233,14 +289,22 @@ export function arcHeight(frac: number): number {
 
 /**
  * One row (raw inputs kept so the UI can show them):
- * [date, score, spxClose, ddPct, rsiD, rsiW, vixClose, vixPct5y, usFng, cryptoFng,
- *  trendsRaw, trendsPct, btcCycle, reCycle]
+ * [date, score,
+ *  spxClose, spxDdPct, spxRsiD, spxRsiW,
+ *  worldClose, worldDdPct, worldRsiD, worldRsiW,
+ *  vixClose, vixPct5y, usFng, cryptoFng, trendsRaw, trendsPct, btcCycle, reCycle]
+ * Equity values are the latest close on or before the row date (≤ 4 days old),
+ * null when that series has none.
  */
 export type RsRow = [
   string,
   number | null,
-  number,
-  number,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
   number | null,
   number | null,
   number | null,
@@ -272,12 +336,17 @@ export type RsPayload = {
   generated: string;
 };
 
+const ddScore = (ddPct: number | null) => (ddPct == null ? null : clamp(100 * (1 + ddPct / 30), 0, 100));
+
 export function subScores(r: RsRow): Record<ComponentKey, number | null> {
-  const [, , , ddPct, rsiD, rsiW, , vixPct, usFng, cryptoFng, , trendsPct, btcCycle, reCycle] = r;
+  const [, , , spxDd, spxRsiD, spxRsiW, , wDd, wRsiD, wRsiW, , vixPct, usFng, cryptoFng, , trendsPct, btcCycle, reCycle] = r;
   return {
-    dd: clamp(100 * (1 + ddPct / 30), 0, 100),
-    rsiW,
-    rsiD,
+    wDd: ddScore(wDd),
+    wRsiW,
+    wRsiD,
+    dd: ddScore(spxDd),
+    rsiW: spxRsiW,
+    rsiD: spxRsiD,
     vix: vixPct == null ? null : 100 - vixPct,
     usFng,
     cryptoFng,
@@ -287,15 +356,36 @@ export function subScores(r: RsRow): Record<ComponentKey, number | null> {
   };
 }
 
+const has = (v: number | null | undefined): v is number => v != null && Number.isFinite(v);
+const META = new Map(COMPONENTS.map((c) => [c.key, c]));
+
+/**
+ * Nominal weight each input carries on a given day before re-scaling: 0 without
+ * data; an equity input whose World / S&P partner is missing takes the pair's
+ * full share (soloWeight), so the equity block keeps its size either way.
+ */
+export function dayWeights(subs: Record<ComponentKey, number | null>): Record<ComponentKey, number> {
+  const out = {} as Record<ComponentKey, number>;
+  for (const c of COMPONENTS) out[c.key] = has(subs[c.key]) ? c.weight : 0;
+  for (const [w, s] of EQUITY_PAIRS) {
+    const hw = has(subs[w]);
+    const hs = has(subs[s]);
+    if (hw && !hs) out[w] = META.get(w)!.soloWeight ?? out[w];
+    if (hs && !hw) out[s] = META.get(s)!.soloWeight ?? out[s];
+  }
+  return out;
+}
+
 /** Weighted blend with re-scaled weights over the inputs that have data. */
 export function blend(subs: Record<ComponentKey, number | null>): { score: number | null; weight: number } {
+  const w = dayWeights(subs);
   let wSum = 0;
   let acc = 0;
   for (const c of COMPONENTS) {
     const v = subs[c.key];
-    if (v == null || !Number.isFinite(v)) continue;
-    wSum += c.weight;
-    acc += c.weight * v;
+    if (!has(v) || !w[c.key]) continue;
+    wSum += w[c.key];
+    acc += w[c.key] * v;
   }
   if (wSum < MIN_WEIGHT_FOR_SCORE) return { score: null, weight: wSum };
   return { score: Math.round((acc / wSum) * 10) / 10, weight: wSum };
@@ -312,7 +402,10 @@ export function clamp(n: number, lo: number, hi: number) {
 export type Series = Array<[string, number]>;
 
 export type RawInputs = {
-  spx: Series;
+  /** S&P 500 daily closes (secondary equity input). */
+  spx: Series | null;
+  /** MSCI World daily closes (primary equity input). */
+  world: Series | null;
   vix: Series | null;
   usFng: Series | null;
   cryptoFng: Series | null;
@@ -461,12 +554,54 @@ function silhouetteHeat(y: number, troughY: number, peakY: number): number {
 
 const r1 = (n: number | null) => (n == null ? null : Math.round(n * 10) / 10);
 
-export function computeRows(inp: RawInputs): RsRow[] {
-  const spx = inp.spx;
-  const dates = spx.map((r) => r[0]);
-  const closes = spx.map((r) => r[1]);
+/** Per-date equity metrics for one price series (ATH distance, daily + weekly RSI). */
+type EqMetrics = { px: number; dd: number; rsiD: number | null; rsiW: number | null };
+
+function equityMetrics(series: Series | null): Array<[string, EqMetrics]> | null {
+  if (!series?.length) return null;
+  const dates = series.map((r) => r[0]);
+  const closes = series.map((r) => r[1]);
   const rsiD = wilderRsi(closes);
   const rsiW = weeklyRsiDaily(dates, closes);
+  const out: Array<[string, EqMetrics]> = [];
+  let ath = 0;
+  for (let i = 0; i < series.length; i++) {
+    const px = closes[i]!;
+    if (px > ath) ath = px;
+    out.push([
+      dates[i]!,
+      { px, dd: Math.round((px / ath - 1) * 10_000) / 100, rsiD: r1(rsiD[i] ?? null), rsiW: r1(rsiW[i] ?? null) },
+    ]);
+  }
+  return out;
+}
+
+/** As-of lookup over metric rows (same cursor walk as makeAsOf). */
+function makeMetricAsOf(rows: Array<[string, EqMetrics]> | null, maxGapDays: number) {
+  let j = -1;
+  return (d: string): EqMetrics | null => {
+    if (!rows?.length) return null;
+    while (j + 1 < rows.length && rows[j + 1]![0] <= d) j++;
+    if (j < 0) return null;
+    const gap = (Date.parse(`${d}T00:00:00Z`) - Date.parse(`${rows[j]![0]}T00:00:00Z`)) / 86_400_000;
+    return gap > maxGapDays ? null : rows[j]![1];
+  };
+}
+
+/** Equity close may be at most this many calendar days old for a row (long weekends). */
+const EQUITY_MAX_GAP = 4;
+
+export function computeRows(inp: RawInputs): RsRow[] {
+  const spxM = equityMetrics(inp.spx);
+  const worldM = equityMetrics(inp.world);
+  // Row dates: every session of either equity series (World trades some US holidays).
+  const dateSet = new Set<string>();
+  for (const r of inp.spx ?? []) if (r[0] >= DISPLAY_FROM) dateSet.add(r[0]);
+  for (const r of inp.world ?? []) if (r[0] >= DISPLAY_FROM) dateSet.add(r[0]);
+  const dates = [...dateSet].sort();
+
+  const spxAt = makeMetricAsOf(spxM, EQUITY_MAX_GAP);
+  const worldAt = makeMetricAsOf(worldM, EQUITY_MAX_GAP);
   const vixAt = makeAsOf(inp.vix, 5);
   const usAt = makeAsOf(inp.usFng, 4);
   const crAt = makeAsOf(inp.cryptoFng, 3);
@@ -474,18 +609,10 @@ export function computeRows(inp: RawInputs): RsRow[] {
   const vixPctCache = new Map<number, number>();
 
   const rows: RsRow[] = [];
-  let ath = 0;
-  for (let i = 0; i < spx.length; i++) {
-    const d = dates[i]!;
-    const px = closes[i]!;
-    if (px > ath) ath = px;
-    if (d < DISPLAY_FROM) {
-      vixAt(d);
-      usAt(d);
-      crAt(d);
-      continue;
-    }
-    const ddPct = (px / ath - 1) * 100;
+  for (const d of dates) {
+    const sp = spxAt(d);
+    const wo = worldAt(d);
+    if (!sp && !wo) continue;
     const vx = vixAt(d);
     let vixPct: number | null = null;
     if (vx) {
@@ -505,10 +632,14 @@ export function computeRows(inp: RawInputs): RsRow[] {
     const row: RsRow = [
       d,
       null,
-      px,
-      Math.round(ddPct * 100) / 100,
-      r1(rsiD[i] ?? null),
-      r1(rsiW[i] ?? null),
+      sp ? sp.px : null,
+      sp ? sp.dd : null,
+      sp ? sp.rsiD : null,
+      sp ? sp.rsiW : null,
+      wo ? wo.px : null,
+      wo ? wo.dd : null,
+      wo ? wo.rsiD : null,
+      wo ? wo.rsiW : null,
       vx ? vx.v : null,
       vixPct,
       us ? us.v : null,

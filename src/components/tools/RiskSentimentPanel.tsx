@@ -16,6 +16,7 @@ import {
   arcHeight,
   arcStage,
   blend,
+  dayWeights,
   subScores,
   zoneFor,
   type ComponentKey,
@@ -45,7 +46,7 @@ const AW = 400;
 const AH = 182;
 const ARC = { x0: 92, x1: 308, base: 148, top: 30 };
 
-const SPX_COLOR = "#5b6b80";
+const OVERLAY_COLOR = "#5b6b80";
 
 function dayNum(d: string): number {
   return Date.parse(`${d}T00:00:00Z`) / 86_400_000;
@@ -107,15 +108,24 @@ function scoreThreeMonthsAgo(rows: RsRow[], d: string): number | null {
   return j >= 0 ? rows[j]![1] : null;
 }
 
+const fmtLevel = (n: number) => n.toLocaleString("en-AU", { maximumFractionDigits: 0 });
+const ddText = (ddPct: number) => (ddPct > -0.005 ? "At high" : `${ddPct.toFixed(1)}% from high`);
+
 function rawText(key: ComponentKey, r: RsRow): string | null {
-  const [d, , px, ddPct, rsiD, rsiW, vix, vixPct, usFng, cryptoFng, trRaw, trPct, btc, re] = r;
+  const [d, , spx, spxDd, spxRsiD, spxRsiW, wPx, wDd, wRsiD, wRsiW, vix, vixPct, usFng, cryptoFng, trRaw, trPct, btc, re] = r;
   switch (key) {
+    case "wDd":
+      return wPx == null || wDd == null ? null : `${ddText(wDd)} · World ${fmtLevel(wPx)}`;
+    case "wRsiW":
+      return wRsiW == null ? null : `RSI ${wRsiW.toFixed(1)}`;
+    case "wRsiD":
+      return wRsiD == null ? null : `RSI ${wRsiD.toFixed(1)}`;
     case "dd":
-      return `${ddPct > -0.005 ? "At high" : `${ddPct.toFixed(1)}% from high`} · SPX ${px.toLocaleString("en-AU", { maximumFractionDigits: 0 })}`;
+      return spx == null || spxDd == null ? null : `${ddText(spxDd)} · SPX ${fmtLevel(spx)}`;
     case "rsiW":
-      return rsiW == null ? null : `RSI ${rsiW.toFixed(1)}`;
+      return spxRsiW == null ? null : `RSI ${spxRsiW.toFixed(1)}`;
     case "rsiD":
-      return rsiD == null ? null : `RSI ${rsiD.toFixed(1)}`;
+      return spxRsiD == null ? null : `RSI ${spxRsiD.toFixed(1)}`;
     case "vix":
       return vix == null || vixPct == null ? null : `VIX ${vix.toFixed(2)} · ${ordinal(vixPct)} pct (5y)`;
     case "usFng":
@@ -170,7 +180,7 @@ export function RiskSentimentPanel() {
   const [data, setData] = useState<RsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tf, setTf] = useState<TfKey>(DEFAULT_TF);
-  const [showSpx, setShowSpx] = useState(true);
+  const [showOverlay, setShowOverlay] = useState(true);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
@@ -229,12 +239,30 @@ export function RiskSentimentPanel() {
       pen = true;
     });
 
-    // S&P 500 context line on its own log scale (no axis; level shown in the tooltip).
-    const logs = rows.map((r) => Math.log(r[2]));
-    const lo = Math.min(...logs);
-    const hi = Math.max(...logs);
-    const spxY = (lv: number) => PAD.top + 6 + (1 - (lv - lo) / Math.max(hi - lo, 1e-9)) * (IH - 12);
-    const spx = rows.map((r, i) => `${i ? "L" : "M"}${xs[i]!.toFixed(1)} ${spxY(logs[i]!).toFixed(1)}`).join("");
+    // Context line on its own log scale (no axis; level shown in the tooltip): MSCI World,
+    // or the S&P 500 if World has no data in this window.
+    const overlayCol = rows.some((r) => r[6] != null) ? 6 : 2;
+    const logs = rows.map((r) => {
+      const v = r[overlayCol];
+      return v == null || v <= 0 ? null : Math.log(v);
+    });
+    const valid = logs.filter((v): v is number => v != null);
+    let overlay = "";
+    if (valid.length) {
+      const lo = Math.min(...valid);
+      const hi = Math.max(...valid);
+      const oy = (lv: number) => PAD.top + 6 + (1 - (lv - lo) / Math.max(hi - lo, 1e-9)) * (IH - 12);
+      let on = false;
+      logs.forEach((lv, i) => {
+        if (lv == null) {
+          on = false;
+          return;
+        }
+        overlay += `${on ? "L" : "M"}${xs[i]!.toFixed(1)} ${oy(lv).toFixed(1)}`;
+        on = true;
+      });
+    }
+    const overlayLabel = overlayCol === 6 ? "MSCI World" : "S&P 500";
 
     // ~5 date ticks
     const ticks: { x: number; label: string }[] = [];
@@ -244,7 +272,7 @@ export function RiskSentimentPanel() {
       const d = new Date((d0 + (k / (n - 1)) * (d1 - d0)) * 86_400_000).toISOString().slice(0, 10);
       ticks.push({ x: PAD.left + (k / (n - 1)) * IW, label: (meta.years ?? 99) <= 1 ? fmtDay(d) : fmtMonthYear(d) });
     }
-    return { rows, xs, yOf, score, spx, ticks, d0, d1 };
+    return { rows, xs, yOf, score, overlay, overlayLabel, ticks, d0, d1 };
   }, [allRows, tf]);
 
   const latest: Picked | null = useMemo(() => {
@@ -338,9 +366,10 @@ export function RiskSentimentPanel() {
     if (!picked) return null;
     const subs = subScores(picked.row);
     const { weight } = blend(subs);
+    const dw = dayWeights(subs);
     return COMPONENTS.map((c) => {
       const v = subs[c.key];
-      const eff = v == null || weight <= 0 ? 0 : (c.weight / weight) * 100;
+      const eff = v == null || weight <= 0 ? 0 : (dw[c.key] / weight) * 100;
       return {
         ...c,
         sub: v,
@@ -556,11 +585,11 @@ export function RiskSentimentPanel() {
               </div>
               <button
                 type="button"
-                aria-pressed={showSpx}
-                onClick={() => setShowSpx((s) => !s)}
-                className={`${toggleBtn} border border-border/90 ${showSpx ? "bg-white/10 text-foreground" : "text-muted hover:text-foreground"}`}
+                aria-pressed={showOverlay}
+                onClick={() => setShowOverlay((s) => !s)}
+                className={`${toggleBtn} border border-border/90 ${showOverlay ? "bg-white/10 text-foreground" : "text-muted hover:text-foreground"}`}
               >
-                S&amp;P 500 overlay
+                {view?.overlayLabel ?? "MSCI World"} overlay
               </button>
             </div>
           </div>
@@ -611,7 +640,9 @@ export function RiskSentimentPanel() {
                     </text>
                   </g>
                 ))}
-                {showSpx && <path d={view.spx} fill="none" stroke={SPX_COLOR} strokeWidth={1.2} opacity={0.8} />}
+                {showOverlay && view.overlay && (
+                  <path d={view.overlay} fill="none" stroke={OVERLAY_COLOR} strokeWidth={1.2} opacity={0.8} />
+                )}
                 <path d={view.score} fill="none" stroke="url(#rs-line)" strokeWidth={2} strokeLinejoin="round" />
                 {view.ticks.map((t, i) => (
                   <text
@@ -664,8 +695,16 @@ export function RiskSentimentPanel() {
                   <p className="text-[11px]" style={{ color: pickedZone?.color }}>
                     {pickedZone?.label}
                   </p>
-                  {showSpx && (
+                  {showOverlay && picked.row[6] != null && (
                     <p className="mt-1 flex justify-between gap-3 text-[11px] tabular-nums">
+                      <span className="text-muted">MSCI World</span>
+                      <span className="font-mono text-[#c8d0dc]">
+                        {picked.row[6].toLocaleString("en-AU", { maximumFractionDigits: 2 })}
+                      </span>
+                    </p>
+                  )}
+                  {showOverlay && picked.row[2] != null && (
+                    <p className="flex justify-between gap-3 text-[11px] tabular-nums">
                       <span className="text-muted">S&amp;P 500</span>
                       <span className="font-mono text-[#c8d0dc]">
                         {picked.row[2].toLocaleString("en-AU", { maximumFractionDigits: 2 })}
@@ -676,7 +715,9 @@ export function RiskSentimentPanel() {
               )}
               <p className="mt-2 text-[11px] text-muted">
                 Hover, drag (touch) or focus and use ← → to scrub — the big number, mood arc and breakdown follow.
-                {showSpx ? " Grey line: S&P 500 close on its own log scale, for context only." : ""}
+                {showOverlay && view.overlay
+                  ? ` Grey line: ${view.overlayLabel} close on its own log scale, for context only.`
+                  : ""}
                 {tf === "MAX" ? " Before 2016 the blend has fewer inputs (see coverage); rows older than 10 years are weekly." : ""}
               </p>
             </div>

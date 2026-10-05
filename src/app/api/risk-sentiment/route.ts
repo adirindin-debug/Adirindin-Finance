@@ -3,7 +3,11 @@
  *
  * Live public feeds, each falling back on its own to the dated snapshot in
  * src/data/risk-sentiment-snapshot.json (refresh: scripts/build-risk-sentiment-snapshot.mjs):
- *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (query1 → query2)
+ *  - MSCI World Standard (price) index, USD (^990100-USD-STRD) daily close — Yahoo
+ *    Finance chart API (query1 → query2). Primary equity input (same series as the
+ *    homepage MSCI World line)
+ *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (query1 → query2).
+ *    Secondary equity input; fills the equity block on days without World data
  *  - VIX close — FRED VIXCLS (API if FRED_API_KEY, else CSV)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
  *  - Crypto Fear & Greed — Alternative.me public API
@@ -31,12 +35,15 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const FRED_UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
-const SPX_FROM = Date.UTC(1985, 0, 1) / 1000;
+/** Equity history start (5 years of warm-up before the first displayed row). */
+const EQ_FROM = Date.UTC(1985, 0, 1) / 1000;
+const WORLD_SYMBOL = "^990100-USD-STRD";
 
 type SnapBlock = { asOf: string; source: string; note?: string; rows: Series };
 type Snap = {
   fetched: string;
   spx?: SnapBlock;
+  world?: SnapBlock;
   vix?: SnapBlock;
   usFng?: SnapBlock;
   cryptoFng?: SnapBlock;
@@ -47,11 +54,11 @@ const SNAP = snapshot as unknown as Snap;
 let lastGood: { at: number; body: RsPayload } | null = null;
 const MEMO_MS = 30 * 60 * 1000;
 
-async function fetchSpx(): Promise<Series> {
+async function fetchYahooDaily(symbol: string): Promise<Series> {
   const errors: string[] = [];
   for (const host of ["query1", "query2"]) {
     try {
-      const url = `https://${host}.finance.yahoo.com/v8/finance/chart/%5EGSPC?period1=${SPX_FROM}&period2=${Math.floor(Date.now() / 1000)}&interval=1d`;
+      const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${EQ_FROM}&period2=${Math.floor(Date.now() / 1000)}&interval=1d`;
       const res = await fetch(url, {
         headers: { "User-Agent": UA, Accept: "application/json" },
         next: { revalidate: 3600 },
@@ -84,6 +91,9 @@ async function fetchSpx(): Promise<Series> {
   }
   throw new Error(errors.join("; "));
 }
+
+const fetchSpx = () => fetchYahooDaily("^GSPC");
+const fetchWorld = () => fetchYahooDaily(WORLD_SYMBOL);
 
 async function fetchVix(): Promise<Series> {
   const key = process.env.FRED_API_KEY?.trim();
@@ -211,7 +221,8 @@ export async function GET() {
   if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800);
 
   const warnings: string[] = [];
-  const [spx, vix, usFng, cryptoFng] = await Promise.all([
+  const [world, spx, vix, usFng, cryptoFng] = await Promise.all([
+    withFallback("world", `MSCI World (${WORLD_SYMBOL})`, fetchWorld, SNAP.world, warnings),
     withFallback("spx", "S&P 500 (^GSPC)", fetchSpx, SNAP.spx, warnings),
     withFallback("vix", "VIX (FRED VIXCLS)", fetchVix, SNAP.vix, warnings),
     withFallback("usFng", "US stocks Fear & Greed (FearGreedChart.com)", fetchUsFng, SNAP.usFng, warnings),
@@ -229,15 +240,17 @@ export async function GET() {
       }
     : { key: "trends", label: 'Google Trends "bitcoin" (monthly)', origin: "missing", from: null, asOf: null, note: "Pending" };
 
-  if (!spx.series) {
+  const sources = [world.status, spx.status, vix.status, usFng.status, cryptoFng.status, trendsStatus];
+
+  if (!spx.series && !world.series) {
     return respond(
       {
         ok: false,
         rows: [],
         asOf: null,
-        sources: [spx.status, vix.status, usFng.status, cryptoFng.status, trendsStatus],
+        sources,
         warnings,
-        error: "S&P 500 history unavailable (live and snapshot)",
+        error: "MSCI World and S&P 500 history unavailable (live and snapshot)",
         generated: new Date().toISOString(),
       },
       60,
@@ -246,6 +259,7 @@ export async function GET() {
 
   const inputs: RawInputs = {
     spx: spx.series,
+    world: world.series,
     vix: vix.series,
     usFng: usFng.series,
     cryptoFng: cryptoFng.series,
@@ -256,7 +270,7 @@ export async function GET() {
     ok: true,
     rows,
     asOf: rows.length ? rows[rows.length - 1]![0] : null,
-    sources: [spx.status, vix.status, usFng.status, cryptoFng.status, trendsStatus],
+    sources,
     warnings: warnings.length ? warnings : undefined,
     generated: new Date().toISOString(),
   };

@@ -10,7 +10,16 @@ export const metadata: Metadata = {
 };
 
 const COVERAGE: { input: string; from: string; note: string }[] = [
-  { input: "S&P 500 drawdown, daily + weekly RSI", from: "Jan 1990 (history from Jan 1985 for warm-up)", note: "Yahoo Finance ^GSPC daily close (delayed, third-party). Price index — no dividends." },
+  {
+    input: "MSCI World drawdown, daily + weekly RSI (primary)",
+    from: "Jan 1990 (history from Jan 1985 for warm-up)",
+    note: "Yahoo Finance ^990100-USD-STRD — the MSCI World Standard (price) index in US dollars, the same series as the homepage MSCI World line (delayed, third-party). Developed markets only, price index — no dividends, not ACWI, not net total return.",
+  },
+  {
+    input: "S&P 500 drawdown, daily + weekly RSI (confirmation)",
+    from: "Jan 1990 (history from Jan 1985 for warm-up)",
+    note: "Yahoo Finance ^GSPC daily close (delayed, third-party). Price index — no dividends. Steps up to the full equity weight on any day MSCI World has no data.",
+  },
   { input: "VIX 5-year percentile", from: "Jan 1990", note: "Cboe VIX close via FRED VIXCLS. First 5 years use the history available so far." },
   { input: "US stocks Fear & Greed", from: "Jan 2016", note: "FearGreedChart.com public API — independent methodology, not CNN's index." },
   { input: "Crypto Fear & Greed", from: "Feb 2018", note: "Alternative.me public API." },
@@ -58,6 +67,13 @@ export default function RiskSentimentPage() {
           sub-scores that have data on that day; missing inputs are dropped and the other weights re-scale to 100%. No
           gaps are filled with made-up values. If less than {MIN_WEIGHT_FOR_SCORE}% of the weight has data, no score is shown.
         </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          Equity price risk leans on <strong className="font-medium text-foreground">MSCI World</strong>, because it spans
+          developed markets worldwide rather than the US alone. Each price measure is a pair: with both series available,
+          MSCI World takes 80% of the pair and the S&amp;P 500 20% as a cross-check (all-time-high distance 20% + 5%,
+          weekly RSI 12% + 3%, daily RSI 8% + 2%). On any day one series has no data, the other takes the pair&apos;s full
+          share (25% / 15% / 10%), so the equity block stays at 50%.
+        </p>
         <p className="mt-2 font-mono text-xs text-[#c8d0dc]">score = Σ (weightᵢ × subᵢ) ÷ Σ weightᵢ &nbsp;(over inputs with data)</p>
         <div className="mt-4 overflow-x-auto rounded-lg border border-[#1d2633]">
           <table className="w-full min-w-[640px] text-left text-xs">
@@ -77,7 +93,12 @@ export default function RiskSentimentPage() {
                     {c.label}
                   </td>
                   <td className="px-3 py-2 text-muted">{c.group}</td>
-                  <td className="px-3 py-2 text-right font-mono text-foreground">{c.weight}%</td>
+                  <td className="px-3 py-2 text-right font-mono text-foreground">
+                    {c.weight}%
+                    {c.soloWeight ? (
+                      <span className="block whitespace-nowrap text-[10px] font-normal text-muted">{c.soloWeight}% if alone</span>
+                    ) : null}
+                  </td>
                   <td className="px-3 py-2 leading-relaxed text-muted">{c.how}</td>
                 </tr>
               ))}
@@ -85,8 +106,8 @@ export default function RiskSentimentPage() {
           </table>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Group totals: price risk 50% · volatility 15% · sentiment 20% · attention 5% · cycle calendar 10% (kept light on
-          purpose — frameworks, not measurements).
+          Group totals: price risk 50% (MSCI World 40% · S&amp;P 500 10%) · volatility 15% · sentiment 20% · attention 5% ·
+          cycle calendar 10% (kept light on purpose — frameworks, not measurements).
         </p>
 
         <h3 className="mt-6 text-sm font-semibold text-foreground">Zones</h3>
@@ -143,8 +164,9 @@ export default function RiskSentimentPage() {
           </ul>
           <p className="mt-3 text-xs leading-relaxed text-muted">
             Known gaps: the blend has fewer inputs before 2016 (and before 2013 it is price and VIX only), so older
-            readings are not like-for-like with recent ones. S&amp;P 500 is US-only and a price index. Trends data is
-            monthly and lags by up to a month.
+            readings are not like-for-like with recent ones. MSCI World covers developed markets only (no emerging markets)
+            and, like the S&amp;P 500, is a price index without dividends. VIX and the US Fear &amp; Greed score are still
+            US-centric. Trends data is monthly and lags by up to a month.
           </p>
         </div>
       </section>
