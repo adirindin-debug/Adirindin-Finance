@@ -260,7 +260,7 @@ function parseFactoryMonitor(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
-/** Global equities · sentiment state — URTH (MSCI World proxy) drawdown phase + VIX tilt. */
+/** World equities drawdown — URTH (MSCI World proxy) drawdown phase + VIX tilt. */
 function parseGlobalEquities(json: unknown): Omit<TileLive, "status"> | null {
   const data = json as EqPayload;
   if (!data?.ok || !data.rows?.length) return null;
@@ -405,6 +405,35 @@ const CATEGORIES: Category[] = [
     ],
   },
   {
+    id: "macro",
+    label: "Macro",
+    tiles: [
+      {
+        id: "global-equities",
+        href: "/charts/global-equities",
+        title: "World equities drawdown",
+        subtitle: "MSCI World proxy (URTH) · daily · VIX tilt",
+        endpoint: "/api/global-equities",
+        parse: parseGlobalEquities,
+      },
+      {
+        id: "factory-monitor",
+        href: "/charts/factory-monitor",
+        title: "Philly Fed Manufacturing",
+        subtitle: "Philly Fed survey · monthly · not ISM",
+        endpoint: "/api/factory-monitor",
+        parse: parseFactoryMonitor,
+      },
+      {
+        id: "wilshire-m2",
+        href: "/charts/wilshire-m2",
+        title: "Wilshire 5000 / US M2",
+        endpoint: "/api/wilshire-m2",
+        parse: parseWilshireM2,
+      },
+    ],
+  },
+  {
     id: "crypto-markets",
     label: "Crypto markets",
     tiles: [
@@ -436,35 +465,6 @@ const CATEGORIES: Category[] = [
         title: "BTC cycle map",
         endpoint: "/api/btc-200w-ma",
         parse: parseBtcCycleMap,
-      },
-    ],
-  },
-  {
-    id: "macro",
-    label: "Macro",
-    tiles: [
-      {
-        id: "wilshire-m2",
-        href: "/charts/wilshire-m2",
-        title: "Wilshire 5000 / US M2",
-        endpoint: "/api/wilshire-m2",
-        parse: parseWilshireM2,
-      },
-      {
-        id: "factory-monitor",
-        href: "/charts/factory-monitor",
-        title: "Philly Fed Manufacturing",
-        subtitle: "Philly Fed survey · monthly · not ISM",
-        endpoint: "/api/factory-monitor",
-        parse: parseFactoryMonitor,
-      },
-      {
-        id: "global-equities",
-        href: "/charts/global-equities",
-        title: "Global equities · sentiment state",
-        subtitle: "MSCI World proxy (URTH) · daily · VIX tilt",
-        endpoint: "/api/global-equities",
-        parse: parseGlobalEquities,
       },
     ],
   },

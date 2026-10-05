@@ -1,5 +1,5 @@
 /**
- * Same-origin data for /charts/global-equities (Global equities · sentiment state).
+ * Same-origin data for /charts/global-equities (World equities drawdown).
  *
  * Price: iShares MSCI World ETF (URTH) daily adjusted close from the Yahoo
  * Finance chart API (same public feed used elsewhere on this site), as a

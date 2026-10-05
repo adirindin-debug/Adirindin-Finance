@@ -399,7 +399,7 @@ export function GlobalEquitiesPanel() {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#22d3ee]">
-              Global equities · sentiment state
+              World equities drawdown
             </h2>
             <div className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Timeframe">
               {TIMEFRAMES.map((t) => (

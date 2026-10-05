@@ -1,5 +1,5 @@
 /**
- * Global equities · sentiment state — shared phase rules and maths.
+ * World equities drawdown — shared phase rules and maths.
  *
  * Price spine: iShares MSCI World ETF (URTH), adjusted close (dividends
  * reinvested), as a labelled PROXY for MSCI World. Official MSCI index data
