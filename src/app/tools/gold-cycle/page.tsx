@@ -10,7 +10,7 @@ import {
 export const metadata: Metadata = {
   title: "46-year gold-led commodity cycle sketch",
   description:
-    "Anthony / Adirindin observational sketch of a ~46-year gold-led commodity cycle with peak-zone markers at Jan 1934, 1980, 2026 and 2072, overlaid on long-run USD gold (log). Educational only — not Kondratiev-as-law, not a price target, not financial advice.",
+    "Observational study of a ~46-year gold-led commodity cycle with peak-zone markers at Jan 1934, 1980, 2026 and 2072, overlaid on long-run USD gold (log). Educational only — not a predictive model, not Kondratiev-as-law, not financial advice.",
 };
 
 const PHASES = [
@@ -47,23 +47,26 @@ export default function GoldCyclePage() {
         46-year gold-led commodity cycle sketch
       </h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-        Anthony / Adirindin observational sketch of a roughly{" "}
+        Observational study of a roughly{" "}
         <strong className="font-medium text-foreground">{GOLD_CYCLE_YEARS}-year</strong>{" "}
-        gold-led commodity rhythm. Peak-zone markers sit at{" "}
+        gold-led commodity rhythm, reading public gold history alongside a repeating
+        illustrative silhouette. Peak-zone markers sit at{" "}
         <strong className="font-medium text-foreground">Jan {anchors}</strong>
         . The primary series is long-run gold in US dollars (log scale). Kondratiev /
         long-wave literature is context only — this page is{" "}
         <strong className="font-medium text-foreground">
           not “the Kondratiev law”
         </strong>
+        ,{" "}
+        <strong className="font-medium text-foreground">not a predictive model</strong>
         , not a valuation model, and not a timing signal.
       </p>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         One silhouette repeats on every ~{GOLD_CYCLE_YEARS}-year lap, like the bond,
         real estate and Bitcoin cycle charts: peak zone → post-peak decline → trough
         zone (~{GOLD_TROUGH_OFFSET_YEARS}y after the peak) → advance with a mid-run
-        pause → final run into the next peak zone. Anchors are easy to retune in one lib
-        file.
+        pause → final run into the next peak zone. Markers and the gold series update
+        as new public price data comes in — observation of the charts, not a forecast.
       </p>
 
       <div className="mt-8 rounded-xl border border-border bg-black p-6">
@@ -168,10 +171,10 @@ export default function GoldCyclePage() {
       <section className="mt-8 rounded-xl border border-border bg-card p-6">
         <h2 className="text-lg font-semibold text-foreground">Attribution &amp; sources</h2>
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          This page does not claim a new natural law. It records Anthony&apos;s
-          gold-led, ~{GOLD_CYCLE_YEARS}-year observational sketch used for study at
-          Adirindin. Longer-wave writers (including Kondratiev and later long-wave
-          interpreters) are cited only as{" "}
+          This page does not claim a new natural law. It is an observational study of
+          public gold history with a repeating illustrative ~{GOLD_CYCLE_YEARS}-year
+          silhouette, used for study at Adirindin. Longer-wave writers (including
+          Kondratiev and later long-wave interpreters) are cited only as{" "}
           <strong className="font-medium text-foreground">context</strong> — different
           clocks, different claims. We do not clone third-party paid cycle product art.
         </p>
@@ -181,14 +184,15 @@ export default function GoldCyclePage() {
           monthly file (historical / official prints in the peg era; market prints
           thereafter), refreshed with Yahoo Finance <code className="text-xs text-foreground/80">GC=F</code>{" "}
           where available. Peg steps such as ~$20.67 and ~$35 are documented public
-          series values — not invented. Educational study aid only · not financial advice.
+          series values — not invented. The chart updates as new price data comes in.
+          Educational study aid only · not a predictive model · not financial advice.
         </p>
       </section>
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
-        Educational content only · not financial advice (NFA) · no price targets or
-        forecasts · @Dirindin533 / Adirindin Finance. Past patterns do not guarantee
-        future results.
+        Educational content only · not financial advice (NFA) · not a predictive model
+        · no price targets or forecasts · @Dirindin533 / Adirindin Finance. Past
+        patterns do not guarantee future results.
       </p>
     </div>
   );

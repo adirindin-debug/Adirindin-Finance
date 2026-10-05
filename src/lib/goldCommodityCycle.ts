@@ -1,5 +1,5 @@
 /**
- * Anthony / Adirindin 46-year gold-led commodity cycle sketch.
+ * Adirindin 46-year gold-led commodity cycle observational sketch.
  *
  * Peak-zone anchors (Jan-dated, LOCKED): 1934 → 1980 → 2026 → 2072 (~46y apart).
  *
@@ -21,7 +21,7 @@ export const GOLD_CYCLE_YEARS = 46;
 
 /**
  * Peak-zone anchors (calendar year of 1 Jan marker).
- * Anthony’s locked sketch — edit this array to move the whole clock.
+ * Locked peak-zone anchors — edit this array to move the whole clock.
  */
 export const GOLD_PEAK_ANCHORS = [1934, 1980, 2026, 2072] as const;
 
@@ -240,7 +240,7 @@ export const GOLD_ANCHOR_NOTES: Record<number, string> = {
     "Revaluation / policy era (US Gold Reserve Act lifted the official price to $35/oz) — not a free-market peak like 1980.",
   1980: "Free-market secular peak zone after the 1970s bull market.",
   2026:
-    "Calendar peak-zone marker under study — not a guaranteed top. Anthony will retune after preview.",
+    "Calendar peak-zone marker under study — not a guaranteed top. Markers and the gold series update as new public price data comes in; observational only, not a predictive model.",
   2072: "Theoretical next peak-zone marker from the ~46-year spacing — illustrative only.",
 };
 
@@ -251,10 +251,10 @@ export const GOLD_TROUGH_NOTES: Record<number, string> = {
 };
 
 export const GOLD_CAVEAT_SHORT =
-  "Anthony / Adirindin observational sketch · gold-led · ~46y peak zones · not Kondratiev-as-law · NFA";
+  "Adirindin observational study · gold-led · ~46y peak zones · not Kondratiev-as-law · not a predictive model · NFA";
 
 export const GOLD_SOURCE_LINE =
   "Gold USD: datasets/gold-prices (historical monthly) + Yahoo Finance GC=F for recent closes · peg-era levels are documented official/historical series, not invented";
 
 export const GOLD_CAPTION =
-  "Long-run gold (USD/oz, log) with Anthony’s ~46-year gold-led commodity cycle silhouette — one shape repeating every lap. Peak zones Jan 1934 / 1980 / 2026 / 2072*; trough zones ~1954 / ~2000 / ~2046*.";
+  "Long-run gold (USD/oz, log) with an illustrative ~46-year gold-led commodity cycle silhouette — one shape repeating every lap. Peak zones Jan 1934 / 1980 / 2026 / 2072*; trough zones ~1954 / ~2000 / ~2046*. Observational study of public gold history — not a predictive model or forecast. Markers and the price series update as new data comes in.";

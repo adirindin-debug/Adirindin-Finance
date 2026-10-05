@@ -65,7 +65,7 @@ const TILES: CycleTile[] = [
     id: "gold",
     href: "/tools/gold-cycle",
     title: "Gold · commodities",
-    blurb: "Anthony ~46y gold-led sketch · observational",
+    blurb: "~46y gold-led commodity cycle · observational study",
     path: GOLD_SILHOUETTE.path,
     viewBox: GOLD_SILHOUETTE.viewBox,
     color: GOLD_SILHOUETTE.color,

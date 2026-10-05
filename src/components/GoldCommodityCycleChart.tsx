@@ -1,6 +1,6 @@
 /**
  * Gold-led ~46-year commodity cycle desk chart.
- * Real long-run gold (USD/oz, log) + Anthony’s illustrative model silhouette.
+ * Real long-run gold (USD/oz, log) + illustrative repeating cycle silhouette.
  * ONE silhouette shape repeats identically on every ~46y lap (sampled per lap,
  * same as the sibling cycle charts’ single ridge). Cream #f5f0e6 dots sit on
  * every peak / trough zone along the model, with the dates labelled on-chart
@@ -443,7 +443,7 @@ export default function GoldCommodityCycleChart() {
             viewBox={`0 0 ${W} ${H}`}
             className="h-auto w-full"
             role="img"
-            aria-label="Long-run gold price on a log scale with Anthony’s ~46-year gold-led commodity cycle silhouette repeating every lap. Peak zones Jan 1934, 1980, 2026 and 2072 (theoretical); trough zones about 1954, 2000 and 2046 (theoretical). Educational sketch only — not financial advice"
+            aria-label="Long-run gold price on a log scale with an illustrative ~46-year gold-led commodity cycle silhouette repeating every lap. Peak zones Jan 1934, 1980, 2026 and 2072 (theoretical); trough zones about 1954, 2000 and 2046 (theoretical). Observational study only — not a predictive model or financial advice"
             onMouseMove={onMove}
             onMouseLeave={() => setHover(null)}
           >
@@ -636,7 +636,9 @@ export default function GoldCommodityCycleChart() {
 
       <p className="mt-3 text-[11px] leading-relaxed text-muted sm:text-xs">
         {GOLD_CAPTION} Model amplitude is scaled to the visible log band for shape only — it is{" "}
-        <strong className="font-medium text-foreground/80">not a price forecast</strong>.{" "}
+        <strong className="font-medium text-foreground/80">not a price forecast</strong>{" "}
+        and{" "}
+        <strong className="font-medium text-foreground/80">not a predictive model</strong>.{" "}
         {data?.source ? `Source: ${data.source}.` : GOLD_SOURCE_LINE}
       </p>
     </div>
@@ -785,7 +787,7 @@ function CycleDatesList() {
       aria-label="Gold cycle peak and trough zone dates"
     >
       <p className="text-sm font-semibold text-[#e8eef7]">Cycle dates</p>
-      {row("Peak zones · ~46y apart (Anthony’s anchors)", peaks, GOLD_ANCHOR_NOTES)}
+      {row("Peak zones · ~46y apart (study anchors)", peaks, GOLD_ANCHOR_NOTES)}
       {row(
         `Trough zones · ~${GOLD_TROUGH_OFFSET_YEARS}y after each peak (from the repeating shape)`,
         troughs,
