@@ -1,8 +1,9 @@
 /**
  * Gold-led ~46y commodity cycle silhouette for the Market cycles hub.
- * Same framing as the sibling tiles: trough zone (left) → peak zone → next
- * trough zone (right). The ridge is the single repeating lap shape from
- * goldCommodityCycle.ts, so the hub and /tools/gold-cycle always match.
+ * Same framing as the sibling tiles: trough zone (left) → run-up → mid-cycle
+ * correction → second run-up → peak zone → drawdown to a HIGHER next trough
+ * zone (right). The ridge is the repeating lap shape from goldCommodityCycle.ts
+ * (goldTileUnit), so the hub and /tools/gold-cycle always match.
  * Educational observational sketch · NFA.
  */
 
@@ -10,7 +11,7 @@ import {
   GOLD_TROUGH_FRAC,
   goldCycleProgress,
   goldLivePhaseLine,
-  goldModelUnit,
+  goldTileUnit,
 } from "@/lib/goldCommodityCycle";
 
 type Pt = { x: number; y: number };
@@ -36,9 +37,14 @@ const RIDGE_PATH = (() => {
   for (let i = 0; i <= steps; i++) {
     const u = i / steps;
     const x = X0 + u * W;
-    // Exact peak at the wrap point (frac 1 → 0 is the same summit)
+    // Exact peak at the wrap point (frac 1 → 0 is the same summit); the right
+    // edge is the next (higher) trough, not the starting one.
     const f = GOLD_TROUGH_FRAC + u;
-    const unit = Math.abs(f - 1) < 1e-9 ? 1 : goldModelUnit(tileToLapFrac(u));
+    if (i === steps) {
+      parts.push(`L ${x.toFixed(2)} ${modelToY(goldTileUnit(GOLD_TROUGH_FRAC - 1e-6)).toFixed(2)}`);
+      continue;
+    }
+    const unit = Math.abs(f - 1) < 1e-9 ? 1 : goldTileUnit(tileToLapFrac(u));
     parts.push(`${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${modelToY(unit).toFixed(2)}`);
   }
   return parts.join(" ");
@@ -60,6 +66,6 @@ export function goldLiveSilhouette(nowMs: number): GoldLiveSilhouette {
   const { frac } = goldCycleProgress(nowMs);
   const u = (frac - GOLD_TROUGH_FRAC + 1) % 1;
   const x = X0 + u * W;
-  const y = modelToY(goldModelUnit(frac));
+  const y = modelToY(goldTileUnit(frac));
   return { pt: { x, y }, phaseLine: goldLivePhaseLine(nowMs) };
 }

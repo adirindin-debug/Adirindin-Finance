@@ -45,7 +45,7 @@ const TILES: CycleTile[] = [
     id: "re",
     href: "/tools/real-estate-cycle",
     title: "Real estate",
-    blurb: "Anderson ~18-year cycle theory",
+    blurb: "18.6-year real estate cycle theory",
     path: RE_SILHOUETTE.path,
     viewBox: RE_SILHOUETTE.viewBox,
     color: RE_SILHOUETTE.color,

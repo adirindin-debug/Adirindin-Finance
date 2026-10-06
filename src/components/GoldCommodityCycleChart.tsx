@@ -1,8 +1,9 @@
 /**
  * Gold-led ~46-year commodity cycle desk chart.
  * Real long-run gold (USD/oz, log) + illustrative repeating cycle silhouette.
- * ONE silhouette shape repeats identically on every ~46y lap (sampled per lap,
- * same as the sibling cycle charts’ single ridge). Cream #f5f0e6 dots sit on
+ * ONE silhouette shape repeats on every ~46y lap (sampled per lap, same as the
+ * sibling cycle charts’ single ridge), stepping up each lap so troughs and peaks
+ * rise across cycles (gold's secular uptrend). Cream #f5f0e6 dots sit on
  * every peak / trough zone along the model, with the dates labelled on-chart
  * and listed under it (no hover needed). No shaded areas · clean lines.
  * Educational observational sketch · NFA.
@@ -28,10 +29,13 @@ import {
   GOLD_TROUGH_NOTES,
   GOLD_TROUGH_OFFSET_YEARS,
   goldLivePhaseLine,
+  goldLevelOnLap,
+  goldLevelRange,
   goldMarkersBetween,
-  goldModelUnit,
-  goldModelUnitAt,
+  goldModelLevelAt,
+  goldPeakLevel,
   goldPeakYearsCovering,
+  goldTroughLevel,
   janMs,
   type GoldHistoricalPoint,
   type GoldMarker,
@@ -249,20 +253,17 @@ export default function GoldCommodityCycleChart() {
       .map((p, i) => `${i === 0 ? "M" : "L"} ${xOf(p.t).toFixed(2)} ${yOf(p.c).toFixed(2)}`)
       .join(" ");
 
-    // Model silhouette: unit curve scaled into the same log band (illustrative, not a fit)
-    const modelLo = yLog0 + (yLog1 - yLog0) * MODEL_LO_FRAC;
-    const modelHi = yLog1 - (yLog1 - yLog0) * MODEL_HI_FRAC;
-    const modelYOfUnit = (unit: number) => yOfLog(modelLo + unit * (modelHi - modelLo));
-
     const yFrom = new Date(t0 * 1000).getUTCFullYear();
     const yTo = new Date(tRight * 1000).getUTCFullYear();
 
-    // Sample the SAME lap shape on every lap (peak → peak) so each lap is identical.
+    // Sample the SAME lap shape on every lap (peak → peak); each lap sits one
+    // step higher, so troughs and peaks rise across cycles. `u` is the absolute
+    // model level here, scaled into the band below.
     const spanYears = Math.max((tRight - t0) / YEAR_SEC, 0.25);
     const perLap = Math.min(20000, Math.max(240, Math.ceil((500 * GOLD_CYCLE_YEARS) / spanYears)));
     const samples: { t: number; u: number }[] = [
-      { t: t0, u: goldModelUnitAt(t0 * 1000) },
-      { t: tRight, u: goldModelUnitAt(tRight * 1000) },
+      { t: t0, u: goldModelLevelAt(t0 * 1000) },
+      { t: tRight, u: goldModelLevelAt(tRight * 1000) },
     ];
     for (const peak of goldPeakYearsCovering(yFrom, yTo)) {
       const a = janMs(peak) / 1000;
@@ -274,14 +275,25 @@ export default function GoldCommodityCycleChart() {
         const frac = i / perLap;
         const t = a + frac * (b - a);
         if (t < t0 || t > tRight) continue;
-        samples.push({ t, u: goldModelUnit(frac) });
+        samples.push({ t, u: goldLevelOnLap(peak, frac) });
       }
     }
     samples.sort((p, q) => p.t - q.t);
+
+    // Model silhouette scaled into the same log band (illustrative, not a fit)
+    const modelLo = yLog0 + (yLog1 - yLog0) * MODEL_LO_FRAC;
+    const modelHi = yLog1 - (yLog1 - yLog0) * MODEL_HI_FRAC;
+    const range = goldLevelRange(
+      t0 * 1000,
+      tRight * 1000,
+      samples.map((p) => p.u),
+    );
+    const modelYOfLevel = (level: number) =>
+      yOfLog(modelLo + ((level - range.lo) / (range.hi - range.lo)) * (modelHi - modelLo));
     const modelPath = samples
       .map(
         (p, i) =>
-          `${i === 0 ? "M" : "L"} ${xOf(p.t).toFixed(2)} ${modelYOfUnit(p.u).toFixed(2)}`,
+          `${i === 0 ? "M" : "L"} ${xOf(p.t).toFixed(2)} ${modelYOfLevel(p.u).toFixed(2)}`,
       )
       .join(" ");
 
@@ -291,7 +303,7 @@ export default function GoldCommodityCycleChart() {
         return {
           ...m,
           x: xOf(t),
-          y: modelYOfUnit(m.kind === "peak" ? 1 : 0),
+          y: modelYOfLevel(m.kind === "peak" ? goldPeakLevel(m.year) : goldTroughLevel(m.year)),
           t,
         };
       })
@@ -324,7 +336,7 @@ export default function GoldCommodityCycleChart() {
       tRight,
       xOf,
       yOf,
-      modelYOfUnit,
+      modelYOfLevel,
       pricePath,
       modelPath,
       markers,
@@ -341,7 +353,7 @@ export default function GoldCommodityCycleChart() {
     if (tSec < chart.t0 || tSec > chart.tRight) return null;
     return {
       x: chart.xOf(tSec),
-      y: chart.modelYOfUnit(goldModelUnitAt(nowMs)),
+      y: chart.modelYOfLevel(goldModelLevelAt(nowMs)),
       phaseLine: goldLivePhaseLine(nowMs),
     };
   }, [chart, nowMs]);
