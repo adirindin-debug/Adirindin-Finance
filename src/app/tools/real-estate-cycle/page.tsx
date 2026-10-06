@@ -3,9 +3,9 @@ import { CyclesBackLink } from "@/components/cycles/CyclesBackLink";
 import RealEstateCycleChart from "@/components/RealEstateCycleChart";
 
 export const metadata: Metadata = {
-  title: "18.6 Year Real Estate Cycle theory",
+  title: "18.6-year real estate cycle theory",
   description:
-    "Educational 18.6 Year Real Estate Cycle theory framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic), with next-lap theory waypoints overlaid on the same loop. Not a predictive model or financial advice.",
+    "Educational 18.6-year real estate cycle theory framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic), with next-lap theory waypoints overlaid on the same loop. Not a predictive model or financial advice.",
 };
 
 /**
@@ -52,7 +52,7 @@ export default function RealEstateCyclePage() {
     <div className="mx-auto max-w-6xl px-4 py-10">
       <CyclesBackLink category="Real estate" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        18.6 Year Real Estate Cycle theory
+        18.6-year real estate cycle theory
       </h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
         Classic land / property cycle framing used in research communities (often shown as an ~18.6-year

@@ -19,21 +19,21 @@ const PHASES = [
     years: "Peak zone → trough zone · ~20y",
     color: "#ef6b6b",
     summary:
-      "After each peak-zone marker the same shape steps down quickly, then grinds lower into a trough zone about 20 years later (~1954, ~2000, ~2046*). The drawdown stops at a higher low than the one the cycle started from — not a full round trip — so each trough sits above the last (gold's long secular uptrend). The 1934→1954 stretch sits in the US$35 peg era, so it is a model position, not a market low.",
+      "After each peak-zone marker the same shape steps down quickly, then grinds lower into a trough zone about 20 years later (~1954, ~2000, ~2046*). The 1934→1954 stretch sits in the US$35 peg era, so it is a model position, not a market low.",
   },
   {
     name: "Advance from trough",
-    years: "Trough zone → mid-cycle correction · ~15y",
+    years: "Trough zone → mid-run pause · ~17y",
     color: "#3dcc9a",
     summary:
-      "The first multi-year run-up from the trough zone, then a mid-cycle correction of a few years (on the 2000 lap that lines up with the 2011 high and the 2011–2015 pullback). Historically this is where free-market gold made large secular moves — still an observation, not a signal.",
+      "The main multi-year advance in the gold-led commodity story, ending in a short pause / shoulder in the third quarter of the lap. Historically this is where free-market gold made its large secular moves — still an observation, not a signal.",
   },
   {
     name: "Final run → peak zone",
-    years: "Into the next Jan marker · ~11y",
+    years: "Into the next Jan marker · ~9y",
     color: "#f0c14a",
     summary:
-      "A second run-up, the same shape as the first, into the next peak-zone calendar marker — which sits higher than the previous peak. 2026 is under study as a zone, not a guaranteed top; 2072 is theoretical from the ~46-year spacing.",
+      "Final advance into the next peak-zone calendar marker. 2026 is under study as a zone, not a guaranteed top; 2072 is theoretical from the ~46-year spacing.",
   },
 ] as const;
 
@@ -63,13 +63,10 @@ export default function GoldCyclePage() {
       </p>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         One silhouette repeats on every ~{GOLD_CYCLE_YEARS}-year lap, like the bond,
-        real estate and Bitcoin cycle charts: a run-up, a mid-cycle correction, a second
-        run-up of the same shape into the peak zone, then a drawdown to a trough zone
-        (~{GOLD_TROUGH_OFFSET_YEARS}y after the peak). Because gold has been in a long
-        secular uptrend (scarcity), each lap steps up — the drawdown ends at a higher low
-        than the cycle started from, and troughs rise from one cycle to the next. Markers
-        and the gold series update as new public price data comes in — observation of the
-        charts, not a forecast.
+        real estate and Bitcoin cycle charts: peak zone → post-peak decline → trough
+        zone (~{GOLD_TROUGH_OFFSET_YEARS}y after the peak) → advance with a mid-run
+        pause → final run into the next peak zone. Markers and the gold series update
+        as new public price data comes in — observation of the charts, not a forecast.
       </p>
 
       <div className="mt-8 rounded-xl border border-border bg-black p-6">
@@ -136,8 +133,7 @@ export default function GoldCyclePage() {
             <li>
               <strong className="font-medium text-[#d0d8e4]">2072*</strong> is theoretical
               from the ~{GOLD_CYCLE_YEARS}-year spacing. The blue silhouette is shape
-              language scaled to the chart — its step-up per lap is illustrative, not a
-              USD price path or target.
+              language scaled to the chart — not a USD price path.
             </li>
             <li>
               <strong className="font-medium text-[#d0d8e4]">15 Aug 1971</strong> marks the
