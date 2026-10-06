@@ -60,3 +60,50 @@ html {
 main {
   overflow-x: clip;
 }
+
+/* Cycles hub · Live marker (CyclesHub.tsx).
+   Cream ring grows out of the Live dot and fades on a 2s loop. Animates
+   transform (not r) so it runs in every browser incl. Safari;
+   non-scaling-stroke keeps the ring line crisp while it scales.
+   Reduced motion → static soft halo, no animation. */
+@keyframes cycle-live-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  80% {
+    transform: scale(3);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(3);
+    opacity: 0;
+  }
+}
+
+.cycle-live-marker,
+.cycle-live-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  pointer-events: none;
+}
+
+.cycle-live-ring {
+  animation: cycle-live-pulse 2s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+
+/* Phones: the silhouette viewBox is scaled down hard, so bump the whole
+   marker up to roughly its desktop on-screen size. */
+@media (max-width: 639px) {
+  .cycle-live-marker {
+    transform: scale(1.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cycle-live-ring {
+    animation: none;
+    transform: scale(1.7);
+    opacity: 0.5;
+  }
+}

@@ -92,7 +92,7 @@ function CycleSilhouette({
     <svg
       viewBox={viewBox}
       preserveAspectRatio="xMidYMid meet"
-      className="h-[180px] w-full sm:h-[220px] lg:h-[240px]"
+      className="h-[180px] w-full overflow-visible sm:h-[220px] lg:h-[240px]"
       aria-hidden
     >
       <path d={fillD} fill={color} fillOpacity="0.10" />
@@ -106,32 +106,34 @@ function CycleSilhouette({
         vectorEffect="non-scaling-stroke"
       />
       {marker ? (
-        <g>
+        <g data-live-dot="" transform={`translate(${marker.x} ${marker.y})`}>
           {/*
             Live marker: cream fill + dark rim so it stays high-contrast on every
-            tile stroke (RE green, BTC blue, Bond gold) — never match the line.
+            tile stroke (RE green, BTC blue, Bond gold, Gold amber) — never match
+            the line. A cream ring expands + fades on a 2s loop (same idea as the
+            gold detail chart’s Live ring). Under prefers-reduced-motion the ring
+            is a static halo instead. Drawn around (0,0) so the CSS scale-up on
+            narrow screens stays centred — see .cycle-live-* in globals.css.
           */}
-          <circle
-            cx={marker.x}
-            cy={marker.y}
-            r="10"
-            fill="#0a0a0a"
-            fillOpacity="0.45"
-          />
-          <circle
-            cx={marker.x}
-            cy={marker.y}
-            r="5.75"
-            fill="#f5f0e6"
-            stroke="#1a1a1a"
-            strokeWidth="2"
-          />
-          <circle
-            cx={marker.x}
-            cy={marker.y}
-            r="2"
-            fill="#1a1a1a"
-          />
+          <g className="cycle-live-marker">
+            <circle
+              className="cycle-live-ring"
+              r="9"
+              fill="none"
+              stroke="#f5f0e6"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle r="13" fill="#0a0a0a" fillOpacity="0.4" />
+            <circle
+              r="9"
+              fill="#f5f0e6"
+              stroke="#0a0a0a"
+              strokeWidth="2.5"
+              vectorEffect="non-scaling-stroke"
+            />
+            <circle r="2.5" fill="#1a1a1a" />
+          </g>
         </g>
       ) : null}
     </svg>
