@@ -131,6 +131,20 @@ export type BondLiveSilhouette = {
   phaseLine: string;
 };
 
+/**
+ * Detail page phase names (Trough regime / Rising-rate regime / Peak regime /
+ * Falling-rate regime). The chart draws the two regimes as bands between the
+ * Jan-dated zone lines, so: within ~half a year either side of a zone line
+ * (the same window where the countdown reads "Near") → that zone's regime;
+ * otherwise the band the Live dot is in.
+ */
+function bondPhaseName(day: number, startMs: number, peakMs: number, endMs: number): string {
+  const half = YEAR_MS / 2;
+  if (Math.abs(day - peakMs) < half) return "Peak regime";
+  if (Math.abs(day - startMs) < half || Math.abs(day - endMs) < half) return "Trough regime";
+  return day < peakMs ? "Rising-rate regime" : "Falling-rate regime";
+}
+
 export function bondLiveSilhouette(nowMs: number): BondLiveSilhouette {
   const day = melbourneDayMs(nowMs);
   const lap = bondLapIndexAt(day);
@@ -146,9 +160,10 @@ export function bondLiveSilhouette(nowMs: number): BondLiveSilhouette {
   const nextMs = rising ? peakMs : endMs;
   const yearsToNext = Math.max(0, Math.round((nextMs - day) / YEAR_MS));
   const nextZoneYear = rising ? peakYear : endYear;
-  const phaseLine =
+  const countdown =
     yearsToNext < 1
       ? `Near ~${nextZoneYear} theoretical ${rising ? "peak" : "trough"} zone`
       : `~${yearsToNext}y to ~${nextZoneYear} theoretical ${rising ? "peak" : "trough"} zone`;
+  const phaseLine = `${countdown} · ${bondPhaseName(day, startMs, peakMs, endMs)}`;
   return { pt: { x, y: ridgeY(x) }, phaseLine };
 }

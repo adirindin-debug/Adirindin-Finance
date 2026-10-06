@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useLiveNow } from "@/lib/useLiveNow";
+import { fetchBtcTipAnchor, type BtcTipAnchor } from "@/lib/cycles/btcHalvingEstimate";
 import {
   BTC_SILHOUETTE,
   btcLiveSilhouette,
@@ -27,7 +29,10 @@ type CycleTile = {
   path: string;
   viewBox: string;
   color: string;
-  live: (nowMs: number) => { pt: { x: number; y: number }; phaseLine: string };
+  live: (
+    nowMs: number,
+    halvingAnchor?: BtcTipAnchor,
+  ) => { pt: { x: number; y: number }; phaseLine: string };
 };
 
 const TILES: CycleTile[] = [
@@ -45,7 +50,7 @@ const TILES: CycleTile[] = [
     id: "re",
     href: "/tools/real-estate-cycle",
     title: "Real estate",
-    blurb: "Anderson ~18-year cycle theory",
+    blurb: "18.6-year real estate cycle theory",
     path: RE_SILHOUETTE.path,
     viewBox: RE_SILHOUETTE.viewBox,
     color: RE_SILHOUETTE.color,
@@ -140,9 +145,42 @@ function CycleSilhouette({
   );
 }
 
-function CycleTileCard({ tile }: { tile: CycleTile }) {
+/**
+ * Tile status text: "\n" starts a new line; " · " separates parts that never
+ * break internally, so narrow tiles wrap only between parts.
+ */
+function PhaseText({ text }: { text: string }) {
+  return (
+    <>
+      {text.split("\n").map((line, i) => {
+        const parts = line.split(" · ");
+        return (
+          <span key={i} className="block">
+            {parts.map((part, j) => (
+              <span key={j}>
+                <span className="whitespace-nowrap">
+                  {part}
+                  {j < parts.length - 1 ? " ·" : ""}
+                </span>
+                {j < parts.length - 1 ? " " : ""}
+              </span>
+            ))}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+function CycleTileCard({
+  tile,
+  halvingAnchor,
+}: {
+  tile: CycleTile;
+  halvingAnchor?: BtcTipAnchor;
+}) {
   const nowMs = useLiveNow();
-  const live = nowMs === null ? null : tile.live(nowMs);
+  const live = nowMs === null ? null : tile.live(nowMs, halvingAnchor);
   const phase =
     nowMs === null ? "Locating Live…" : (live?.phaseLine ?? "—");
 
@@ -176,8 +214,8 @@ function CycleTileCard({ tile }: { tile: CycleTile }) {
           </span>
         ) : null}
       </div>
-      <p className="relative mt-3 text-sm font-medium text-foreground/90 sm:text-base">
-        {phase}
+      <p className="relative mt-3 text-sm font-medium text-foreground/90 sm:text-base lg:min-h-[3rem]">
+        <PhaseText text={phase} />
       </p>
       <div className="relative mt-4 flex-1">
         <CycleSilhouette
@@ -195,10 +233,26 @@ function CycleTileCard({ tile }: { tile: CycleTile }) {
 }
 
 export function CyclesHub() {
+  /* Live chain tip for the BTC halving estimate; cached snapshot until (or if) it loads. */
+  const [halvingAnchor, setHalvingAnchor] = useState<BtcTipAnchor | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    fetchBtcTipAnchor().then((a) => {
+      if (!cancelled && a) setHalvingAnchor(a);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="mt-8 grid gap-5 sm:grid-cols-1 lg:grid-cols-2">
       {TILES.map((tile) => (
-        <CycleTileCard key={tile.id} tile={tile} />
+        <CycleTileCard
+          key={tile.id}
+          tile={tile}
+          halvingAnchor={tile.id === "btc" ? halvingAnchor : undefined}
+        />
       ))}
     </div>
   );
