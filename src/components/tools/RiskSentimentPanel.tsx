@@ -26,6 +26,7 @@ import {
   dayWeights,
   isBaseOverlayKey,
   isSmoothKey,
+  seasonTag,
   smoothScores,
   subScores,
   zoneFor,
@@ -33,8 +34,10 @@ import {
   type ComponentKey,
   type RsPayload,
   type RsRow,
+  type SeasonStat,
   type SmoothKey,
 } from "@/lib/riskSentiment";
+import { MONTH_LABELS, MONTH_NAMES, fmtRet } from "@/lib/seasonality";
 
 type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "MAX";
 const TIMEFRAMES: { key: TfKey; label: string; years: number | null }[] = [
@@ -124,7 +127,17 @@ function scoreThreeMonthsAgo(rows: RsRow[], scores: Array<number | null>, d: str
 const fmtLevel = (n: number) => n.toLocaleString("en-AU", { maximumFractionDigits: 0 });
 const ddText = (ddPct: number) => (ddPct > -0.005 ? "At high" : `${ddPct.toFixed(1)}% from high`);
 
-function rawText(key: ComponentKey, r: RsRow): string | null {
+/** Which base series stand behind a month's seasonality record, e.g. "S&P 500 1950–2011 · URTH 2012–2025". */
+function seasonBaseText(st: SeasonStat): string {
+  const spxN = st.n - st.nUrth;
+  if (!st.nUrth) return `S&P 500 ${st.firstYear}–${st.lastYear}`;
+  const urthFrom = st.lastYear - st.nUrth + 1;
+  return spxN > 0
+    ? `S&P 500 ${st.firstYear}–${urthFrom - 1} · URTH ${urthFrom}–${st.lastYear}`
+    : `URTH ${urthFrom}–${st.lastYear}`;
+}
+
+function rawText(key: ComponentKey, r: RsRow, st?: SeasonStat | null): string | null {
   const [d, , spx, spxDd, spxRsiD, spxRsiW, wPx, wDd, wRsiD, wRsiW, vix, vixPct, usFng, cryptoFng, trRaw, trPct, btc, re] = r;
   switch (key) {
     case "wDd":
@@ -153,6 +166,10 @@ function rawText(key: ComponentKey, r: RsRow): string | null {
       return btc == null ? null : `Calendar height ${btc.toFixed(0)}/100`;
     case "reCycle":
       return re == null ? null : `Calendar height ${re.toFixed(0)}/100`;
+    case "season":
+      return st
+        ? `${MONTH_LABELS[st.month - 1]} · avg ${fmtRet(st.avg, 2)} · ${Math.round(st.pctGreen)}% green · ${st.n} yrs`
+        : null;
   }
 }
 
@@ -452,6 +469,41 @@ export function RiskSentimentPanel() {
     return pt.matrixTransform(ctm).x - wrap.getBoundingClientRect().left;
   }, [isScrub, view, hoverIdx]);
 
+  /** Seasonality record for the picked day's calendar month (prior years only). */
+  const pickedSeason: SeasonStat | null = picked ? data?.season?.[picked.row[0].slice(0, 7)] ?? null : null;
+
+  /**
+   * Points seasonality moves the picked day's raw blend vs an average month (50):
+   * its effective weight share × (sub-score − 50).
+   */
+  const seasonPts = useMemo(() => {
+    if (!picked || !pickedSeason) return null;
+    const subs = subScores(picked.row);
+    if (subs.season == null) return null;
+    const { weight } = blend(subs);
+    if (weight <= 0) return null;
+    return (dayWeights(subs).season / weight) * (subs.season - 50);
+  }, [picked, pickedSeason]);
+
+  const seasonInfo = useMemo(() => {
+    if (!pickedSeason) return null;
+    const st = pickedSeason;
+    const tag = seasonTag(st.score);
+    const pts = seasonPts == null ? null : Math.round(seasonPts * 10) / 10;
+    const ptsText =
+      pts == null ? "" : ` · ${pts > 0 ? "+" : pts < 0 ? "−" : "±"}${Math.abs(pts).toFixed(1)} pts`;
+    return {
+      tag,
+      line: `${MONTH_NAMES[st.month - 1]}: avg ${fmtRet(st.avg, 2)}, ${Math.round(st.pctGreen)}% green over ${st.n} years${ptsText}`,
+      title:
+        `${MONTH_NAMES[st.month - 1]} on the gauge's equity base (${seasonBaseText(st)}): average monthly return ${fmtRet(st.avg, 2)}, ` +
+        `${st.pctGreen.toFixed(1)}% of months green, vs ${fmtRet(st.baseAvg, 2)} and ${st.basePctGreen.toFixed(1)}% across all ${st.baseN} prior months. ` +
+        `Seasonality sub-score ${st.score.toFixed(0)}/100 (10% weight)` +
+        (pts == null ? "." : `, moving the day's raw blend ${pts >= 0 ? "+" : "−"}${Math.abs(pts).toFixed(1)} pts vs an average month.`) +
+        " Prior years only — history, not a forecast.",
+    };
+  }, [pickedSeason, seasonPts]);
+
   const breakdown = useMemo(() => {
     if (!picked) return null;
     const subs = subScores(picked.row);
@@ -465,10 +517,10 @@ export function RiskSentimentPanel() {
         sub: v,
         eff,
         contrib: v == null ? null : (eff * v) / 100,
-        raw: rawText(c.key, picked.row),
+        raw: rawText(c.key, picked.row, pickedSeason),
       };
     });
-  }, [picked]);
+  }, [picked, pickedSeason]);
 
   const toggleBtn = "min-h-10 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors sm:min-h-0 sm:py-1.5";
   const toggleOn = "bg-accent text-white shadow-sm";
@@ -503,16 +555,34 @@ export function RiskSentimentPanel() {
                   {pickedScore == null ? "—" : Math.round(pickedScore)}
                 </p>
                 <div className="pb-2">
-                  {pickedZone && (
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold"
-                      style={{ color: pickedZone.color, borderColor: `${pickedZone.color}88`, background: `${pickedZone.color}1a` }}
-                    >
-                      <span className="h-2 w-2 rounded-full" style={{ background: pickedZone.color }} aria-hidden />
-                      {pickedZone.label}
-                    </span>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {pickedZone && (
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-semibold"
+                        style={{ color: pickedZone.color, borderColor: `${pickedZone.color}88`, background: `${pickedZone.color}1a` }}
+                      >
+                        <span className="h-2 w-2 rounded-full" style={{ background: pickedZone.color }} aria-hidden />
+                        {pickedZone.label}
+                      </span>
+                    )}
+                    {seasonInfo && (
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold"
+                        style={{ color: seasonInfo.tag.color, borderColor: `${seasonInfo.tag.color}88`, background: `${seasonInfo.tag.color}14` }}
+                        title={seasonInfo.title}
+                        data-season-tag={seasonInfo.tag.key}
+                      >
+                        <span aria-hidden>{seasonInfo.tag.key === "tailwind" ? "▲" : seasonInfo.tag.key === "headwind" ? "▼" : "◆"}</span>
+                        {seasonInfo.tag.label}
+                      </span>
+                    )}
+                  </div>
                   <p className="mt-2 text-xs text-muted">out of 100 · higher = hotter</p>
+                  {seasonInfo && (
+                    <p className="mt-0.5 max-w-[19rem] text-xs leading-snug text-muted" data-season-line>
+                      {seasonInfo.line}
+                    </p>
+                  )}
                   {isSmoothed && (
                     <p className="mt-0.5 text-xs text-muted" data-smooth-headline={smooth}>
                       {smoothMeta.name}

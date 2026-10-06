@@ -16,13 +16,21 @@
  *  - Crypto Fear & Greed — Alternative.me public API
  *  - Google Trends "bitcoin" monthly — snapshot only (unofficial endpoint; never
  *    scraped from production)
+ *  - Seasonality input — derived from the URTH / S&P 500 closes above, with older
+ *    S&P 500 month-end closes (Dec 1949 →) from the Seasonality page's dataset
+ *    (src/data/seasonality-snapshot.json). Expanding window, no look-ahead
  * A failed source is reported, never invented. Educational only · NFA.
  */
 
 import snapshot from "@/data/risk-sentiment-snapshot.json";
+import seasonSnapshot from "@/data/seasonality-snapshot.json";
+import type { MonthClose } from "@/lib/seasonality";
 import {
   alignToRows,
+  baseMonthlyReturns,
+  buildSeasonality,
   computeRows,
+  rowMonthKeys,
   thinRows,
   type RawInputs,
   type RsPayload,
@@ -57,6 +65,10 @@ type Snap = {
   trendsBitcoin?: SnapBlock;
 };
 const SNAP = snapshot as unknown as Snap;
+/** S&P 500 month-end closes from the Seasonality dataset (Yahoo ^GSPC, Dec 1949 →). */
+const SPX_MONTHS = ((seasonSnapshot as unknown as { spx?: { months?: MonthClose[] } }).spx?.months ?? null) as
+  | MonthClose[]
+  | null;
 
 let lastGood: { at: number; body: RsPayload } | null = null;
 const MEMO_MS = 30 * 60 * 1000;
@@ -319,12 +331,20 @@ export async function GET() {
     usFng: usFng.series,
     cryptoFng: cryptoFng.series,
     trends: tb?.rows ?? null,
+    spxMonths: SPX_MONTHS,
   };
-  const rows = thinRows(computeRows(inputs));
+  const season = buildSeasonality(baseMonthlyReturns(inputs), rowMonthKeys(inputs));
+  const rows = thinRows(computeRows(inputs, season));
+  const seasonOut: NonNullable<RsPayload["season"]> = {};
+  for (const r of rows) {
+    const k = r[0].slice(0, 7);
+    if (!(k in seasonOut)) seasonOut[k] = season.get(k) ?? null;
+  }
   const body: RsPayload = {
     ok: true,
     rows,
     ixic: alignToRows(rows, ixic.series),
+    season: seasonOut,
     asOf: rows.length ? rows[rows.length - 1]![0] : null,
     sources,
     warnings: warnings.length ? warnings : undefined,

@@ -11,12 +11,18 @@
  * data the other takes the pair's full weight (see EQUITY_PAIRS / dayWeights).
  * Before URTH history (~Jan 2012) the S&P pair logic fills the equity block.
  *
+ * Seasonality (10%) scores the calendar month from that same equity base: the
+ * month's historical average return and green-month odds, using only months
+ * completed before the date (expanding window, no look-ahead). See
+ * buildSeasonality below.
+ *
  * Theoretical estimation and study aid only. Not a signal, not a timing model,
  * not financial advice (NFA).
  */
 
 import { btcLiveSilhouette } from "@/lib/cycles/btcSilhouette";
 import { reLiveSilhouette } from "@/lib/cycles/reSilhouette";
+import type { MonthClose } from "@/lib/seasonality";
 
 /* -------------------------------------------------------------------------- */
 /* Components & weights                                                       */
@@ -34,20 +40,24 @@ export type ComponentKey =
   | "cryptoFng"
   | "trends"
   | "btcCycle"
-  | "reCycle";
+  | "reCycle"
+  | "season";
 
 export type ComponentMeta = {
   key: ComponentKey;
   label: string;
   short: string;
-  /** Percent when every input has data (sums to 100). */
+  /**
+   * Percent when every input has data (sums to 100). Seasonality takes 10%; the
+   * other inputs keep their original ratios, scaled by 0.9 to share the other 90%.
+   */
   weight: number;
   /**
    * Equity price inputs only: the weight this input takes when its URTH /
    * S&P 500 partner has no data that day (the pair's full share).
    */
   soloWeight?: number;
-  group: "Price risk" | "Volatility" | "Sentiment" | "Attention" | "Cycle calendar";
+  group: "Price risk" | "Volatility" | "Sentiment" | "Attention" | "Cycle calendar" | "Seasonality";
   how: string;
   color: string;
 };
@@ -57,8 +67,8 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "wDd",
     label: "URTH distance from all-time high",
     short: "URTH drawdown",
-    weight: 20,
-    soloWeight: 25,
+    weight: 18,
+    soloWeight: 22.5,
     group: "Price risk",
     how: "100 at a fresh all-time high, falling in a straight line to 0 at −30% or worse (URTH adjusted close vs running high). Primary equity input — iShares MSCI World ETF as a developed-markets proxy (not the licensed MSCI index series).",
     color: "#3dcc9a",
@@ -67,8 +77,8 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "wRsiW",
     label: "URTH weekly RSI (14)",
     short: "URTH RSI weekly",
-    weight: 12,
-    soloWeight: 15,
+    weight: 10.8,
+    soloWeight: 13.5,
     group: "Price risk",
     how: "Wilder 14-week RSI on URTH weekly adjusted closes; the current week uses the latest daily close. Used as-is (0–100).",
     color: "#4c9fff",
@@ -77,8 +87,8 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "wRsiD",
     label: "URTH daily RSI (14)",
     short: "URTH RSI daily",
-    weight: 8,
-    soloWeight: 10,
+    weight: 7.2,
+    soloWeight: 9,
     group: "Price risk",
     how: "Wilder 14-day RSI on URTH daily adjusted closes. Used as-is (0–100).",
     color: "#38bdf8",
@@ -87,37 +97,37 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "dd",
     label: "S&P 500 distance from all-time high (confirmation)",
     short: "SPX drawdown",
-    weight: 5,
-    soloWeight: 25,
+    weight: 4.5,
+    soloWeight: 22.5,
     group: "Price risk",
-    how: "Same rule as URTH (0% → 100, −30% or worse → 0) on the S&P 500 daily close. Secondary check; takes the full 25% on any day URTH has no data (including before URTH history ~Jan 2012).",
+    how: "Same rule as URTH (0% → 100, −30% or worse → 0) on the S&P 500 daily close. Secondary check; takes the full 22.5% on any day URTH has no data (including before URTH history ~Jan 2012).",
     color: "#1f9e74",
   },
   {
     key: "rsiW",
     label: "S&P 500 weekly RSI (14) (confirmation)",
     short: "SPX RSI weekly",
-    weight: 3,
-    soloWeight: 15,
+    weight: 2.7,
+    soloWeight: 13.5,
     group: "Price risk",
-    how: "Wilder 14-week RSI on S&P 500 weekly closes. Secondary check; takes the full 15% on any day URTH has no data.",
+    how: "Wilder 14-week RSI on S&P 500 weekly closes. Secondary check; takes the full 13.5% on any day URTH has no data.",
     color: "#3672b8",
   },
   {
     key: "rsiD",
     label: "S&P 500 daily RSI (14) (confirmation)",
     short: "SPX RSI daily",
-    weight: 2,
-    soloWeight: 10,
+    weight: 1.8,
+    soloWeight: 9,
     group: "Price risk",
-    how: "Wilder 14-day RSI on S&P 500 daily closes. Secondary check; takes the full 10% on any day URTH has no data.",
+    how: "Wilder 14-day RSI on S&P 500 daily closes. Secondary check; takes the full 9% on any day URTH has no data.",
     color: "#2a87ad",
   },
   {
     key: "vix",
     label: "VIX calm (inverse 5-year percentile)",
     short: "VIX calm",
-    weight: 15,
+    weight: 13.5,
     group: "Volatility",
     how: "100 − the VIX close's percentile against the prior 5 years of closes. Low vol = hotter, vol spike = colder.",
     color: "#a78bfa",
@@ -126,7 +136,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "usFng",
     label: "US stocks Fear & Greed (FearGreedChart.com)",
     short: "US F&G",
-    weight: 10,
+    weight: 9,
     group: "Sentiment",
     how: "Independent daily US stock Fear & Greed score, used as-is (0–100). Not CNN's index.",
     color: "#84cc16",
@@ -135,7 +145,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "cryptoFng",
     label: "Crypto Fear & Greed (Alternative.me)",
     short: "Crypto F&G",
-    weight: 10,
+    weight: 9,
     group: "Sentiment",
     how: "Alternative.me daily crypto Fear & Greed score, used as-is (0–100).",
     color: "#f7931a",
@@ -144,7 +154,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "trends",
     label: 'Google Trends "bitcoin" attention',
     short: "BTC search attention",
-    weight: 5,
+    weight: 4.5,
     group: "Attention",
     how: "Percentile of last completed month's worldwide search interest vs the prior 60 months. Applied to the following month (no look-ahead).",
     color: "#f472b6",
@@ -153,7 +163,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "btcCycle",
     label: "BTC 4-year cycle theory position (calendar)",
     short: "BTC 4y calendar",
-    weight: 5,
+    weight: 4.5,
     group: "Cycle calendar",
     how: "Height of the date on the Adirindin BTC 4y theory silhouette (trough 0 → theory peak 100). Calendar framework only — no price.",
     color: "#fbbf24",
@@ -162,10 +172,19 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "reCycle",
     label: "Real estate 18-year cycle position (calendar)",
     short: "RE 18y calendar",
-    weight: 5,
+    weight: 4.5,
     group: "Cycle calendar",
     how: "Height of the date on the Adirindin real estate (Anderson-style) silhouette (low 0 → major peak 100). Calendar framework only.",
     color: "#2dd4bf",
+  },
+  {
+    key: "season",
+    label: "Seasonality (calendar month, URTH / S&P 500 history)",
+    short: "Seasonality",
+    weight: 10,
+    group: "Seasonality",
+    how: "This calendar month's average return and green-month odds on the gauge's equity base (URTH adjusted-close monthly returns from Feb 2012, S&P 500 before that, back to 1950), using only months completed before the date. Each is compared with the all-month average in standard errors (so thin or noisy records count less): 50 = an average month, ±12.5 points per standard error on each half, capped 0–100. Needs at least 10 prior years of that month.",
+    color: "#e879f9",
   },
 ];
 
@@ -293,12 +312,16 @@ export function arcHeight(frac: number): number {
  * [date, score,
  *  spxClose, spxDdPct, spxRsiD, spxRsiW,
  *  worldClose, worldDdPct, worldRsiD, worldRsiW,
- *  vixClose, vixPct5y, usFng, cryptoFng, trendsRaw, trendsPct, btcCycle, reCycle]
+ *  vixClose, vixPct5y, usFng, cryptoFng, trendsRaw, trendsPct, btcCycle, reCycle,
+ *  seasonScore]
+ * seasonScore is the 0–100 seasonality sub-score for the row's calendar month
+ * (details per month in RsPayload.season).
  * Equity values are the latest close on or before the row date (≤ 4 days old),
  * null when that series has none.
  */
 export type RsRow = [
   string,
+  number | null,
   number | null,
   number | null,
   number | null,
@@ -458,6 +481,11 @@ export type RsPayload = {
    * within a few days). Base chart overlay only — not part of the score.
    */
   ixic?: Array<number | null>;
+  /**
+   * Seasonality detail per calendar month key (YYYY-MM) that appears in `rows`.
+   * Missing / null when that month has too little prior history.
+   */
+  season?: Record<string, SeasonStat | null>;
   asOf: string | null;
   sources: SourceStatus[];
   warnings?: string[];
@@ -468,7 +496,7 @@ export type RsPayload = {
 const ddScore = (ddPct: number | null) => (ddPct == null ? null : clamp(100 * (1 + ddPct / 30), 0, 100));
 
 export function subScores(r: RsRow): Record<ComponentKey, number | null> {
-  const [, , , spxDd, spxRsiD, spxRsiW, , wDd, wRsiD, wRsiW, , vixPct, usFng, cryptoFng, , trendsPct, btcCycle, reCycle] = r;
+  const [, , , spxDd, spxRsiD, spxRsiW, , wDd, wRsiD, wRsiW, , vixPct, usFng, cryptoFng, , trendsPct, btcCycle, reCycle, season] = r;
   return {
     wDd: ddScore(wDd),
     wRsiW,
@@ -482,6 +510,7 @@ export function subScores(r: RsRow): Record<ComponentKey, number | null> {
     trends: trendsPct,
     btcCycle,
     reCycle,
+    season: season ?? null,
   };
 }
 
@@ -540,6 +569,13 @@ export type RawInputs = {
   cryptoFng: Series | null;
   /** [YYYY-MM, value] completed months only. */
   trends: Series | null;
+  /**
+   * Older S&P 500 month-end closes ([YYYY-MM, last trading date, close]) from the
+   * site's Seasonality data (src/data/seasonality-snapshot.json, Yahoo ^GSPC from
+   * Dec 1949). Extends the seasonality history before the daily `spx` series;
+   * month-ends from `spx` win wherever both exist.
+   */
+  spxMonths?: MonthClose[] | null;
 };
 
 function wilderRsi(closes: number[], period = 14): Array<number | null> {
@@ -717,10 +753,168 @@ function makeMetricAsOf(rows: Array<[string, EqMetrics]> | null, maxGapDays: num
   };
 }
 
+/* -------------------------------------------------------------------------- */
+/* Seasonality (expanding window, no look-ahead)                              */
+/* -------------------------------------------------------------------------- */
+
+/** Fewest prior years of a calendar month before it gets a seasonality score. */
+export const SEASON_MIN_YEARS = 10;
+/** Sub-score points per standard error on each half (return, odds). */
+export const SEASON_POINTS_PER_SE = 12.5;
+/** Tag bands on the seasonality sub-score. */
+export const SEASON_TAILWIND_AT = 60;
+export const SEASON_HEADWIND_AT = 40;
+
+export type SeasonStat = {
+  /** Calendar month 1–12. */
+  month: number;
+  /** Prior years of this calendar month in the window. */
+  n: number;
+  /** Of those, years measured on URTH (the rest are S&P 500). */
+  nUrth: number;
+  firstYear: number;
+  lastYear: number;
+  /** Average monthly return, % (close-to-close, last trading day vs previous month's). */
+  avg: number;
+  /** Share of those months that closed up, %. */
+  pctGreen: number;
+  /** All completed months in the same window (baseline). */
+  baseN: number;
+  baseAvg: number;
+  basePctGreen: number;
+  /** Standard errors from the baseline. */
+  tRet: number;
+  tOdds: number;
+  /** 0–100 sub-score (50 = an average month). */
+  score: number;
+};
+
+export type SeasonTag = { key: "tailwind" | "headwind" | "neutral"; label: string; color: string };
+
+export function seasonTag(score: number): SeasonTag {
+  if (score >= SEASON_TAILWIND_AT) return { key: "tailwind", label: "Seasonal tailwind", color: "#3dcc9a" };
+  if (score <= SEASON_HEADWIND_AT) return { key: "headwind", label: "Seasonal headwind", color: "#f0883e" };
+  return { key: "neutral", label: "Seasonally neutral", color: "#94a3b8" };
+}
+
+function prevMonthOf(key: string): string {
+  const y = Number(key.slice(0, 4));
+  const m = Number(key.slice(5, 7));
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+}
+
+/** Month-end close per YYYY-MM from a daily series (last trading day in each month). */
+function monthEnds(daily: Series | null): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [d, c] of daily ?? []) out.set(d.slice(0, 7), c);
+  return out;
+}
+
+export type BaseMonthReturn = { key: string; ret: number; src: "urth" | "spx" };
+
+/**
+ * Monthly returns on the gauge's equity base: URTH where it has both month-end
+ * closes, else the S&P 500 (S&P daily closes, extended back with the
+ * Seasonality month-end history). Every month returned is from real closes.
+ */
+export function baseMonthlyReturns(inp: Pick<RawInputs, "spx" | "world" | "spxMonths">): BaseMonthReturn[] {
+  const spx = new Map<string, number>();
+  for (const [k, , c] of inp.spxMonths ?? []) spx.set(k, c);
+  for (const [k, c] of monthEnds(inp.spx)) spx.set(k, c);
+  const urth = monthEnds(inp.world);
+  const keys = [...new Set([...spx.keys(), ...urth.keys()])].sort();
+  const out: BaseMonthReturn[] = [];
+  for (const k of keys) {
+    const p = prevMonthOf(k);
+    const u0 = urth.get(p);
+    const u1 = urth.get(k);
+    if (u0 != null && u1 != null) {
+      out.push({ key: k, ret: (u1 / u0 - 1) * 100, src: "urth" });
+      continue;
+    }
+    const s0 = spx.get(p);
+    const s1 = spx.get(k);
+    if (s0 != null && s1 != null) out.push({ key: k, ret: (s1 / s0 - 1) * 100, src: "spx" });
+  }
+  return out;
+}
+
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * Seasonality stats for each requested month key, each built only from base
+ * months strictly before it (all already complete on any date in that month).
+ * The month being scored never sees its own return or anything later.
+ */
+export function buildSeasonality(rets: BaseMonthReturn[], monthKeys: string[]): Map<string, SeasonStat | null> {
+  const out = new Map<string, SeasonStat | null>();
+  const keys = [...new Set(monthKeys)].sort();
+  const cal = Array.from({ length: 12 }, () => ({ n: 0, sum: 0, green: 0, urth: 0, first: 0, last: 0 }));
+  let bN = 0;
+  let bSum = 0;
+  let bSq = 0;
+  let bGreen = 0;
+  let j = 0;
+  for (const key of keys) {
+    while (j < rets.length && rets[j]!.key < key) {
+      const { key: k, ret, src } = rets[j]!;
+      const c = cal[Number(k.slice(5, 7)) - 1]!;
+      const y = Number(k.slice(0, 4));
+      if (!c.n) c.first = y;
+      c.last = y;
+      c.n++;
+      c.sum += ret;
+      if (ret > 0) c.green++;
+      if (src === "urth") c.urth++;
+      bN++;
+      bSum += ret;
+      bSq += ret * ret;
+      if (ret > 0) bGreen++;
+      j++;
+    }
+    const month = Number(key.slice(5, 7));
+    const c = cal[month - 1]!;
+    if (c.n < SEASON_MIN_YEARS || bN < 2) {
+      out.set(key, null);
+      continue;
+    }
+    const avg = c.sum / c.n;
+    const pg = c.green / c.n;
+    const bAvg = bSum / bN;
+    const bP = bGreen / bN;
+    const bSd = Math.sqrt(Math.max(0, (bSq - bN * bAvg * bAvg) / (bN - 1)));
+    const seRet = bSd / Math.sqrt(c.n);
+    const seOdds = Math.sqrt((bP * (1 - bP)) / c.n);
+    const tRet = seRet > 0 ? (avg - bAvg) / seRet : 0;
+    const tOdds = seOdds > 0 ? (pg - bP) / seOdds : 0;
+    const half = (t: number) => clamp(50 + SEASON_POINTS_PER_SE * t, 0, 100);
+    out.set(key, {
+      month,
+      n: c.n,
+      nUrth: c.urth,
+      firstYear: c.first,
+      lastYear: c.last,
+      avg: r2(avg),
+      pctGreen: Math.round(pg * 1000) / 10,
+      baseN: bN,
+      baseAvg: r2(bAvg),
+      basePctGreen: Math.round(bP * 1000) / 10,
+      tRet: r2(tRet),
+      tOdds: r2(tOdds),
+      score: Math.round(((half(tRet) + half(tOdds)) / 2) * 10) / 10,
+    });
+  }
+  return out;
+}
+
 /** Equity close may be at most this many calendar days old for a row (long weekends). */
 const EQUITY_MAX_GAP = 4;
 
-export function computeRows(inp: RawInputs): RsRow[] {
+/**
+ * Daily rows. `season` (from buildSeasonality) supplies each row's seasonality
+ * sub-score by calendar month; without it the input is simply missing.
+ */
+export function computeRows(inp: RawInputs, season?: Map<string, SeasonStat | null>): RsRow[] {
   const spxM = equityMetrics(inp.spx);
   const worldM = equityMetrics(inp.world);
   // Row dates: every session of either equity series (World trades some US holidays).
@@ -777,11 +971,20 @@ export function computeRows(inp: RawInputs): RsRow[] {
       tr ? tr.pct : null,
       btc,
       re,
+      season?.get(d.slice(0, 7))?.score ?? null,
     ];
     row[1] = blend(subScores(row)).score;
     rows.push(row);
   }
   return rows;
+}
+
+/** Calendar month keys a computeRows call will produce (for buildSeasonality). */
+export function rowMonthKeys(inp: Pick<RawInputs, "spx" | "world">): string[] {
+  const set = new Set<string>();
+  for (const r of inp.spx ?? []) if (r[0] >= DISPLAY_FROM) set.add(r[0].slice(0, 7));
+  for (const r of inp.world ?? []) if (r[0] >= DISPLAY_FROM) set.add(r[0].slice(0, 7));
+  return [...set].sort();
 }
 
 /** Align a daily close series to row dates (latest close ≤ row date, at most EQUITY_MAX_GAP days old). */

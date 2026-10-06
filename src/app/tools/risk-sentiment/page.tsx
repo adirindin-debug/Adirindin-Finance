@@ -1,12 +1,21 @@
 import type { Metadata } from "next";
 import { ToolsBackLink } from "@/components/tools/ToolsBackLink";
 import { RiskSentimentPanel } from "@/components/tools/RiskSentimentPanel";
-import { COMPONENTS, MIN_WEIGHT_FOR_SCORE, ZONES } from "@/lib/riskSentiment";
+import {
+  COMPONENTS,
+  MIN_WEIGHT_FOR_SCORE,
+  SEASON_HEADWIND_AT,
+  SEASON_MIN_YEARS,
+  SEASON_POINTS_PER_SE,
+  SEASON_TAILWIND_AT,
+  ZONES,
+  type ComponentMeta,
+} from "@/lib/riskSentiment";
 
 export const metadata: Metadata = {
   title: "Market risk & sentiment gauge",
   description:
-    "Transparent 0–100 blend of public price-risk, volatility, sentiment, search-attention and cycle-calendar inputs — from washout to euphoria-leaning. Theoretical study aid only, not a signal. Not financial advice (NFA).",
+    "Transparent 0–100 blend of public price-risk, volatility, sentiment, search-attention, cycle-calendar and seasonality inputs — from washout to euphoria-leaning. Theoretical study aid only, not a signal. Not financial advice (NFA).",
 };
 
 const COVERAGE: { input: string; from: string; note: string }[] = [
@@ -30,7 +39,23 @@ const COVERAGE: { input: string; from: string; note: string }[] = [
   { input: "Crypto Fear & Greed", from: "Feb 2018", note: "Alternative.me public API." },
   { input: 'Google Trends "bitcoin"', from: "Jan 2013", note: "Monthly, worldwide. Dated snapshot (unofficial endpoint, refreshed by hand — never scraped from production)." },
   { input: "BTC 4y + real estate 18y calendar", from: "Jan 2013", note: "Positions on the Adirindin theory silhouettes (Market cycles). Calendar frameworks, not data." },
+  {
+    input: "Seasonality (calendar month)",
+    from: "Jan 1990 (month history from Jan 1950)",
+    note: "Derived from the equity base above — URTH adjusted-close monthly returns from Feb 2012, S&P 500 (^GSPC) before that. S&P month-ends before 1985 come from the Seasonality page's dataset (Yahoo ^GSPC from Dec 1949). Expanding window: each date only sees months completed before it.",
+  },
 ];
+
+/** Weight per group, e.g. price risk 45. */
+function groupTotals(): Array<{ group: ComponentMeta["group"]; weight: number }> {
+  const out: Array<{ group: ComponentMeta["group"]; weight: number }> = [];
+  for (const c of COMPONENTS) {
+    const g = out.find((x) => x.group === c.group);
+    if (g) g.weight += c.weight;
+    else out.push({ group: c.group, weight: c.weight });
+  }
+  return out.map((g) => ({ ...g, weight: Math.round(g.weight * 10) / 10 }));
+}
 
 const SKIPPED: { what: string; why: string }[] = [
   { what: 'Google Trends "stock market"', why: "Tested. It spikes in crashes (2008, Mar 2020) as well as booms, so its direction is ambiguous — left out rather than forced." },
@@ -46,7 +71,7 @@ export default function RiskSentimentPage() {
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market risk &amp; sentiment gauge</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         One number for how hot or washed-out risk appetite looks, built from public price, volatility, sentiment and
-        attention data plus a light touch of the Adirindin cycle calendars. Higher means hotter and more risk-on; lower
+        attention data, a seasonality read on the calendar month, plus a light touch of the Adirindin cycle calendars. Higher means hotter and more risk-on; lower
         means fear and washout. Scrub the history to see how past moods read.
       </p>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
@@ -72,9 +97,24 @@ export default function RiskSentimentPage() {
           Equity price risk leans on <strong className="font-medium text-foreground">URTH</strong> (iShares MSCI World ETF
           proxy for developed markets) rather than the US alone — the same series as global equities and seasonality, not
           the licensed MSCI index. Each price measure is a pair: with both series available, URTH takes 80% of the pair and
-          the S&amp;P 500 20% as a cross-check (all-time-high distance 20% + 5%, weekly RSI 12% + 3%, daily RSI 8% + 2%).
-          On any day one series has no data (including before URTH history ~Jan 2012), the other takes the pair&apos;s full
-          share (25% / 15% / 10%), so the equity block stays at 50%.
+          the S&amp;P 500 20% as a cross-check (all-time-high distance 18% + 4.5%, weekly RSI 10.8% + 2.7%, daily RSI 7.2%
+          + 1.8%). On any day one series has no data (including before URTH history ~Jan 2012), the other takes the
+          pair&apos;s full share (22.5% / 13.5% / 9%), so the equity block stays at 45%.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted" data-season-method>
+          <strong className="font-medium text-foreground">Seasonality (10%).</strong> Some calendar months have
+          historically been stronger than others. For each date the gauge takes that calendar month&apos;s average return
+          and green-month odds on the same equity base — URTH monthly returns where URTH has them (from Feb 2012), the
+          S&amp;P 500 before that, back to 1950 — using <em>only months completed before the date</em>, so history is
+          never scored with hindsight. Each figure is compared with the average across all prior months and measured in
+          standard errors, so a thin or noisy record counts for less: 50 is an average month, and each half (return,
+          odds) moves {SEASON_POINTS_PER_SE} points per standard error, capped 0–100. A month needs at least{" "}
+          {SEASON_MIN_YEARS} prior years before it is scored. The tag next to the score reads{" "}
+          <span className="text-[#3dcc9a]">Seasonal tailwind</span> at {SEASON_TAILWIND_AT}+,{" "}
+          <span className="text-[#f0883e]">Seasonal headwind</span> at {SEASON_HEADWIND_AT} or below, and seasonally
+          neutral in between, with the points it adds or takes away vs an average month. Adding seasonality scaled every
+          other weight by 0.9, so their ratios to each other are unchanged. Seasonal tendencies are averages across many
+          years and any single month can buck them.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Base chart.</strong> The line under the score history is a
@@ -123,8 +163,15 @@ export default function RiskSentimentPage() {
           </table>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-muted">
-          Group totals: price risk 50% (URTH 40% · S&amp;P 500 10%) · volatility 15% · sentiment 20% · attention 5% ·
-          cycle calendar 10% (kept light on purpose — frameworks, not measurements).
+          Group totals:{" "}
+          {groupTotals()
+            .map((g) =>
+              g.group === "Price risk"
+                ? `price risk ${g.weight}% (URTH 36% · S&P 500 9%)`
+                : `${g.group.toLowerCase()} ${g.weight}%`,
+            )
+            .join(" · ")}
+          . Cycle calendars are kept light on purpose — frameworks, not measurements.
         </p>
 
         <h3 className="mt-6 text-sm font-semibold text-foreground">Zones</h3>
@@ -184,7 +231,8 @@ export default function RiskSentimentPage() {
             readings are not like-for-like with recent ones. Before URTH (~Jan 2012) the equity block is S&amp;P-only via
             the pair logic. URTH is a developed-markets ETF proxy (no emerging markets; after fees, dividends reinvested)
             — not the licensed MSCI index series. VIX and the US Fear &amp; Greed score are still US-centric. Trends data
-            is monthly and lags by up to a month.
+            is monthly and lags by up to a month. Seasonality is mostly S&amp;P 500 history (URTH only covers 2012 on),
+            so it is US-leaning too.
           </p>
         </div>
       </section>
