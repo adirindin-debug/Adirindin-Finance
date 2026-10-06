@@ -47,7 +47,7 @@ const LEG_U = (PEAK_U - CORRECTION_U) / 2;
 /** Correction depth; legs then rise (1 + depth) / 2 each to land exactly on the peak. */
 const CORRECTION_DEPTH = 0.2;
 const LEG_RISE = (1 + CORRECTION_DEPTH) / 2;
-/** Right-side ending low, as a share of the peak's height above the starting trough. */
+/** Right-side higher low (bottom of the drawdown), as a share of the peak's height above the starting trough. */
 export const GOLD_TILE_END_LOW = 0.62;
 
 /** One run-up leg: [share of leg length, share of rise] — slow start, firm middle, rounded top. */
@@ -60,15 +60,21 @@ const LEG_TEMPLATE: [number, number][] = [
   [1, 1],
 ];
 
-/** Post-peak drawdown profile: [share of the drawdown span, share of the drop left]. */
+/**
+ * Post-peak drawdown profile: [share of the drawdown span, share of the drop left].
+ * Flat slide to the higher low near the right end, then a rounded bottom that
+ * bends gently back up over the final stretch.
+ */
 const DRAWDOWN_TEMPLATE: [number, number][] = [
   [0, 1],
   [0.06, 0.9],
   [0.16, 0.7],
   [0.3, 0.5],
-  [0.5, 0.3],
-  [0.75, 0.12],
-  [1, 0],
+  [0.48, 0.3],
+  [0.66, 0.12],
+  [0.84, 0],
+  [0.93, 0.04],
+  [1, 0.11],
 ];
 
 /**
@@ -110,6 +116,8 @@ const TANGENTS: number[] = (() => {
   for (let i = 0; i < n - 1; i++) d.push((k[i + 1]![1] - k[i]![1]) / (k[i + 1]![0] - k[i]![0]));
   const m: number[] = new Array(n).fill(0);
   for (let i = 1; i < n - 1; i++) m[i] = d[i - 1]! * d[i]! <= 0 ? 0 : (d[i - 1]! + d[i]!) / 2;
+  /* Keep the closing upturn rising through the right edge (no flattening at the end). */
+  if (d[n - 2]! > 0) m[n - 1] = d[n - 2]!;
   for (let i = 0; i < n - 1; i++) {
     if (d[i] === 0) {
       m[i] = 0;

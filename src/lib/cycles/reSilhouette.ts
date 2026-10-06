@@ -230,24 +230,86 @@ function livePositionFromNow(nowMs: number): Pt {
 
 /** Framework cycle length shown on the tile (the classic 18.6-year framing). */
 const RE_CYCLE_YEARS = 18.6;
-const YEAR_MS = 365.2425 * 86_400_000;
+/** Detail page phase card: Recovery spans cycle years ~0–4. */
+const RECOVERY_YEARS = 4;
+/** Detail chart: ~2-year Winner’s Curse run-up into the major peak (2024 → end-2026). */
+const WINNERS_CURSE_YEARS = 2;
+/** Detail chart year stacks: next-lap downturn column year (2028 → 2046). */
+const NEXT_LAP_DOWNTURN_YEAR = 2046;
+
+function waypointYear(list: { year: number; label: string }[], label: string): number {
+  const w = list.find((p) => p.label === label);
+  if (!w) throw new Error(`reSilhouette: missing waypoint "${label}"`);
+  return w.year;
+}
+
+type TileLap = {
+  /** Year N = calendar year − base (Melbourne). */
+  base: number;
+  /** Last calendar year of each phase, in order, with its tile label. */
+  phases: { through: number; label: string }[];
+};
+
+function tileLap(o: {
+  base: number;
+  midPeak: number;
+  midLow: number;
+  peak: number;
+  downturn: number;
+  low: number;
+}): TileLap {
+  return {
+    base: o.base,
+    phases: [
+      { through: o.base + RECOVERY_YEARS, label: "Recovery" },
+      { through: o.midPeak, label: `Mid-cycle peak ${o.midPeak}` },
+      { through: o.midLow, label: "Mid-cycle slowdown" },
+      { through: o.peak - WINNERS_CURSE_YEARS, label: "Land boom" },
+      { through: o.peak, label: `Winner's Curse ${o.peak}` },
+      { through: o.downturn, label: "Downturn" },
+      { through: o.low, label: "Low zone" },
+    ],
+  };
+}
 
 /**
- * Hub tile phase line — calm and factual, from the chart's own waypoint years
- * only (never invented): which year of the cycle we are in, counted from the
- * lap's starting Recovery waypoint (end of 2012; end of 2031 on the next lap —
- * the same end-of-year convention as the Live walk), plus the lap's framework
- * peak-zone year (2026; 2044 on the next lap).
+ * Tile laps, built only from years already in the RE chart code.
+ * Classic lap: Recovery marker 2012 → years 1–18 = 2013–2030 (2030 low zone).
+ * Next lap: restart marker 2031 = year 1 → 2048 low = year 18. No year 19 is shown.
+ */
+const TILE_LAPS: TileLap[] = [
+  tileLap({
+    base: waypointYear(YEAR_WAYPOINTS, "Recovery"),
+    midPeak: waypointYear(YEAR_WAYPOINTS, "Mid-cycle peak"),
+    midLow: waypointYear(YEAR_WAYPOINTS, "Mid-cycle low"),
+    peak: waypointYear(YEAR_WAYPOINTS, "Major peak"),
+    downturn: waypointYear(YEAR_WAYPOINTS, "Downturn"),
+    low: waypointYear(YEAR_WAYPOINTS, "Low zone"),
+  }),
+  tileLap({
+    base: waypointYear(NEXT_LAP_WAYPOINTS, "Next-lap recovery") - 1,
+    midPeak: waypointYear(NEXT_LAP_WAYPOINTS, "Next-lap mid peak"),
+    midLow: waypointYear(NEXT_LAP_WAYPOINTS, "Next-lap mid low"),
+    peak: waypointYear(NEXT_LAP_WAYPOINTS, "Next-lap peak"),
+    downturn: NEXT_LAP_DOWNTURN_YEAR,
+    low: waypointYear(NEXT_LAP_WAYPOINTS, "Next-lap low"),
+  }),
+];
+
+/**
+ * Hub tile phase line: "Year N of 18.6 · <phase>" using the detail chart’s own
+ * phase names and years (never invented). Before the classic lap it shows year 1
+ * Recovery; after the last drawn lap (end-2048) it parks on that lap’s low zone,
+ * like the chart’s Live dot.
  * Hub only — the RE detail page's Live text lives in RealEstateCycleChart.tsx.
  */
 function phaseLineFromNow(nowMs: number): string {
-  const { y, m, d } = melbourneYmd(nowMs);
-  const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  const nextLap = now > endOfYearMs(NEXT_LOW_YEAR);
-  const start = nextLap ? NEXT_LOW_YEAR : YEAR_WAYPOINTS[0].year;
-  const peakZone = nextLap ? NEXT_LAP_WAYPOINTS[3].year : YEAR_WAYPOINTS[4].year;
-  const yearOf = Math.max(1, Math.floor((now - endOfYearMs(start)) / YEAR_MS) + 1);
-  return `Year ~${yearOf} of ~${RE_CYCLE_YEARS} · framework peak zone ~${peakZone}`;
+  const { y } = melbourneYmd(nowMs);
+  const lap = TILE_LAPS.find((l) => y <= l.phases[l.phases.length - 1]!.through) ?? TILE_LAPS[TILE_LAPS.length - 1]!;
+  const last = lap.phases[lap.phases.length - 1]!;
+  const year = Math.min(Math.max(y, lap.base + 1), last.through);
+  const phase = lap.phases.find((p) => year <= p.through) ?? last;
+  return `Year ${year - lap.base} of ${RE_CYCLE_YEARS} · ${phase.label}`;
 }
 
 export type ReLiveSilhouette = {
