@@ -6,7 +6,6 @@
 
 import {
   THEORY_CYCLE_YEARS,
-  approxFullDate,
   theoryPeakMs,
   theoryTroughMs,
 } from "@/lib/btcCycleExtremes";
@@ -16,6 +15,7 @@ import {
   smoothBeziers,
   type Pt,
 } from "@/lib/smoothCurve";
+import { halvingCountdownText, type BtcTipAnchor } from "@/lib/cycles/btcHalvingEstimate";
 
 const TROUGH: Pt = { x: 88, y: 300 };
 const MID_UP: Pt = { x: 470, y: 215 };
@@ -105,7 +105,27 @@ export type BtcLiveSilhouette = {
   phaseLine: string;
 };
 
-export function btcLiveSilhouette(nowMs: number): BtcLiveSilhouette {
+/**
+ * Detail-page phase strip names and their schematic bands on the ~3y ascent
+ * (BtcFourYearCycleChart.tsx: halving epoch spans 40%–62% of the ascent, late
+ * bull runs from there to the peak; the ~1y descent is the bear).
+ */
+const HALVING_BAND_START = 0.4;
+const HALVING_BAND_END = 0.62;
+
+function btcPhaseName(descending: boolean, frac: number): string {
+  if (descending) return "~1-year bear";
+  if (frac < HALVING_BAND_START) return "~3-year bull";
+  if (frac < HALVING_BAND_END) return "Halving epoch";
+  return "Late bull";
+}
+
+/**
+ * Tile line (two lines, "\n"-separated):
+ *   "~0d to theory trough · ~1-year bear"
+ *   "~555d to halving (~Apr 2028 est.)"
+ */
+export function btcLiveSilhouette(nowMs: number, halvingAnchor?: BtcTipAnchor): BtcLiveSilhouette {
   const now = melbourneDayMs(nowMs);
   const { lowMs, peakMs, nextLowMs } = theoryLapAt(now);
   const descending = now > peakMs;
@@ -122,9 +142,9 @@ export function btcLiveSilhouette(nowMs: number): BtcLiveSilhouette {
     ? PEAK.x + frac * (NEXT_TROUGH.x - PEAK.x)
     : TROUGH.x + frac * (PEAK.x - TROUGH.x);
   const pt = pointAtX(LINE_BEZ, x);
-  const daysToTrough = Math.max(0, Math.round((nextLowMs - now) / 86_400_000));
-  const phaseLine = descending
-    ? `~${daysToTrough}d to theory trough (${approxFullDate(nextLowMs)})`
-    : `Ascent toward theory peak (${approxFullDate(peakMs)})`;
+  const turnMs = descending ? nextLowMs : peakMs;
+  const daysToTurn = Math.max(0, Math.round((turnMs - now) / 86_400_000));
+  const turn = `~${daysToTurn}d to theory ${descending ? "trough" : "peak"}`;
+  const phaseLine = `${turn} · ${btcPhaseName(descending, frac)}\n${halvingCountdownText(now, halvingAnchor)}`;
   return { pt, phaseLine };
 }
