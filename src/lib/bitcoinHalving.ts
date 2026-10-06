@@ -11,7 +11,7 @@ export const COMPLETED_HALVINGS: ReadonlyArray<{
   { label: "1st", at: Date.parse("2012-11-28T00:00:00Z"), block: 210_000 },
   { label: "2nd", at: Date.parse("2016-07-09T00:00:00Z"), block: 420_000 },
   { label: "3rd", at: Date.parse("2020-05-11T00:00:00Z"), block: 630_000 },
-  { label: "4th", at: Date.parse("2024-04-19T00:00:00Z"), block: 840_000 },
+  { label: "4th", at: Date.parse("2024-04-20T00:00:00Z"), block: 840_000 },
 ];
 
 export const LAST_HALVING = COMPLETED_HALVINGS[COMPLETED_HALVINGS.length - 1]!.at;

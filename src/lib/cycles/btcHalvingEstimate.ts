@@ -1,6 +1,6 @@
 /**
  * Hub-tile halving countdown (Market cycles hub only — the BTC detail page keeps
- * using src/lib/bitcoinHalving.ts unchanged).
+ * using src/lib/bitcoinHalving.ts; both date the 4th halving 20 Apr 2024).
  *
  * Past halvings are fixed historical dates (UTC). The next halving has no fixed
  * date: it happens at a block height, so the tile estimates it from a block-height

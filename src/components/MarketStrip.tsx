@@ -193,7 +193,7 @@ export function MarketStrip() {
     {
       label: "Days since halving",
       value: daySince,
-      hint: "Last halving 19 Apr 2024",
+      hint: "Last halving 20 Apr 2024",
     },
     {
       label: "Days to halving",
@@ -232,7 +232,7 @@ export function MarketStrip() {
         Source: Coinbase Exchange BTC-USD (spot ticker and daily candles), with Yahoo
         Finance chart as a fallback when Coinbase is rate-limited. Drawdown uses recent
         daily closes from that feed, not an all-time exchange ATH. Halving date is fixed
-        (19 Apr 2024). Next halving estimate uses 210,000 blocks at Bitcoin's 10-minute
+        (20 Apr 2024). Next halving estimate uses 210,000 blocks at Bitcoin's 10-minute
         target block time. Educational only — NFA.
       </p>
     </section>
