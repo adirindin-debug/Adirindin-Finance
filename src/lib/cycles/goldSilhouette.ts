@@ -4,13 +4,11 @@
  * trough zone (right), with the same calendar timing as /tools/gold-cycle
  * (peak zones from goldCommodityCycle.ts, trough zone ~20y after each peak).
  *
- * The tile has its OWN self-contained shape (the detail chart is unchanged):
- *   trough → first run-up → mid-cycle correction (smooth, wide U-shaped bowl)
- *   → second run-up (same shape) → peak zone → shallow, flat drawdown to a
- *   much higher low
- * The ending low sits ~62% of the way from the starting trough to the peak —
- * well above the mid-cycle correction low — reflecting gold's long secular
- * uptrend. Educational observational sketch · NFA.
+ * The tile has its OWN self-contained shape (the detail chart is unchanged),
+ * modelled on the 1970s–80s gold pattern: flat low → steep run-up → sharp
+ * mid-way correction → parabolic spike to the peak → sharp drop → long
+ * "down sideways" drift ending ~58% of the way up — well above the start,
+ * reflecting gold's long secular uptrend. Educational observational sketch · NFA.
  */
 
 import {
@@ -32,81 +30,80 @@ function unitToY(unit: number): number {
 }
 
 /* -------------------------------------------------------------------------- */
-/* Tile shape: [u across the tile 0..1, unit height 0..1]                     */
+/* Tile shape: [s across the tile 0..1, unit height 0..1]                     */
 /* -------------------------------------------------------------------------- */
 
-/** Peak position across the tile (trough → peak is ~26y of the ~46y lap). */
+/** Peak's place in the lap (trough → peak is ~26y of the ~46y lap). */
 const PEAK_U = 1 - GOLD_TROUGH_FRAC;
 /**
- * Mid-cycle correction bowl length, first top → bowl bottom (≈6.5y of the lap).
- * Roughly twice the drop in on-screen units, so the bowl reads as a rounded U.
+ * Peak's place across the tile. Like the 1970s–80s gold reference, the run-up is
+ * compressed (~38% of the width) and the long post-peak drift gets the rest.
+ * Live timing is warped to match (see tileX), so the dot stays just after the peak.
  */
-const CORRECTION_U = 0.14;
-/** Both run-up legs have the same length and rise. */
-const LEG_U = (PEAK_U - CORRECTION_U) / 2;
-/** Correction depth; legs then rise (1 + depth) / 2 each to land exactly on the peak. */
-const CORRECTION_DEPTH = 0.2;
-const LEG_RISE = (1 + CORRECTION_DEPTH) / 2;
-/** Right-side higher low (bottom of the drawdown), as a share of the peak's height above the starting trough. */
-export const GOLD_TILE_END_LOW = 0.62;
-
-/** One run-up leg: [share of leg length, share of rise] — slow start, firm middle, rounded top. */
-const LEG_TEMPLATE: [number, number][] = [
-  [0, 0],
-  [0.22, 0.1],
-  [0.48, 0.38],
-  [0.72, 0.7],
-  [0.9, 0.93],
-  [1, 1],
-];
+const PEAK_S = 0.38;
+/** Right-side ending level, as a share of the peak's height above the starting trough. */
+export const GOLD_TILE_END_LOW = 0.58;
 
 /**
- * Post-peak drawdown profile: [share of the drawdown span, share of the drop left].
- * Flat slide to the higher low near the right end, then a rounded bottom that
- * bends gently back up over the final stretch.
+ * Hand-placed knots after Anthony's 1970s–80s gold reference, smoothed through a
+ * monotone cubic: flat, slightly choppy base → steep run-up → sharp mid-way
+ * correction (~55% → ~43%) → steeper parabolic spike to the peak → sharp drop
+ * to ~35% below the peak → long "down sideways" drift with a rebound hump, a
+ * smaller later hump, and an end ~58% of the way up (well above the start).
  */
-const DRAWDOWN_TEMPLATE: [number, number][] = [
-  [0, 1],
-  [0.06, 0.9],
-  [0.16, 0.7],
-  [0.3, 0.5],
-  [0.48, 0.3],
-  [0.66, 0.12],
-  [0.84, 0],
-  [0.93, 0.04],
-  [1, 0.11],
-];
-
-/**
- * Correction bowl: [share of bowl length, share of the drop still to go].
- * Rounded roll-over from the first top, steepest mid-way, then a long, flattening
- * approach to a wide bottom; the second leg's slow start swings it back up.
- */
-const BOWL_TEMPLATE: [number, number][] = [
-  [0, 1],
-  [0.2, 0.9],
-  [0.4, 0.58],
-  [0.58, 0.25],
-  [0.76, 0.07],
-  [0.89, 0.01],
-  [1, 0],
-];
-
-const legKnots = (u0: number, v0: number): [number, number][] =>
-  LEG_TEMPLATE.map(([a, b]) => [u0 + a * LEG_U, v0 + b * LEG_RISE]);
-
-const BOWL_LOW = LEG_RISE - CORRECTION_DEPTH;
-
 const KNOTS: [number, number][] = [
-  ...legKnots(0, 0),
-  ...BOWL_TEMPLATE.slice(1, -1).map(
-    ([a, b]): [number, number] => [LEG_U + a * CORRECTION_U, BOWL_LOW + b * CORRECTION_DEPTH],
-  ),
-  ...legKnots(LEG_U + CORRECTION_U, BOWL_LOW),
-  ...DRAWDOWN_TEMPLATE.slice(1).map(
-    ([a, b]): [number, number] => [PEAK_U + a * (1 - PEAK_U), GOLD_TILE_END_LOW + b * (1 - GOLD_TILE_END_LOW)],
-  ),
+  // flat, choppy base
+  [0, 0.015],
+  [0.035, 0.03],
+  [0.075, 0.005],
+  [0.105, 0.035],
+  // steep first run-up with a brief pause
+  [0.128, 0.14],
+  [0.142, 0.165],
+  [0.163, 0.34],
+  [0.186, 0.49],
+  [0.203, 0.55],
+  // sharp mid-way correction
+  [0.222, 0.5],
+  [0.248, 0.43],
+  [0.266, 0.455],
+  // steeper parabolic spike into the peak
+  [0.29, 0.52],
+  [0.312, 0.6],
+  [0.333, 0.71],
+  [0.352, 0.85],
+  [0.369, 0.97],
+  [PEAK_S, 1],
+  // rounded top just after the peak (Live sits here), then the sharp drop
+  [0.395, 0.975],
+  [0.412, 0.87],
+  [0.428, 0.775],
+  [0.443, 0.785],
+  [0.468, 0.69],
+  [0.5, 0.645],
+  // long down-sideways drift: rebound hump, ripples, smaller later hump
+  [0.523, 0.665],
+  [0.556, 0.765],
+  [0.584, 0.78],
+  [0.618, 0.725],
+  [0.642, 0.738],
+  [0.676, 0.705],
+  [0.718, 0.69],
+  [0.752, 0.708],
+  [0.79, 0.735],
+  [0.822, 0.738],
+  [0.86, 0.668],
+  [0.9, 0.636],
+  [0.935, 0.62],
+  [0.968, 0.6],
+  [1, GOLD_TILE_END_LOW],
 ];
+
+/** Lap position u (0 = trough, PEAK_U = peak, 1 = next trough) → tile s. */
+function tileX(u: number): number {
+  const f = Math.min(1, Math.max(0, u));
+  return f <= PEAK_U ? (f / PEAK_U) * PEAK_S : PEAK_S + ((f - PEAK_U) / (1 - PEAK_U)) * (1 - PEAK_S);
+}
 
 /** Monotone cubic (Fritsch–Carlson) tangents → smooth, no overshoot, flat at turns. */
 const TANGENTS: number[] = (() => {
@@ -116,8 +113,6 @@ const TANGENTS: number[] = (() => {
   for (let i = 0; i < n - 1; i++) d.push((k[i + 1]![1] - k[i]![1]) / (k[i + 1]![0] - k[i]![0]));
   const m: number[] = new Array(n).fill(0);
   for (let i = 1; i < n - 1; i++) m[i] = d[i - 1]! * d[i]! <= 0 ? 0 : (d[i - 1]! + d[i]!) / 2;
-  /* Keep the closing upturn rising through the right edge (no flattening at the end). */
-  if (d[n - 2]! > 0) m[n - 1] = d[n - 2]!;
   for (let i = 0; i < n - 1; i++) {
     if (d[i] === 0) {
       m[i] = 0;
@@ -136,9 +131,9 @@ const TANGENTS: number[] = (() => {
   return m;
 })();
 
-/** Tile unit height (0 = starting trough, 1 = peak zone) at u across the tile. */
-export function goldTileUnit(u: number): number {
-  const f = Math.min(1, Math.max(0, u));
+/** Tile unit height (0 = starting trough, 1 = peak zone) at s across the tile. */
+export function goldTileUnit(s: number): number {
+  const f = Math.min(1, Math.max(0, s));
   const k = KNOTS;
   let i = 0;
   while (i < k.length - 2 && f > k[i + 1]![0]) i++;
@@ -181,8 +176,8 @@ export type GoldLiveSilhouette = {
 /** Live: same calendar position as the detail chart (fraction along the peak→peak lap). */
 export function goldLiveSilhouette(nowMs: number): GoldLiveSilhouette {
   const { frac } = goldCycleProgress(nowMs);
-  const u = (frac - GOLD_TROUGH_FRAC + 1) % 1;
-  const x = X0 + u * W;
-  const y = unitToY(goldTileUnit(u));
+  const s = tileX((frac - GOLD_TROUGH_FRAC + 1) % 1);
+  const x = X0 + s * W;
+  const y = unitToY(goldTileUnit(s));
   return { pt: { x, y }, phaseLine: goldLivePhaseLine(nowMs) };
 }
