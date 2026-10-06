@@ -228,21 +228,26 @@ function livePositionFromNow(nowMs: number): Pt {
   return onDrawnLine(livePositionOnWaypoints(now, YEAR_WAYPOINTS));
 }
 
-/** Phase line from the chart's own waypoint years only — never invented. */
+/** Framework cycle length shown on the tile (the classic 18.6-year framing). */
+const RE_CYCLE_YEARS = 18.6;
+const YEAR_MS = 365.2425 * 86_400_000;
+
+/**
+ * Hub tile phase line — calm and factual, from the chart's own waypoint years
+ * only (never invented): which year of the cycle we are in, counted from the
+ * lap's starting Recovery waypoint (end of 2012; end of 2031 on the next lap —
+ * the same end-of-year convention as the Live walk), plus the lap's framework
+ * peak-zone year (2026; 2044 on the next lap).
+ * Hub only — the RE detail page's Live text lives in RealEstateCycleChart.tsx.
+ */
 function phaseLineFromNow(nowMs: number): string {
   const { y, m, d } = melbourneYmd(nowMs);
   const now = Date.UTC(y, m - 1, d, 12, 0, 0, 0);
-  const waypoints = now > endOfYearMs(NEXT_LOW_YEAR) ? NEXT_LAP_WAYPOINTS : YEAR_WAYPOINTS;
-  for (let i = 0; i < waypoints.length; i++) {
-    const end = endOfYearMs(waypoints[i].year);
-    if (now <= end) {
-      const dest = waypoints[i];
-      if (i === 0) return `${dest.label} · framework ~${dest.year}`;
-      return `Toward ${dest.label.toLowerCase()} · framework ~${dest.year}`;
-    }
-  }
-  const last = waypoints[waypoints.length - 1];
-  return `${last.label} · framework ~${last.year}`;
+  const nextLap = now > endOfYearMs(NEXT_LOW_YEAR);
+  const start = nextLap ? NEXT_LOW_YEAR : YEAR_WAYPOINTS[0].year;
+  const peakZone = nextLap ? NEXT_LAP_WAYPOINTS[3].year : YEAR_WAYPOINTS[4].year;
+  const yearOf = Math.max(1, Math.floor((now - endOfYearMs(start)) / YEAR_MS) + 1);
+  return `Year ~${yearOf} of ~${RE_CYCLE_YEARS} · framework peak zone ~${peakZone}`;
 }
 
 export type ReLiveSilhouette = {

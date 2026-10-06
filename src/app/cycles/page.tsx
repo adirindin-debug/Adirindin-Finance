@@ -4,7 +4,7 @@ import { CyclesHub } from "@/components/cycles/CyclesHub";
 export const metadata: Metadata = {
   title: "Market cycles",
   description:
-    "Market cycles hub: Bitcoin 4-year cycle theory, 18.6-year real estate cycle theory, US 10-year bond yield secular regime sketch, and an observational ~46-year gold-led commodity cycle sketch — educational schematic tiles with Live markers. Not financial advice (NFA).",
+    "Market cycles hub: Bitcoin 4-year cycle theory, Anderson ~18-year real estate cycle, US 10-year bond yield secular regime sketch, and an observational ~46-year gold-led commodity cycle sketch — educational schematic tiles with Live markers. Not financial advice (NFA).",
 };
 
 export default function CyclesPage() {

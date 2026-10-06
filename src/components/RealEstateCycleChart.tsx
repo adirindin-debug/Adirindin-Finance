@@ -1,5 +1,5 @@
 /**
- * Classic “18.6-year real estate cycle theory” schematic (educational diagram).
+ * Classic “18.6 Year Real Estate Cycle theory” schematic (educational diagram).
  * Jagged phase line with stacked historical/framework years. Next-cycle
  * theory years (≈2031 / 2037 / 2039 / 2044 / 2046 / 2048) sit on the classic columns
  * (future above older) — a reset/wrap onto the same loop, not a linear
@@ -580,7 +580,7 @@ export default function RealEstateCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Classic 18.6-year real estate cycle theory schematic with stacked historical and next-lap theory years on the same loop — educational rough guide only, not a predictive model or financial advice"
+      aria-label="Classic 18.6 Year Real Estate Cycle theory schematic with stacked historical and next-lap theory years on the same loop — educational rough guide only, not a predictive model or financial advice"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -611,7 +611,7 @@ export default function RealEstateCycleChart() {
         fontFamily="system-ui, sans-serif"
         fontWeight="700"
       >
-        18.6-year real estate cycle theory
+        18.6 Year Real Estate Cycle theory
       </text>
       <text
         x={SVG_W / 2}

@@ -5,8 +5,9 @@
  * (peak zones from goldCommodityCycle.ts, trough zone ~20y after each peak).
  *
  * The tile has its OWN self-contained shape (the detail chart is unchanged):
- *   trough → first run-up → mid-cycle correction → second run-up (same shape)
- *   → peak zone → shallow, flat drawdown to a much higher low
+ *   trough → first run-up → mid-cycle correction (smooth, wide U-shaped bowl)
+ *   → second run-up (same shape) → peak zone → shallow, flat drawdown to a
+ *   much higher low
  * The ending low sits ~62% of the way from the starting trough to the peak —
  * well above the mid-cycle correction low — reflecting gold's long secular
  * uptrend. Educational observational sketch · NFA.
@@ -36,8 +37,11 @@ function unitToY(unit: number): number {
 
 /** Peak position across the tile (trough → peak is ~26y of the ~46y lap). */
 const PEAK_U = 1 - GOLD_TROUGH_FRAC;
-/** Mid-cycle correction length (≈4y of the lap). */
-const CORRECTION_U = 0.09;
+/**
+ * Mid-cycle correction bowl length, first top → bowl bottom (≈6.5y of the lap).
+ * Roughly twice the drop in on-screen units, so the bowl reads as a rounded U.
+ */
+const CORRECTION_U = 0.14;
 /** Both run-up legs have the same length and rise. */
 const LEG_U = (PEAK_U - CORRECTION_U) / 2;
 /** Correction depth; legs then rise (1 + depth) / 2 each to land exactly on the peak. */
@@ -67,12 +71,32 @@ const DRAWDOWN_TEMPLATE: [number, number][] = [
   [1, 0],
 ];
 
+/**
+ * Correction bowl: [share of bowl length, share of the drop still to go].
+ * Rounded roll-over from the first top, steepest mid-way, then a long, flattening
+ * approach to a wide bottom; the second leg's slow start swings it back up.
+ */
+const BOWL_TEMPLATE: [number, number][] = [
+  [0, 1],
+  [0.2, 0.9],
+  [0.4, 0.58],
+  [0.58, 0.25],
+  [0.76, 0.07],
+  [0.89, 0.01],
+  [1, 0],
+];
+
 const legKnots = (u0: number, v0: number): [number, number][] =>
   LEG_TEMPLATE.map(([a, b]) => [u0 + a * LEG_U, v0 + b * LEG_RISE]);
 
+const BOWL_LOW = LEG_RISE - CORRECTION_DEPTH;
+
 const KNOTS: [number, number][] = [
   ...legKnots(0, 0),
-  ...legKnots(LEG_U + CORRECTION_U, LEG_RISE - CORRECTION_DEPTH),
+  ...BOWL_TEMPLATE.slice(1, -1).map(
+    ([a, b]): [number, number] => [LEG_U + a * CORRECTION_U, BOWL_LOW + b * CORRECTION_DEPTH],
+  ),
+  ...legKnots(LEG_U + CORRECTION_U, BOWL_LOW),
   ...DRAWDOWN_TEMPLATE.slice(1).map(
     ([a, b]): [number, number] => [PEAK_U + a * (1 - PEAK_U), GOLD_TILE_END_LOW + b * (1 - GOLD_TILE_END_LOW)],
   ),
