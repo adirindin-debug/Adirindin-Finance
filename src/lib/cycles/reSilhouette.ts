@@ -262,10 +262,10 @@ function tileLap(o: {
     base: o.base,
     phases: [
       { through: o.base + RECOVERY_YEARS, label: "Recovery" },
-      { through: o.midPeak, label: `Mid-cycle peak ${o.midPeak}` },
+      { through: o.midPeak, label: `Mid-cycle peak - ${o.midPeak}` },
       { through: o.midLow, label: "Mid-cycle slowdown" },
       { through: o.peak - WINNERS_CURSE_YEARS, label: "Land boom" },
-      { through: o.peak, label: `Winner's Curse ${o.peak}` },
+      { through: o.peak, label: `Winner's Curse - ${o.peak}` },
       { through: o.downturn, label: "Downturn" },
       { through: o.low, label: "Low zone" },
     ],
