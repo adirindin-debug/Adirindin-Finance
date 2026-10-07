@@ -20,7 +20,17 @@ export default function PowerLevelPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <ToolsBackLink category="Just for fun" />
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">Power Level</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-foreground">Power Level</h1>
+        <span
+          className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#d4a017]/40 bg-[#d4a017]/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#e8b84a]"
+          data-badge="Beta"
+          title="Beta — the scoring scale may still be tuned"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-[#e8b84a]" aria-hidden />
+          Beta
+        </span>
+      </div>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         Point the scouter at your finances. Your standard of living gets a power level from 0 to 100,000, built from net
         worth, runway (months of spending your cash and investments cover), savings rate and income, on a log scale. Try a

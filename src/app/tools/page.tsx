@@ -37,7 +37,7 @@ const tools: ToolCard[] = [
   {
     href: "/tools/power-level",
     title: "Power Level",
-    badge: "New",
+    badge: "Beta",
     blurb:
       "A scouter-style power level for your standard of living, 0–100,000. Net worth, runway, savings rate and income on a log scale, with quick-fill examples and the planet's top 10 from Forbes. Runs in your browser — nothing stored or sent. Just for fun.",
     meta: "Fun · log-scale score · client-side · not a measure of worth · NFA",
@@ -77,7 +77,11 @@ export default function ToolsHubPage() {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold text-foreground group-hover:text-accent">{t.title}</h2>
               {t.badge ? (
-                <span className="rounded border border-[#8a6a20] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#d4a017]">
+                <span
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#d4a017]/40 bg-[#d4a017]/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[#e8b84a]"
+                  data-badge={t.badge}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#e8b84a]" aria-hidden />
                   {t.badge}
                 </span>
               ) : null}
