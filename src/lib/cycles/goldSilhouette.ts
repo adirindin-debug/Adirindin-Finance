@@ -4,8 +4,9 @@
  * trough zone (right), with the same calendar timing as /tools/gold-cycle
  * (peak zones from goldCommodityCycle.ts, trough zone ~20y after each peak).
  *
- * The tile has its OWN self-contained shape (the detail chart is unchanged),
- * modelled on the 1970s–80s gold pattern: flat low → steep run-up → sharp
+ * The tile shape is also the lap shape on /tools/gold-cycle (GoldCycleChart
+ * repeats goldTileUnit across laps via goldTileX). It is modelled on the
+ * 1970s–80s gold pattern: flat low → steep run-up → sharp
  * mid-way correction → parabolic spike to the peak → sharp drop → long
  * "down sideways" drift ending ~58% of the way up — well above the start,
  * reflecting gold's long secular uptrend. Educational observational sketch · NFA.
@@ -43,6 +44,8 @@ const PEAK_U = 1 - GOLD_TROUGH_FRAC;
 const PEAK_S = 0.38;
 /** Right-side ending level, as a share of the peak's height above the starting trough. */
 export const GOLD_TILE_END_LOW = 0.58;
+/** Starting (left trough) level of the tile shape — first knot height. */
+export const GOLD_TILE_START_LOW = 0.015;
 
 /**
  * Hand-placed knots after Anthony's 1970s–80s gold reference, smoothed through a
@@ -53,7 +56,7 @@ export const GOLD_TILE_END_LOW = 0.58;
  */
 const KNOTS: [number, number][] = [
   // flat, choppy base
-  [0, 0.015],
+  [0, GOLD_TILE_START_LOW],
   [0.035, 0.03],
   [0.075, 0.005],
   [0.105, 0.035],
@@ -100,6 +103,10 @@ const KNOTS: [number, number][] = [
 ];
 
 /** Lap position u (0 = trough, PEAK_U = peak, 1 = next trough) → tile s. */
+export function goldTileX(u: number): number {
+  return tileX(u);
+}
+
 function tileX(u: number): number {
   const f = Math.min(1, Math.max(0, u));
   return f <= PEAK_U ? (f / PEAK_U) * PEAK_S : PEAK_S + ((f - PEAK_U) / (1 - PEAK_U)) * (1 - PEAK_S);

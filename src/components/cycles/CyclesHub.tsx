@@ -40,7 +40,7 @@ const TILES: CycleTile[] = [
     id: "btc",
     href: "/dashboard/btc-cycle",
     title: "Bitcoin",
-    blurb: "4-year cycle theory · Nike-tick silhouette",
+    blurb: "4-year cycle theory",
     path: BTC_SILHOUETTE.path,
     viewBox: BTC_SILHOUETTE.viewBox,
     color: BTC_SILHOUETTE.color,
@@ -69,7 +69,7 @@ const TILES: CycleTile[] = [
   {
     id: "gold",
     href: "/tools/gold-cycle",
-    title: "Gold · commodities",
+    title: "Gold",
     blurb: "~46y gold-led commodity cycle · observational study",
     path: GOLD_SILHOUETTE.path,
     viewBox: GOLD_SILHOUETTE.viewBox,

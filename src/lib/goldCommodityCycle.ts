@@ -267,7 +267,7 @@ export const GOLD_ANCHOR_NOTES: Record<number, string> = {
     "Revaluation / policy era (US Gold Reserve Act lifted the official price to $35/oz) — not a free-market peak like 1980.",
   1980: "Free-market secular peak zone after the 1970s bull market.",
   2026:
-    "Calendar peak-zone marker under study — not a guaranteed top. Markers and the gold series update as new public price data comes in; observational only, not a predictive model.",
+    "Calendar peak-zone marker under study — not a guaranteed top. Observational only, not a predictive model.",
   2072: "Theoretical next peak-zone marker from the ~46-year spacing — illustrative only.",
 };
 

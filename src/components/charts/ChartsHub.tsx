@@ -33,6 +33,7 @@ import {
   fmtFlowUsd,
   type EtfFlowsPayload,
 } from "@/lib/etfFlows";
+import type { CommodityTilePayload } from "@/lib/commodities";
 
 type TileStatus = "loading" | "ok" | "error";
 
@@ -57,6 +58,13 @@ type TileLive = {
   mini?: MiniHeat;
   /** ETF flows tile: recent monthly net-flow bars. */
   miniBars?: MiniBars;
+  /** Commodity charts tile: rebased multi-line preview (no fills). */
+  multi?: MultiLines;
+};
+
+type MultiLines = {
+  caption: string;
+  lines: Array<{ id: string; label: string; color: string; points: SparkPoint[] }>;
 };
 
 type MiniHeat = {
@@ -360,6 +368,34 @@ function parseEtfFlows(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
+function parseCommodities(json: unknown): Omit<TileLive, "status"> | null {
+  const p = json as CommodityTilePayload;
+  if (!p?.ok || !Array.isArray(p.lines) || p.lines.length < 2) return null;
+  const lines = p.lines
+    .filter((l) => Array.isArray(l.points) && l.points.length >= 2)
+    .map((l) => ({ id: l.id, label: l.label, color: l.color, points: l.points }));
+  if (lines.length < 2) return null;
+  const gold = p.gold;
+  const goldLine = lines.find((l) => l.id === "gold");
+  const goldChg = goldLine ? goldLine.points[goldLine.points.length - 1]!.v - 100 : null;
+  return {
+    headline:
+      gold && Number.isFinite(gold.c)
+        ? `$${gold.c.toLocaleString("en-AU", { maximumFractionDigits: 0 })}`
+        : "—",
+    headlineColor: "#f0c14a",
+    secondary:
+      goldChg != null
+        ? `Gold US$/oz · ${fmtPctSigned(goldChg)} over ${p.windowYears ?? 5}y`
+        : "Gold US$/oz",
+    multi: {
+      caption: `Rebased to 100 · ${p.windowYears ?? 5} years · monthly`,
+      lines,
+    },
+    isLive: p.live !== false,
+  };
+}
+
 const CATEGORIES: Category[] = [
   {
     id: "sentiment",
@@ -430,6 +466,14 @@ const CATEGORIES: Category[] = [
         title: "Wilshire 5000 / US M2",
         endpoint: "/api/wilshire-m2",
         parse: parseWilshireM2,
+      },
+      {
+        id: "commodities",
+        href: "/charts/commodities",
+        title: "Commodity charts",
+        subtitle: "Gold · silver · copper · nickel · lithium · iron ore",
+        endpoint: "/api/commodities?view=tile",
+        parse: parseCommodities,
       },
     ],
   },
@@ -514,6 +558,63 @@ function Sparkline({
         vectorEffect="non-scaling-stroke"
       />
     </svg>
+  );
+}
+
+function MultiLineChart({ lines }: { lines: MultiLines["lines"] }) {
+  const all = lines.flatMap((l) => l.points);
+  if (all.length < 2) return null;
+  const t0 = Math.min(...all.map((p) => p.t));
+  const t1 = Math.max(...all.map((p) => p.t));
+  // Log scale so a 3× move and a ⅓ move read the same distance from 100.
+  const lv = all.map((p) => Math.log(Math.max(p.v, 1e-6)));
+  const min = Math.min(...lv);
+  const max = Math.max(...lv);
+  const span = max - min || 1;
+  const w = 320;
+  const h = 118;
+  const padY = 6;
+  const xOf = (t: number) => ((t - t0) / Math.max(t1 - t0, 1)) * w;
+  const yOf = (v: number) => padY + (1 - (Math.log(Math.max(v, 1e-6)) - min) / span) * (h - padY * 2);
+  const base = yOf(100);
+  return (
+    <div aria-hidden>
+      <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="h-[118px] w-full">
+        <line
+          x1={0}
+          x2={w}
+          y1={base}
+          y2={base}
+          stroke="#3a4558"
+          strokeWidth="1"
+          strokeDasharray="3 3"
+          vectorEffect="non-scaling-stroke"
+        />
+        {lines.map((l) => (
+          <path
+            key={l.id}
+            d={l.points
+              .map((p, i) => `${i === 0 ? "M" : "L"}${xOf(p.t).toFixed(1)},${yOf(p.v).toFixed(1)}`)
+              .join(" ")}
+            fill="none"
+            stroke={l.color}
+            strokeWidth={l.id === "gold" ? 2.25 : 1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+            opacity={l.id === "gold" ? 1 : 0.9}
+          />
+        ))}
+      </svg>
+      <div className="mt-1.5 flex flex-wrap gap-x-2.5 gap-y-1">
+        {lines.map((l) => (
+          <span key={l.id} className="inline-flex items-center gap-1 text-[10px] text-muted">
+            <span className="h-[2px] w-2.5 rounded-full" style={{ background: l.color }} />
+            {l.label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -685,7 +786,14 @@ function ChartTile({
           {secondary}
         </p>
       )}
-      {live?.miniBars && status === "ok" ? (
+      {live?.multi && status === "ok" ? (
+        <div className="relative mt-3 flex-1">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+            {live.multi.caption}
+          </p>
+          <MultiLineChart lines={live.multi.lines} />
+        </div>
+      ) : live?.miniBars && status === "ok" ? (
         <div className="relative mt-3 flex-1">
           <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
             {live.miniBars.caption}

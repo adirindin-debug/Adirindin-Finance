@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CyclesBackLink } from "@/components/cycles/CyclesBackLink";
-import GoldCommodityCycleChart from "@/components/GoldCommodityCycleChart";
+import GoldCycleChart from "@/components/GoldCycleChart";
 import {
   GOLD_PEAK_ANCHORS,
   GOLD_CYCLE_YEARS,
@@ -10,7 +11,7 @@ import {
 export const metadata: Metadata = {
   title: "46-year gold-led commodity cycle sketch",
   description:
-    "Observational study of a ~46-year gold-led commodity cycle with peak-zone markers at Jan 1934, 1980, 2026 and 2072, overlaid on long-run USD gold (log). Educational only — not a predictive model, not Kondratiev-as-law, not financial advice.",
+    "Observational study of a ~46-year gold-led commodity cycle with peak-zone markers at Jan 1934, 1980, 2026 and 2072, drawn as one repeating lap shape. The long-run USD gold price chart lives in Charts → Commodity charts. Educational only — not a predictive model, not Kondratiev-as-law, not financial advice.",
 };
 
 const PHASES = [
@@ -42,7 +43,7 @@ export default function GoldCyclePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
-      <CyclesBackLink category="Gold · commodities" />
+      <CyclesBackLink category="Gold" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         46-year gold-led commodity cycle sketch
       </h1>
@@ -52,7 +53,11 @@ export default function GoldCyclePage() {
         gold-led commodity rhythm, reading public gold history alongside a repeating
         illustrative silhouette. Peak-zone markers sit at{" "}
         <strong className="font-medium text-foreground">Jan {anchors}</strong>
-        . The primary series is long-run gold in US dollars (log scale). Kondratiev /
+        . The long-run gold price in US dollars (log scale) now sits on{" "}
+        <Link href="/charts/commodities" className="text-accent hover:underline">
+          Commodity charts
+        </Link>
+        . Kondratiev /
         long-wave literature is context only — this page is{" "}
         <strong className="font-medium text-foreground">
           not “the Kondratiev law”
@@ -65,14 +70,14 @@ export default function GoldCyclePage() {
         One silhouette repeats on every ~{GOLD_CYCLE_YEARS}-year lap, like the bond,
         real estate and Bitcoin cycle charts: peak zone → post-peak decline → trough
         zone (~{GOLD_TROUGH_OFFSET_YEARS}y after the peak) → advance with a mid-run
-        pause → final run into the next peak zone. Markers and the gold series update
-        as new public price data comes in — observation of the charts, not a forecast.
+        pause → final run into the next peak zone. The Live marker moves with today’s
+        date — observation of the charts, not a forecast.
       </p>
 
       <div className="mt-8 rounded-xl border border-border bg-black p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Gold + theory silhouette
+            Gold cycle silhouette
           </h2>
           <span className="font-mono text-xs text-muted">
             ≈ {GOLD_CYCLE_YEARS}y · sketch · NFA
@@ -110,7 +115,15 @@ export default function GoldCyclePage() {
           ))}
         </ol>
 
-        <GoldCommodityCycleChart />
+        <GoldCycleChart />
+
+        <p className="mt-4 text-xs text-muted sm:text-sm">
+          Looking for the gold price itself (with the 15 Aug 1971 marker)? See{" "}
+          <Link href="/charts/commodities" className="text-accent hover:underline">
+            Charts → Commodity charts
+          </Link>{" "}
+          — gold, silver, copper, nickel, lithium and iron ore from public sources.
+        </p>
 
         <aside
           className="mt-5 rounded-lg border border-[#3a4558] bg-[#121820] px-4 py-3"
@@ -132,8 +145,8 @@ export default function GoldCyclePage() {
             </li>
             <li>
               <strong className="font-medium text-[#d0d8e4]">2072*</strong> is theoretical
-              from the ~{GOLD_CYCLE_YEARS}-year spacing. The blue silhouette is shape
-              language scaled to the chart — not a USD price path.
+              from the ~{GOLD_CYCLE_YEARS}-year spacing. The silhouette is shape language
+              only — not a USD price path.
             </li>
             <li>
               <strong className="font-medium text-[#d0d8e4]">15 Aug 1971</strong> marks the
@@ -185,12 +198,16 @@ export default function GoldCyclePage() {
           clocks, different claims. We do not clone third-party paid cycle product art.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-muted">
-          Series: long-run USD gold from the public{" "}
+          Gold price series (now on{" "}
+          <Link href="/charts/commodities" className="text-accent hover:underline">
+            Commodity charts
+          </Link>
+          ): long-run USD gold from the public{" "}
           <code className="text-xs text-foreground/80">datasets/gold-prices</code>{" "}
           monthly file (historical / official prints in the peg era; market prints
           thereafter), refreshed with Yahoo Finance <code className="text-xs text-foreground/80">GC=F</code>{" "}
           where available. Peg steps such as ~$20.67 and ~$35 are documented public
-          series values — not invented. The chart updates as new price data comes in.
+          series values — not invented. That chart updates as new price data comes in.
           Educational study aid only · not a predictive model · not financial advice.
         </p>
       </section>
