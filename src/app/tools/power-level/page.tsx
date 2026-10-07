@@ -66,10 +66,27 @@ export default function PowerLevelPage() {
               rates, the low income tax offset and the Medicare levy, as one taxpayer — a rough estimate.
             </li>
             <li>
-              <span className="text-foreground">Habits</span> nudge it by up to about ±10–15%: runway (0 months ×0.85 →
-              10+ years ×1.15, on a log curve), savings rate (×0.85 at −50% or worse → ×1.18 at 60%+), and optional body
-              fat % (blank = no change; peaks near ×1.10 around 12–18%; very high or extremely low holds back modestly
-              toward ×0.90). Body fat is a rough lifestyle nudge only — not medical or health advice.
+              <span className="text-foreground">Habits</span>: runway (0 months ×0.85 → 10+ years ×1.15, on a log curve) and
+              savings rate (×0.85 at −50% or worse → ×1.18 at 60%+).
+            </li>
+            <li>
+              <span className="text-foreground">Health &amp; youth (optional, blank = no change):</span> age gives a strong
+              boost to youth, because younger people have more years for money to compound — about ×1.25 at 20 or under,
+              ×1.19 at 30, ×1.00 at 40, ×0.84 at 50 and about ×0.80 at 70+, on one smooth curve. Body fat % has 10% as
+              the sweet spot: about ×1.25 at 10%, a lift across roughly 8–18%, about neutral in the 20s, ×0.95 at 30% and
+              easing to about ×0.85 at 40%+. Very low levels hold back too (×0.92 at 6%, about ×0.85 at 4% or under),
+              because leaner isn&apos;t always better. These are playful lifestyle nudges only — not medical or health advice.
+            </li>
+            <li>
+              <span className="text-foreground">One soft cap:</span> habits, age and body fat multiply together, then the
+              upside eases towards ×1.6 (floor ×0.45). They act on effective wealth before the log curve, so they swing a
+              typical reading by several thousand points but only nudge the very top — wealth stays the main driver.
+            </li>
+            <li>
+              <span className="text-foreground">Debt load:</span> debts (mortgage + car loan + other) ÷ assets (cash +
+              investments + home if owned + car). No hold-back up to 50%, then a smooth ease: about ×0.92 at 70%, ×0.66
+              at 90% and ×0.55 from about 105% (or with debt and no assets). This sits on top of debts already lowering
+              net worth.
             </li>
             <li>
               <span className="text-foreground">One smooth curve:</span> effective wealth goes through a single
@@ -81,7 +98,17 @@ export default function PowerLevelPage() {
           </ol>
           <div className="space-y-1 font-mono text-xs text-[#c8d0dc]">
             <p>
-              E = max(0, NW + {INCOME_YEARS}·income) ÷ √n × M<sub>runway</sub> × M<sub>savings</sub> × M<sub>bf</sub>
+              E = max(0, NW + {INCOME_YEARS}·income) ÷ √n × cap(M<sub>runway</sub> · M<sub>savings</sub> · M<sub>age</sub> ·
+              M<sub>bf</sub>) × M<sub>debt</sub>
+            </p>
+            <p>M<sub>age</sub> = 1.03 − 0.23 · tanh((age − 38.7) ÷ 10)</p>
+            <p>
+              M<sub>bf</sub> = 1 + 0.26 · e<sup>−((bf − 10)/w)²</sup> − 0.16 · σ(7 − bf) − 0.15 · σ((bf − 32)/3), w = 3
+              below 10%, 6 above
+            </p>
+            <p>cap(H): if H &gt; 1, ln H → ln 1.6 · tanh(ln H ÷ ln 1.6); floor 0.45</p>
+            <p>
+              M<sub>debt</sub> = 1 − 0.45 · S<sup>1.5</sup>, S = smoothstep((debts ÷ assets − 0.5) ÷ 0.55)
             </p>
             <p>
               raw(x) = 60,000 ÷ (1 + e<sup>−3.3(x − 6.15)</sup>) + 9,600 · 0.53 · ln(1 + e<sup>(x − 4.65)/0.53</sup>), x =
@@ -132,8 +159,8 @@ export default function PowerLevelPage() {
           </li>
           <li>
             The formula is a simplified, made-up scale. It ignores many things (super preservation rules, tax on assets,
-            cost of living where you are, family support) and the tax estimate is rough. Optional body fat is a playful
-            lifestyle nudge only — not medical advice, not a diagnosis, and not a measure of fitness or health.
+            cost of living where you are, family support) and the tax estimate is rough. Optional age and body fat are playful
+            lifestyle nudges only — not medical advice, not a diagnosis, and not a measure of fitness or health.
           </li>
           <li>
             Example personas are illustrative round numbers, not statistics. Billionaire net worths are third-party

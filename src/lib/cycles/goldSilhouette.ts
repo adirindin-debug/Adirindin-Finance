@@ -14,7 +14,7 @@
 
 import {
   GOLD_TILE_PEAK_S,
-  GOLD_TILE_RANGE_START_S,
+  GOLD_TILE_SHARP_DROP_END_S,
   GOLD_TROUGH_FRAC,
   goldCycleProgress,
   goldLivePhaseLine,
@@ -85,9 +85,9 @@ const KNOTS: [number, number][] = [
   [0.428, 0.775],
   [0.443, 0.785],
   [0.468, 0.69],
-  // end of the sharp drop = start of the range-bound zone (GOLD_TILE_RANGE_START_S)
-  [GOLD_TILE_RANGE_START_S, 0.645],
-  // long down-sideways drift (range-bound zone): rebound hump, ripples, smaller later hump
+  // end of the steep drop (GOLD_TILE_SHARP_DROP_END_S) — shape knot, unchanged
+  [GOLD_TILE_SHARP_DROP_END_S, 0.645],
+  // long down-sideways drift: rebound hump, ripples, smaller later hump
   [0.523, 0.665],
   [0.556, 0.765],
   [0.584, 0.78],

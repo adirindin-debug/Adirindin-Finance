@@ -217,22 +217,26 @@ export type GoldPhaseName =
 
 /**
  * Silhouette geometry shared with the tile (src/lib/cycles/goldSilhouette.ts):
- * the peak sits at tile s = 0.38 and the sharp post-peak drop ends at s = 0.50 — the
- * knot where the long "down-sideways" drift (rebound hump, ripples, later hump) begins.
+ * the peak sits at tile s = 0.38 and the steepest part of the drop ends at the s = 0.50
+ * knot. The shape itself is unchanged by the phase split below.
  */
 export const GOLD_TILE_PEAK_S = 0.38;
-export const GOLD_TILE_RANGE_START_S = 0.5;
+/** Shape knot where the steep drop eases into the drift (geometry only). */
+export const GOLD_TILE_SHARP_DROP_END_S = 0.5;
 /**
- * Range-bound zone start as a fraction of the peak→peak lap. The tile maps the peak→trough
- * leg (GOLD_TROUGH_FRAC of the lap) linearly onto s 0.38 → 1, so
- * (0.50 − 0.38) ÷ (1 − 0.38) × 20y ≈ 3.9 years after each peak.
+ * Post-peak decline covers the first 8 years after each peak-zone marker (the sharp drop is
+ * ~4y of it, hence "~4–8 years"); the range-bound zone is the remaining ~12y to the trough.
  */
-export const GOLD_RANGE_START_FRAC =
-  ((GOLD_TILE_RANGE_START_S - GOLD_TILE_PEAK_S) / (1 - GOLD_TILE_PEAK_S)) * (GOLD_TROUGH_OFFSET_YEARS / GOLD_CYCLE_YEARS);
-/** Years from a peak-zone marker to the start of the range-bound zone (≈ 3.9). */
-export const GOLD_DECLINE_YEARS = GOLD_RANGE_START_FRAC * GOLD_CYCLE_YEARS;
-/** Years of the range-bound zone, to the next trough zone (≈ 16.1). */
+export const GOLD_DECLINE_YEARS = 8;
+export const GOLD_RANGE_START_FRAC = GOLD_DECLINE_YEARS / GOLD_CYCLE_YEARS;
+/** Years of the range-bound zone, to the next trough zone (= 12). */
 export const GOLD_RANGE_YEARS = GOLD_TROUGH_OFFSET_YEARS - GOLD_DECLINE_YEARS;
+/**
+ * Where the range-bound zone starts on the tile: the tile maps the peak→trough leg linearly
+ * onto s 0.38 → 1, so 0.38 + (8 ÷ 20) × 0.62 ≈ 0.628.
+ */
+export const GOLD_TILE_RANGE_START_S =
+  GOLD_TILE_PEAK_S + (GOLD_DECLINE_YEARS / GOLD_TROUGH_OFFSET_YEARS) * (1 - GOLD_TILE_PEAK_S);
 
 /** Mid-run correction shoulder ends here; final run into the peak zone follows. */
 export const GOLD_FINAL_RUN_FRAC = 0.8;
@@ -299,6 +303,7 @@ export const GOLD_TROUGH_NOTES: Record<number, string> = {
   1954: "Peg era (official US$35/oz) — model trough position only, not a market low.",
   2000: "Lines up with the 1999–2001 free-market low zone.",
   2046: "Theoretical trough zone from the repeating shape — illustrative only.",
+  2092: "Theoretical trough zone after the 2072* peak (peak + 20y) — illustrative only.",
 };
 
 export const GOLD_CAVEAT_SHORT =

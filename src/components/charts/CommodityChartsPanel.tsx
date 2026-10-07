@@ -235,12 +235,11 @@ export function CommodityChartsPanel() {
 
   const toggleMetal = (id: CommodityId) => {
     const on = selected.includes(id);
-    if (on && selected.length === 1) return; // keep at least one metal on
     const next = on ? selected.filter((x) => x !== id) : [...selected, id];
     const nextActive = COMMODITY_ORDER.filter((m) => next.includes(m));
     setSelected(nextActive);
     // Overlay reads best on log (equal % moves = equal distance); single uses the metal default.
-    setLog(nextActive.length >= 2 ? true : COMMODITY_META[nextActive[0]!].defaultLog);
+    if (nextActive.length) setLog(nextActive.length >= 2 ? true : COMMODITY_META[nextActive[0]!].defaultLog);
     const meta = TIMEFRAMES.find((t) => t.key === tf)!;
     const longest = Math.max(...nextActive.map(spanOf), 0);
     if (meta.years != null && longest > 0 && meta.years > longest + 0.5) setTf("ALL");
@@ -423,7 +422,6 @@ export function CommodityChartsPanel() {
                 style={on ? { borderColor: `${c}cc`, background: `${c}2e` } : undefined}
                 aria-pressed={on}
                 disabled={!loading && !has}
-                title={on && selected.length === 1 ? "At least one metal stays on" : undefined}
                 onClick={() => toggleMetal(id)}
               >
                 <span
@@ -458,7 +456,7 @@ export function CommodityChartsPanel() {
           ) : (
             <>
               <h2 className="text-sm font-semibold uppercase tracking-[0.14em]" style={{ color: headColor }}>
-                {single ? COMMODITY_META[single].label : "—"}
+                {single ? COMMODITY_META[single].label : selected.length === 0 ? "No metal selected" : "—"}
                 {singleSeries ? (
                   <span className="ml-2 font-mono text-[11px] normal-case tracking-normal text-muted">
                     {singleSeries.unit} · {singleSeries.frequency}
@@ -563,7 +561,30 @@ export function CommodityChartsPanel() {
             {data.error ?? "Could not load commodity prices"}
           </p>
         )}
-        {!loading && data?.ok && !active.length && (
+        {!loading && data?.ok && selected.length === 0 && (
+          <div className="relative w-full" data-commodity-empty>
+            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="No metal selected — pick a metal to show">
+              {[0.2, 0.4, 0.6, 0.8].map((f) => (
+                <line
+                  key={f}
+                  x1={PAD.left}
+                  x2={W - PAD.right}
+                  y1={PAD.top + f * (H - PAD.top - PAD.bottom)}
+                  y2={PAD.top + f * (H - PAD.top - PAD.bottom)}
+                  stroke="#1c2430"
+                  strokeDasharray="3 5"
+                />
+              ))}
+              <line x1={PAD.left} x2={PAD.left} y1={PAD.top} y2={H - PAD.bottom} stroke="#26303d" />
+              <line x1={PAD.left} x2={W - PAD.right} y1={H - PAD.bottom} y2={H - PAD.bottom} stroke="#26303d" />
+            </svg>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 text-center">
+              <p className="text-sm font-semibold text-foreground/80">Pick a metal to show</p>
+              <p className="text-xs text-muted">Tap one or more metals above to draw them here.</p>
+            </div>
+          </div>
+        )}
+        {!loading && data?.ok && selected.length > 0 && !active.length && (
           <p className="py-16 text-center text-sm text-muted">
             Selected metal data is unavailable right now — never invented, so nothing is drawn.
           </p>

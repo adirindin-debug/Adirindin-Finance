@@ -18,21 +18,32 @@
  *    after-tax income is worth INCOME_YEARS (3) dollars in the stockpile:
  *      E_base = max(0, NW_eq + 3 × income_eq)
  *
- * 4. Habit multipliers (each roughly ±10–15%, so habits nudge rather than dominate):
+ * 4. Habit and lifestyle multipliers (runway and savings ≈ ±15% each):
  *      runway  = liquid assets (cash + investments) ÷ monthly spending, in months
  *      M_runway  = 0.85 + 0.30 × min(1, log10(1 + runway) ÷ log10(1 + 120))
  *                  (0 months → ×0.85, 10+ years → ×1.15)
  *      savings rate s = (after-tax income − 12 × monthly spending) ÷ after-tax income
  *      M_savings = 1 + 0.30 × clamp(s, −0.5, 0.6)   (×0.85 … ×1.18; ×1 with no income)
- *      body fat % (optional): left blank → ×1.0. Otherwise a smooth lifestyle nudge
- *        (NOT medical advice, NOT a health claim):
- *        M_bf = clamp(1 + 0.11·e^(−((bf−15)/6.5)²)
- *                       − 0.12·σ((bf−26)/4.5)
- *                       − 0.07·σ((6.5−bf)/2),  0.90, 1.12)
- *        where σ(z) = softplus(z)/(1+softplus(z)). Peaks ≈ ×1.10 near 15%; athletic
- *        ~12–18% lifts; very high (~35%+) holds back toward ×0.90–0.92; extremely low
- *        (<6%) also holds back slightly (unsustainable), not a reward.
- *      E = E_base × M_runway × M_savings × M_bf
+ *      age (optional, 16–90): youth means more years for money to compound. Blank → ×1.
+ *        M_age = 1.03 − 0.23·tanh((age − 38.7) ÷ 10)
+ *        (≈ ×1.25 at 20 or under, ×1.19 at 30, ×1.00 at 40, ×0.84 at 50, ≈ ×0.80 at 70+)
+ *      body fat % (optional): blank → ×1. A smooth lifestyle nudge with ~10% as the sweet
+ *        spot (NOT medical advice, NOT a health claim). With g(z) = Gaussian e^(−z²) and
+ *        σ = logistic, and a narrower width below 10% than above:
+ *        M_bf = 1 + 0.26·e^(−((bf−10)/w)²)  [w = 3 below 10%, 6 above]
+ *                 − 0.16·σ(7 − bf) − 0.15·σ((bf − 32) ÷ 3)
+ *        (≈ ×1.25 at 10%, lifts across ~8–18%, ×0.92 at 6%, ≈ ×0.85 at 4% or under,
+ *         ≈ neutral 20–28%, ×0.95 at 30%, easing to ≈ ×0.85 at 40%+)
+ *      Combined habits H = M_runway × M_savings × M_age × M_bf, softly bounded so the
+ *      upside tops out near ×1.6 (L = ln H; if L > 0, L ← ln1.6·tanh(L ÷ ln1.6)) and
+ *      floored at ×0.45. In practice H spans ≈ ×0.47 … ×1.54.
+ *      Debt load: r = (mortgage + car loan + other debts) ÷ (cash + investments + home if
+ *        owned + car). With u = clamp((r − 0.5) ÷ 0.55, 0, 1) and smoothstep S = u²(3 − 2u):
+ *        M_debt = 1 − 0.45·S^1.5   (×1 up to 50%, ≈ ×0.92 at 70%, ≈ ×0.66 at 90%,
+ *        ×0.55 from ~105%; debt with zero assets → ×0.55). Applies on top of net worth.
+ *      E = E_base × H × M_debt
+ *    Multipliers act on effective wealth before the log curve, so at the top end wealth
+ *    stays dominant: ×1.6 is worth ≈ 8–9k points near A$1M but only ≈ 1.5k for a billionaire.
  *
  * 5. One smooth curve from E to the 0–100,000 reading, on a log scale of wealth.
  *    With x = log10(1 + E):
@@ -73,6 +84,8 @@ export type PowerInputs = {
   householdSize: number;
   /** Optional body-fat %, blank/null = no effect. Lifestyle nudge only — not health advice. */
   bodyFatPct: number | null;
+  /** Optional age in years, blank/null = no effect. Fun nudge: youth = more time to compound. */
+  age: number | null;
 };
 
 export const INCOME_YEARS = 3;
@@ -158,22 +171,49 @@ export function savingsMultiplier(rate: number | null): number {
   return 1 + 0.3 * Math.min(0.6, Math.max(-0.5, rate));
 }
 
-const softplus01 = (z: number) => {
-  const sp = z > 30 ? z : Math.log1p(Math.exp(z));
-  return sp / (1 + sp);
-};
+const logistic = (z: number) => 1 / (1 + Math.exp(-z));
+
+/** Optional age nudge. Blank/null → ×1. ≈ ×1.25 at ≤20, ×1.0 at 40, ≈ ×0.80 at 70+. */
+export function ageMultiplier(age: number | null): number {
+  if (age == null || !Number.isFinite(age) || !(age > 0)) return 1;
+  const a = Math.min(90, Math.max(16, age));
+  return 1.03 - 0.23 * Math.tanh((a - 38.7) / 10);
+}
 
 /**
- * Optional body-fat lifestyle nudge. Blank/null → ×1. Peak ≈ ×1.10 near 15%.
- * Clamped to ×0.90 … ×1.12. Rough habit signal only — not medical or health advice.
+ * Optional body-fat lifestyle nudge. Blank/null → ×1. Peak ≈ ×1.25 at 10%.
+ * Rough habit signal only — not medical or health advice.
  */
 export function bodyFatMultiplier(pct: number | null): number {
   if (pct == null || !(pct > 0) || !Number.isFinite(pct)) return 1;
   const x = Math.min(60, Math.max(1, pct));
-  const lift = 0.11 * Math.exp(-Math.pow((x - 15) / 6.5, 2));
-  const high = 0.12 * softplus01((x - 26) / 4.5);
-  const low = 0.07 * softplus01((6.5 - x) / 2);
-  return Math.max(0.9, Math.min(1.12, 1 + lift - high - low));
+  const w = x < 10 ? 3 : 6;
+  const lift = 0.26 * Math.exp(-Math.pow((x - 10) / w, 2));
+  const low = 0.16 * logistic(7 - x);
+  const high = 0.15 * logistic((x - 32) / 3);
+  return 1 + lift - low - high;
+}
+
+const LN_UP = Math.log(1.6);
+/** Soft bound for the combined habit multiplier: upside eases towards ×1.6, floor ×0.45. */
+export function boundHabits(h: number): number {
+  const L = Math.log(Math.max(1e-9, h));
+  const Lb = L > 0 ? LN_UP * Math.tanh(L / LN_UP) : L;
+  return Math.max(0.45, Math.exp(Lb));
+}
+
+/** Debt-to-assets ratio (Infinity when there is debt but no assets, null when neither). */
+export function debtToAssets(debts: number, assets: number): number | null {
+  if (!(debts > 0)) return assets > 0 ? 0 : null;
+  return assets > 0 ? debts / assets : Infinity;
+}
+
+/** Debt-load hold-back: ×1 up to 50%, ≈ ×0.92 at 70%, ≈ ×0.66 at 90%, ×0.55 from ~105%. */
+export function debtMultiplier(ratio: number | null): number {
+  if (ratio == null || ratio <= 0.5) return 1;
+  const u = Math.min(1, (ratio - 0.5) / 0.55);
+  const S = u * u * (3 - 2 * u);
+  return 1 - 0.45 * Math.pow(S, 1.5);
 }
 
 export type PowerResult = {
@@ -189,6 +229,12 @@ export type PowerResult = {
   mSavings: number;
   mBodyFat: number;
   bodyFatPct: number | null;
+  mAge: number;
+  age: number | null;
+  /** Combined, soft-bounded habits multiplier (runway × savings × age × body fat). */
+  mHabits: number;
+  debtRatio: number | null;
+  mDebt: number;
   /** Sequential contribution of each factor, in reading points (sum = reading). */
   breakdown: { key: string; label: string; points: number; note: string }[];
 };
@@ -211,15 +257,26 @@ export function computePower(i: PowerInputs): PowerResult {
     bfRaw != null && Number.isFinite(bfRaw) && bfRaw > 0 ? Math.min(60, Math.max(1, bfRaw)) : null;
   const mBodyFat = bodyFatMultiplier(bodyFatPct);
 
-  // Sequential build-up for the lifts/drags bar.
+  const ageRaw = i.age;
+  const age = ageRaw != null && Number.isFinite(ageRaw) && ageRaw > 0 ? Math.min(90, Math.max(16, ageRaw)) : null;
+  const mAge = ageMultiplier(age);
+  const debts =
+    (i.home === "mortgage" ? Math.max(0, n0(i.mortgage)) : 0) + Math.max(0, n0(i.carLoan)) + Math.max(0, n0(i.otherDebts));
+  const debtRatio = debtToAssets(debts, Math.max(0, assets));
+  const mDebt = debtMultiplier(debtRatio);
+
+  // Sequential build-up for the lifts/drags bar (habit steps share the soft bound).
   const s1 = readingFromE(Math.max(0, assets / sq));
   const s2 = readingFromE(Math.max(0, nw / sq));
   const eBase = Math.max(0, (nw + INCOME_YEARS * afterTax) / sq);
   const s3 = readingFromE(eBase);
-  const s4 = readingFromE(eBase * mRunway);
-  const s5 = readingFromE(eBase * mRunway * mSavings);
-  const E = eBase * mRunway * mSavings * mBodyFat;
-  const s6 = readingFromE(E);
+  const s4 = readingFromE(eBase * boundHabits(mRunway));
+  const s5 = readingFromE(eBase * boundHabits(mRunway * mSavings));
+  const s6 = readingFromE(eBase * boundHabits(mRunway * mSavings * mAge));
+  const mHabits = boundHabits(mRunway * mSavings * mAge * mBodyFat);
+  const s7 = readingFromE(eBase * mHabits);
+  const E = eBase * mHabits * mDebt;
+  const s8 = readingFromE(E);
 
   const breakdown = [
     { key: "assets", label: "Assets", points: s1, note: "Cash, investments, home and car" },
@@ -228,18 +285,22 @@ export function computePower(i: PowerInputs): PowerResult {
     { key: "runway", label: "Runway", points: s4 - s3, note: "Months of spending covered by cash + investments" },
     { key: "savings", label: "Savings rate", points: s5 - s4, note: "Share of after-tax income not spent" },
   ];
+  if (age != null) {
+    breakdown.push({ key: "age", label: "Age", points: s6 - s5, note: "Youth = more years to compound — fun nudge" });
+  }
   if (bodyFatPct != null) {
     breakdown.push({
       key: "bodyFat",
       label: "Body fat",
-      points: s6 - s5,
+      points: s7 - s6,
       note: "Optional lifestyle nudge — not health advice",
     });
   }
+  breakdown.push({ key: "debtLoad", label: "Debt load", points: s8 - s7, note: "Debts ÷ assets — eases off above 50%" });
 
   return {
-    reading: s6,
-    display: displayReading(s6),
+    reading: s8,
+    display: displayReading(s8),
     netWorth: nw,
     afterTaxIncome: afterTax,
     equivScale: sq,
@@ -250,6 +311,11 @@ export function computePower(i: PowerInputs): PowerResult {
     mSavings,
     mBodyFat,
     bodyFatPct,
+    mAge,
+    age,
+    mHabits,
+    debtRatio,
+    mDebt,
     breakdown: breakdown.map((b) => ({ ...b, points: Math.abs(b.points) < 0.5 ? 0 : b.points })),
   };
 }
@@ -302,6 +368,7 @@ export const PERSONAS: Persona[] = [
       otherDebts: 1_500,
       householdSize: 1,
       bodyFatPct: null,
+      age: null,
     },
   },
   {
@@ -322,6 +389,7 @@ export const PERSONAS: Persona[] = [
       otherDebts: 25_000,
       householdSize: 1,
       bodyFatPct: null,
+      age: null,
     },
   },
   {
@@ -342,6 +410,7 @@ export const PERSONAS: Persona[] = [
       otherDebts: 4_000,
       householdSize: 3,
       bodyFatPct: null,
+      age: null,
     },
   },
   {
@@ -362,6 +431,7 @@ export const PERSONAS: Persona[] = [
       otherDebts: 0,
       householdSize: 2,
       bodyFatPct: null,
+      age: null,
     },
   },
   {
@@ -382,6 +452,7 @@ export const PERSONAS: Persona[] = [
       otherDebts: 0,
       householdSize: 1,
       bodyFatPct: null,
+      age: null,
     },
   },
 ];

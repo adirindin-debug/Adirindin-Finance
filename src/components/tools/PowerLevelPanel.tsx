@@ -27,7 +27,7 @@ const toggleOff = "bg-transparent text-foreground/70 hover:bg-white/5 hover:text
 
 type Currency = "AUD" | "USD";
 type MoneyKey = "income" | "monthlySpend" | "cash" | "investments" | "homeValue" | "mortgage" | "carValue" | "carLoan" | "otherDebts";
-type Form = Record<MoneyKey, string> & { incomeBasis: IncomeBasis; home: HomeStatus; householdSize: string; bodyFatPct: string };
+type Form = Record<MoneyKey, string> & { incomeBasis: IncomeBasis; home: HomeStatus; householdSize: string; bodyFatPct: string; age: string };
 
 const fmtGroup = (n: number) => new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 }).format(n);
 const parseAmount = (raw: string) => {
@@ -53,6 +53,7 @@ function toForm(i: PowerInputs): Form {
     home: i.home,
     householdSize: String(i.householdSize),
     bodyFatPct: i.bodyFatPct != null && i.bodyFatPct > 0 ? String(Math.round(i.bodyFatPct * 10) / 10) : "",
+    age: i.age != null && i.age > 0 ? String(Math.round(i.age)) : "",
   };
 }
 
@@ -220,6 +221,12 @@ export function PowerLevelPanel() {
       householdSize: hh,
       bodyFatPct: (() => {
         const raw = form.bodyFatPct.trim();
+        if (!raw) return null;
+        const n = parseAmount(raw);
+        return n > 0 ? n : null;
+      })(),
+      age: (() => {
+        const raw = form.age.trim();
         if (!raw) return null;
         const n = parseAmount(raw);
         return n > 0 ? n : null;
@@ -430,7 +437,34 @@ export function PowerLevelPanel() {
           </Field>
 
           <div className="rounded-lg border border-border/70 bg-[#0b1017]/60 p-3 space-y-3" data-health>
-            <p className={labelCls}>Health · optional</p>
+            <p className={labelCls}>Health &amp; youth · optional</p>
+            <Field
+              id="pl-age"
+              label="Age (optional)"
+              hint="Youth means more years for money to compound, so younger scans get a boost. Blank = no effect."
+            >
+              <div className="relative max-w-[10rem]">
+                <input
+                  id="pl-age"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  placeholder="—"
+                  value={form.age}
+                  onChange={(e) => set("age", e.target.value)}
+                  onBlur={(e) => {
+                    const raw = e.target.value.trim();
+                    if (!raw) {
+                      set("age", "");
+                      return;
+                    }
+                    set("age", String(Math.round(Math.min(90, Math.max(16, parseAmount(raw))))));
+                  }}
+                  className={`${inputCls} pr-12`}
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted">yrs</span>
+              </div>
+            </Field>
             <Field
               id="pl-bf"
               label="Body fat % (optional)"
@@ -455,7 +489,6 @@ export function PowerLevelPanel() {
                     set("bodyFatPct", String(Math.round(n * 10) / 10));
                   }}
                   className={`${inputCls} pr-8`}
-                  
                 />
                 <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted">%</span>
               </div>
@@ -551,7 +584,7 @@ export function PowerLevelPanel() {
           </div>
 
           {/* Key numbers */}
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
             {[
               ["Net worth", fmtMoney(res.netWorth, currency, fx)],
               [form.incomeBasis === "gross" ? "After-tax income (est.)" : "After-tax income", fmtMoney(res.afterTaxIncome, currency, fx)],
@@ -566,6 +599,16 @@ export function PowerLevelPanel() {
                       : `${res.runwayMonths.toFixed(1)} mths`,
               ],
               ["Savings rate", res.savingsRate == null ? "—" : `${Math.round(res.savingsRate * 100)}%`],
+              [
+                "Debt / assets",
+                res.debtRatio == null
+                  ? "—"
+                  : !Number.isFinite(res.debtRatio)
+                    ? "No assets"
+                    : res.debtRatio > 9.99
+                      ? ">999%"
+                      : `${Math.round(res.debtRatio * 100)}%`,
+              ],
             ].map(([k, v]) => (
               <div key={k} className="rounded-lg border border-border bg-[#0b1017] px-3 py-2.5">
                 <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{k}</dt>
@@ -574,13 +617,15 @@ export function PowerLevelPanel() {
             ))}
           </dl>
 
-          {res.bodyFatPct != null ? (
+          {res.bodyFatPct != null || res.age != null ? (
             <p
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#3dcc9a]/35 bg-[#3dcc9a]/10 px-2.5 py-1 text-[11px] font-medium text-[#bff5df]"
+              className="inline-flex flex-wrap items-center gap-1.5 rounded-full border border-[#3dcc9a]/35 bg-[#3dcc9a]/10 px-2.5 py-1 text-[11px] font-medium text-[#bff5df]"
               data-health-chip
             >
               <span className="h-1.5 w-1.5 rounded-full bg-[#3dcc9a]" aria-hidden />
-              Health · body fat {res.bodyFatPct}% · ×{res.mBodyFat.toFixed(2)}
+              Health &amp; youth
+              {res.age != null ? ` · age ${res.age} ×${res.mAge.toFixed(2)}` : ""}
+              {res.bodyFatPct != null ? ` · body fat ${res.bodyFatPct}% ×${res.mBodyFat.toFixed(2)}` : ""}
             </p>
           ) : null}
 
@@ -625,7 +670,9 @@ export function PowerLevelPanel() {
             ) : null}
             <p className="mt-3 text-[11px] leading-relaxed text-muted">
               Built up in order: assets, then debts, income, runway, savings rate
-              {res.bodyFatPct != null ? " and body fat" : ""}. Points shift with the order and the log scale, so read them
+              {res.age != null ? ", age" : ""}
+              {res.bodyFatPct != null ? ", body fat" : ""} and debt load. Habits, age and body fat share one soft cap
+              (about ×0.45–×1.6 together), so wealth stays the main driver. Points shift with the order and the log scale, so read them
               as a rough guide. Every debt repaid, month of runway or extra dollar saved nudges the reading up.
             </p>
           </div>
@@ -734,7 +781,7 @@ export function PowerTop10() {
             {fmtGroup(P_DISPLAY_MAX)}.
           </p>
           <p className="mt-2 text-xs text-muted" data-health-note>
-            Health inputs (like body fat) only count when you enter your own; rich-list power levels use net worth only.
+            Health and youth inputs (like age and body fat) only count when you enter your own; rich-list power levels use net worth only.
           </p>
         </>
       )}

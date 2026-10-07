@@ -26,7 +26,6 @@ import {
   GOLD_LAST_OBSERVED_YEAR,
   GOLD_HISTORICAL_POINTS,
   GOLD_PEAK_ANCHORS,
-  GOLD_DECLINE_YEARS,
   GOLD_RANGE_YEARS,
   GOLD_TILE_RANGE_START_S,
   GOLD_TROUGH_FRAC,
@@ -161,6 +160,12 @@ const TROUGHS: TroughMarker[] = Object.keys(GOLD_TROUGH_NOTES)
     note: GOLD_TROUGH_NOTES[year] ?? "",
   }))
   .filter((m) => m.g >= G_START && m.g <= G_END);
+
+/** Every trough zone in the code (incl. ~2092*, beyond the uptrend window) for the Key dates list. */
+const ALL_TROUGHS = Object.keys(GOLD_TROUGH_NOTES)
+  .map(Number)
+  .sort((a, b) => a - b)
+  .map((year) => ({ year, theo: isTheoreticalGoldYear(year), note: GOLD_TROUGH_NOTES[year] ?? "" }));
 
 const HISTORICAL = GOLD_HISTORICAL_POINTS.map((h) => ({
   ...h,
@@ -604,8 +609,8 @@ const FINAL_RUN_S = goldTileX(FINAL_RUN_U);
 const RUN_UP_YEARS = GOLD_CYCLE_YEARS - GOLD_TROUGH_OFFSET_YEARS;
 /** Split of the peak → trough leg at the end of the silhouette's sharp drop (tile s = 0.50). */
 const RANGE_S = GOLD_TILE_RANGE_START_S;
-const SHARP_DROP_YEARS = Math.round(GOLD_DECLINE_YEARS); // ≈ 4
-const RANGE_BOUND_YEARS = Math.round(GOLD_RANGE_YEARS); // ≈ 16
+const DECLINE_LABEL = "~4–8"; // sharp drop ≈ 4y, phase runs to peak + 8y
+const RANGE_BOUND_YEARS = Math.round(GOLD_RANGE_YEARS); // = 12
 
 function sX(s: number): number {
   return S_X0 + s * (S_X1 - S_X0);
@@ -810,7 +815,7 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
       viewBox={`0 0 ${SVG_W} ${S_SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — one lap of the hub tile silhouette: trough zone, ~${RUN_UP_YEARS}-year run-up to the peak zone, ~${SHARP_DROP_YEARS}-year sharp post-peak decline, ~${RANGE_BOUND_YEARS}-year range-bound zone to the next trough zone, then the next lap resets onto the same loop. Stacked marker years at each point (future above older), bold yellow for the active lap. 15 Aug 1971 Nixon Shock placed at its phase in the 1954–2000 lap. Live marker positioned by today's date. Educational sketch only — no price targets, not a model or financial advice`}
+      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — one lap of the hub tile silhouette: trough zone, ~${RUN_UP_YEARS}-year run-up to the peak zone, ~4–8-year post-peak decline, ~${RANGE_BOUND_YEARS}-year range-bound zone to the next trough zone, then the next lap resets onto the same loop. Stacked marker years at each point (future above older), bold yellow for the active lap. 15 Aug 1971 Nixon Shock placed at its phase in the 1954–2000 lap. Live marker positioned by today's date. Educational sketch only — no price targets, not a model or financial advice`}
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -872,7 +877,7 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
       >
         {narrow
           ? "One lap · bold yellow = active lap · * = theoretical · NFA"
-          : `Stylised sketch · ~${RUN_UP_YEARS}y up · ~${SHARP_DROP_YEARS}y decline + ~${RANGE_BOUND_YEARS}y range-bound · bold yellow = active lap · * = theoretical · yellow dot = historical marker · NFA`}
+          : `Stylised sketch · ~${RUN_UP_YEARS}y up · ${DECLINE_LABEL}y decline + ~${RANGE_BOUND_YEARS}y range-bound · bold yellow = active lap · * = theoretical · yellow dot = historical marker · NFA`}
       </text>
 
       <g transform={`translate(0, ${S_TOP_PAD})`}>
@@ -1098,7 +1103,7 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
 
         {/* Orange duration spans (existing mapping: peak + 20y = trough, 46y lap) */}
         <OrangeSpan x1={S_START.x + 4} x2={S_PEAK.x - 4} y={392} label={`~${RUN_UP_YEARS} years up (advance + final run)`} />
-        <OrangeSpan x1={S_PEAK.x + 4} x2={sX(RANGE_S) - 2} y={392} label={`~${SHARP_DROP_YEARS}y decline`} />
+        <OrangeSpan x1={S_PEAK.x + 4} x2={sX(RANGE_S) - 2} y={392} label={`${DECLINE_LABEL} years decline`} />
         <OrangeSpan x1={sX(RANGE_S) + 2} x2={S_END.x - 4} y={392} label={`~${RANGE_BOUND_YEARS} years range-bound`} />
 
         <text
@@ -1110,7 +1115,7 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
           fontFamily="system-ui, sans-serif"
           fontWeight="600"
         >
-          {`One ~${GOLD_CYCLE_YEARS}-year lap of the Market cycles tile silhouette · peak zones Jan 1934 / 1980 / 2026 / 2072* · trough zones ~20y after each peak`}
+          {`One ~${GOLD_CYCLE_YEARS}-year lap of the Market cycles tile silhouette · peak zones Jan 1934 / 1980 / 2026 / 2072* · trough zones ~20y after each peak (~2092* after 2072*)`}
         </text>
         <text
           x={SVG_W / 2}
@@ -1187,7 +1192,7 @@ const STAGES = [
   { id: "advance", name: "Advance from trough", from: 0, to: FINAL_RUN_S, color: RISE_GREEN, span: `~${Math.round(FINAL_RUN_U * GOLD_CYCLE_YEARS)}y` },
   { id: "final", name: "Final run", from: FINAL_RUN_S, to: PEAK_ZONE_FROM_S, color: "#f0c14a", span: `~${Math.round((PEAK_U - FINAL_RUN_U) * GOLD_CYCLE_YEARS)}y` },
   { id: "peak", name: "Peak zone", from: PEAK_ZONE_FROM_S, to: PEAK_ZONE_TO_S, color: FALL_RED, span: "Jan marker" },
-  { id: "decline", name: "Post-peak decline", from: PEAK_ZONE_TO_S, to: RANGE_S, color: "#b8333d", span: `~${SHARP_DROP_YEARS}y` },
+  { id: "decline", name: "Post-peak decline", from: PEAK_ZONE_TO_S, to: RANGE_S, color: "#b8333d", span: `${DECLINE_LABEL}y` },
   { id: "range", name: "Range-bound zone", from: RANGE_S, to: 1, color: RANGE_SLATE, span: `~${RANGE_BOUND_YEARS}y` },
 ] as const;
 
@@ -1333,7 +1338,7 @@ export default function GoldCycleChart() {
             <dd className="text-[#9eb0c8]">Peak zone — {m.note}</dd>
           </div>
         ))}
-        {TROUGHS.map((m) => (
+        {ALL_TROUGHS.map((m) => (
           <div key={`dl-t-${m.year}`} className="flex gap-2">
             <dt className="w-24 shrink-0 font-mono font-semibold" style={{ color: m.theo ? YELLOW_THEO : YELLOW }}>
               ~{m.year}

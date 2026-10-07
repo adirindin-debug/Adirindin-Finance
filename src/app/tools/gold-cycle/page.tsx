@@ -10,7 +10,7 @@ import {
   GOLD_TROUGH_OFFSET_YEARS,
 } from "@/lib/goldCommodityCycle";
 
-const DROP_Y = Math.round(GOLD_DECLINE_YEARS);
+const DROP_Y = "4–" + GOLD_DECLINE_YEARS;
 const RANGE_Y = Math.round(GOLD_RANGE_YEARS);
 
 export const metadata: Metadata = {
@@ -22,17 +22,17 @@ export const metadata: Metadata = {
 const PHASES = [
   {
     name: "Post-peak decline",
-    years: `Peak zone → end of the sharp drop · ~${DROP_Y}y`,
+    years: `Peak zone → peak + ${GOLD_DECLINE_YEARS}y · ~${DROP_Y} years`,
     color: "#b8333d",
     summary:
-      "The short, sharp drop right after each peak-zone marker, where the silhouette falls steeply from the top. It ends where the long down-sideways drift begins — the shape's own turning point, not a forecast.",
+      "The first ~4–8 years after each peak-zone marker: the silhouette's sharp drop from the top (about the first 4 years) and the early part of the drift, up to peak + 8 years. A sketch boundary, not a forecast.",
   },
   {
     name: "Range-bound zone",
     years: `Drift into the trough zone · ~${RANGE_Y}y`,
     color: "#9a8fb8",
     summary:
-      "Most of the drawdown: an extended down-sideways drift with a rebound hump and a smaller later hump, grinding into a trough zone about 20 years after the peak (~1954, ~2000, ~2046*). The 1934→1954 stretch sits in the US$35 peg era, so it is a model position, not a market low.",
+      "Most of the drawdown: an extended down-sideways drift with a rebound hump and a smaller later hump, grinding into a trough zone about 20 years after the peak (~1954, ~2000, ~2046*, ~2092*). The 1934→1954 stretch sits in the US$35 peg era, so it is a model position, not a market low.",
   },
   {
     name: "Advance from trough",
@@ -80,7 +80,7 @@ export default function GoldCyclePage() {
       </p>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         One silhouette repeats on every ~{GOLD_CYCLE_YEARS}-year lap, like the bond,
-        real estate and Bitcoin cycle charts: peak zone → sharp post-peak decline (~{DROP_Y}y)
+        real estate and Bitcoin cycle charts: peak zone → post-peak decline (~{DROP_Y} years)
         → range-bound zone (~{RANGE_Y}y) → trough zone (~{GOLD_TROUGH_OFFSET_YEARS}y after the
         peak) → advance with a mid-run correction → final run into the next peak zone. The Live marker moves with today’s
         date — observation of the charts, not a forecast.
@@ -137,7 +137,7 @@ export default function GoldCyclePage() {
             </li>
             <li>
               <strong className="font-medium text-[#d0d8e4]">Trough zones</strong> (~1954,
-              ~2000, ~2046*) come from the repeating shape (~{GOLD_TROUGH_OFFSET_YEARS}y after
+              ~2000, ~2046*, ~2092*) come from the repeating shape (~{GOLD_TROUGH_OFFSET_YEARS}y after
               each peak), not separate anchors. ~2000 lines up with the 1999–2001 low; ~1954
               is peg-era model position only.
             </li>
