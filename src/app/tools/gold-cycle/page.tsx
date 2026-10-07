@@ -5,8 +5,13 @@ import GoldCycleChart from "@/components/GoldCycleChart";
 import {
   GOLD_PEAK_ANCHORS,
   GOLD_CYCLE_YEARS,
+  GOLD_DECLINE_YEARS,
+  GOLD_RANGE_YEARS,
   GOLD_TROUGH_OFFSET_YEARS,
 } from "@/lib/goldCommodityCycle";
+
+const DROP_Y = Math.round(GOLD_DECLINE_YEARS);
+const RANGE_Y = Math.round(GOLD_RANGE_YEARS);
 
 export const metadata: Metadata = {
   title: "46-year gold-led commodity cycle sketch",
@@ -17,17 +22,24 @@ export const metadata: Metadata = {
 const PHASES = [
   {
     name: "Post-peak decline",
-    years: "Peak zone → trough zone · ~20y",
-    color: "#ef6b6b",
+    years: `Peak zone → end of the sharp drop · ~${DROP_Y}y`,
+    color: "#b8333d",
     summary:
-      "After each peak-zone marker the same shape steps down quickly, then grinds lower into a trough zone about 20 years later (~1954, ~2000, ~2046*). The 1934→1954 stretch sits in the US$35 peg era, so it is a model position, not a market low.",
+      "The short, sharp drop right after each peak-zone marker, where the silhouette falls steeply from the top. It ends where the long down-sideways drift begins — the shape's own turning point, not a forecast.",
+  },
+  {
+    name: "Range-bound zone",
+    years: `Drift into the trough zone · ~${RANGE_Y}y`,
+    color: "#9a8fb8",
+    summary:
+      "Most of the drawdown: an extended down-sideways drift with a rebound hump and a smaller later hump, grinding into a trough zone about 20 years after the peak (~1954, ~2000, ~2046*). The 1934→1954 stretch sits in the US$35 peg era, so it is a model position, not a market low.",
   },
   {
     name: "Advance from trough",
-    years: "Trough zone → mid-run pause · ~17y",
+    years: "Trough zone → mid-run correction · ~17y",
     color: "#3dcc9a",
     summary:
-      "The main multi-year advance in the gold-led commodity story, ending in a short pause / shoulder in the third quarter of the lap. Historically this is where free-market gold made its large secular moves — still an observation, not a signal.",
+      "The main multi-year advance in the gold-led commodity story, ending in a sharp mid-run correction (shoulder) in the third quarter of the lap. Historically this is where free-market gold made its large secular moves — still an observation, not a signal.",
   },
   {
     name: "Final run → peak zone",
@@ -68,9 +80,9 @@ export default function GoldCyclePage() {
       </p>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         One silhouette repeats on every ~{GOLD_CYCLE_YEARS}-year lap, like the bond,
-        real estate and Bitcoin cycle charts: peak zone → post-peak decline → trough
-        zone (~{GOLD_TROUGH_OFFSET_YEARS}y after the peak) → advance with a mid-run
-        pause → final run into the next peak zone. The Live marker moves with today’s
+        real estate and Bitcoin cycle charts: peak zone → sharp post-peak decline (~{DROP_Y}y)
+        → range-bound zone (~{RANGE_Y}y) → trough zone (~{GOLD_TROUGH_OFFSET_YEARS}y after the
+        peak) → advance with a mid-run correction → final run into the next peak zone. The Live marker moves with today’s
         date — observation of the charts, not a forecast.
       </p>
 
@@ -137,7 +149,7 @@ export default function GoldCyclePage() {
         </aside>
       </div>
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {PHASES.map((p) => (
           <article key={p.name} className="rounded-xl border border-border bg-card p-5">
             <div className="flex items-center gap-2">

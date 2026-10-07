@@ -4,7 +4,8 @@
  * flat start → steep run-up → sharp correction → spike to the peak → sharp drop →
  * long down-sideways drift). Two views (toggle on the chart):
  *  - "Repeating cycle" (default): ONE lap of the exact tile silhouette, laid out like
- *    the RE / bond detail charts — regime bands, key points with stacked lap years
+ *    the RE / bond detail charts — regime bands (advance, final run, sharp post-peak
+ *    decline, range-bound zone — split where the silhouette's steep drop ends), key points with stacked lap years
  *    (active lap bold yellow), dashed "next lap resets onto the same loop" wrap,
  *    orange duration spans, 15 Aug 1971 at its phase in the 1954–2000 lap, Live dot
  *    on the tile's own date mapping and a current-phase callout.
@@ -25,6 +26,9 @@ import {
   GOLD_LAST_OBSERVED_YEAR,
   GOLD_HISTORICAL_POINTS,
   GOLD_PEAK_ANCHORS,
+  GOLD_DECLINE_YEARS,
+  GOLD_RANGE_YEARS,
+  GOLD_TILE_RANGE_START_S,
   GOLD_TROUGH_FRAC,
   GOLD_TROUGH_NOTES,
   GOLD_TROUGH_OFFSET_YEARS,
@@ -587,6 +591,8 @@ const S_WRAP_Y = 348;
 const RISE_GREEN = "#3dcc9a";
 const FINAL_GOLD = "#d4a017";
 const FALL_RED = "#ef6b6b";
+/** Muted slate / purple-grey for the long range-bound drift. */
+const RANGE_SLATE = "#9a8fb8";
 const ACTIVE_YEAR_FILL = "#ffe14a";
 const MUTED_YEAR_FILL = "#c8d0dc";
 const OLD_YEAR_FILL = "#8b9bb4";
@@ -596,7 +602,10 @@ const FINAL_RUN_U = (GOLD_FINAL_RUN_FRAC * GOLD_CYCLE_YEARS - GOLD_TROUGH_OFFSET
 const FINAL_RUN_S = goldTileX(FINAL_RUN_U);
 /** Trough → peak and peak → trough durations (years), from the existing anchors. */
 const RUN_UP_YEARS = GOLD_CYCLE_YEARS - GOLD_TROUGH_OFFSET_YEARS;
-const DECLINE_YEARS = GOLD_TROUGH_OFFSET_YEARS;
+/** Split of the peak → trough leg at the end of the silhouette's sharp drop (tile s = 0.50). */
+const RANGE_S = GOLD_TILE_RANGE_START_S;
+const SHARP_DROP_YEARS = Math.round(GOLD_DECLINE_YEARS); // ≈ 4
+const RANGE_BOUND_YEARS = Math.round(GOLD_RANGE_YEARS); // ≈ 16
 
 function sX(s: number): number {
   return S_X0 + s * (S_X1 - S_X0);
@@ -771,7 +780,8 @@ const NIXON = (() => {
 const S_BANDS = [
   { id: "advance", from: 0, to: FINAL_RUN_S, color: RISE_GREEN, label: "Advance from trough", phase: "Advance from trough", opacity: 0.05 },
   { id: "final", from: FINAL_RUN_S, to: PEAK_S, color: FINAL_GOLD, label: "Final run", phase: "Final run to peak zone", opacity: 0.07 },
-  { id: "decline", from: PEAK_S, to: 1, color: FALL_RED, label: "Post-peak decline", phase: "Post-peak decline", opacity: 0.06 },
+  { id: "decline", from: PEAK_S, to: RANGE_S, color: FALL_RED, label: "Post-peak decline", phase: "Post-peak decline", opacity: 0.08 },
+  { id: "range", from: RANGE_S, to: 1, color: RANGE_SLATE, label: "Range-bound zone", phase: "Range-bound zone", opacity: 0.06 },
 ] as const;
 
 function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean }) {
@@ -800,7 +810,7 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
       viewBox={`0 0 ${SVG_W} ${S_SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — one lap of the hub tile silhouette: trough zone, ~${RUN_UP_YEARS}-year run-up to the peak zone, ~${DECLINE_YEARS}-year post-peak decline to the next trough zone, then the next lap resets onto the same loop. Stacked marker years at each point (future above older), bold yellow for the active lap. 15 Aug 1971 Nixon Shock placed at its phase in the 1954–2000 lap. Live marker positioned by today's date. Educational sketch only — no price targets, not a model or financial advice`}
+      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — one lap of the hub tile silhouette: trough zone, ~${RUN_UP_YEARS}-year run-up to the peak zone, ~${SHARP_DROP_YEARS}-year sharp post-peak decline, ~${RANGE_BOUND_YEARS}-year range-bound zone to the next trough zone, then the next lap resets onto the same loop. Stacked marker years at each point (future above older), bold yellow for the active lap. 15 Aug 1971 Nixon Shock placed at its phase in the 1954–2000 lap. Live marker positioned by today's date. Educational sketch only — no price targets, not a model or financial advice`}
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -862,11 +872,11 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
       >
         {narrow
           ? "One lap · bold yellow = active lap · * = theoretical · NFA"
-          : `Stylised sketch · ~${RUN_UP_YEARS}y up · ~${DECLINE_YEARS}y down · bold yellow = active lap · * = theoretical · yellow dot = historical marker · NFA`}
+          : `Stylised sketch · ~${RUN_UP_YEARS}y up · ~${SHARP_DROP_YEARS}y decline + ~${RANGE_BOUND_YEARS}y range-bound · bold yellow = active lap · * = theoretical · yellow dot = historical marker · NFA`}
       </text>
 
       <g transform={`translate(0, ${S_TOP_PAD})`}>
-        {/* Regime bands — advance (green), final run (gold), post-peak decline (red) */}
+        {/* Regime bands — advance (green), final run (gold), post-peak decline (red), range-bound (slate) */}
         {S_BANDS.map((b) => (
           <rect
             key={b.id}
@@ -881,7 +891,7 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
         {S_BANDS.map((b) => (
           <text
             key={`bl-${b.id}`}
-            x={(sX(b.from) + sX(b.to)) / 2 + (b.id === "decline" ? 40 : b.id === "advance" ? 22 : 0)}
+            x={(sX(b.from) + sX(b.to)) / 2 + (b.id === "advance" ? 22 : b.id === "decline" ? 6 : 0)}
             y={S_BAND_BOTTOM - 8}
             textAnchor="middle"
             fill={b.color}
@@ -1088,7 +1098,8 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
 
         {/* Orange duration spans (existing mapping: peak + 20y = trough, 46y lap) */}
         <OrangeSpan x1={S_START.x + 4} x2={S_PEAK.x - 4} y={392} label={`~${RUN_UP_YEARS} years up (advance + final run)`} />
-        <OrangeSpan x1={S_PEAK.x + 4} x2={S_END.x - 4} y={392} label={`~${DECLINE_YEARS} years down (post-peak decline)`} />
+        <OrangeSpan x1={S_PEAK.x + 4} x2={sX(RANGE_S) - 2} y={392} label={`~${SHARP_DROP_YEARS}y decline`} />
+        <OrangeSpan x1={sX(RANGE_S) + 2} x2={S_END.x - 4} y={392} label={`~${RANGE_BOUND_YEARS} years range-bound`} />
 
         <text
           x={SVG_W / 2}
@@ -1176,7 +1187,8 @@ const STAGES = [
   { id: "advance", name: "Advance from trough", from: 0, to: FINAL_RUN_S, color: RISE_GREEN, span: `~${Math.round(FINAL_RUN_U * GOLD_CYCLE_YEARS)}y` },
   { id: "final", name: "Final run", from: FINAL_RUN_S, to: PEAK_ZONE_FROM_S, color: "#f0c14a", span: `~${Math.round((PEAK_U - FINAL_RUN_U) * GOLD_CYCLE_YEARS)}y` },
   { id: "peak", name: "Peak zone", from: PEAK_ZONE_FROM_S, to: PEAK_ZONE_TO_S, color: FALL_RED, span: "Jan marker" },
-  { id: "decline", name: "Post-peak decline", from: PEAK_ZONE_TO_S, to: 1, color: "#b8333d", span: `~${DECLINE_YEARS}y` },
+  { id: "decline", name: "Post-peak decline", from: PEAK_ZONE_TO_S, to: RANGE_S, color: "#b8333d", span: `~${SHARP_DROP_YEARS}y` },
+  { id: "range", name: "Range-bound zone", from: RANGE_S, to: 1, color: RANGE_SLATE, span: `~${RANGE_BOUND_YEARS}y` },
 ] as const;
 
 /** Percent of the SVG width, so the HTML strip lines up with the chart's x-axis (viewBox 0–SVG_W). */
@@ -1200,15 +1212,22 @@ function StageBar() {
               width: `${((st.to - st.from) * 100).toFixed(3)}%`,
               background: `linear-gradient(180deg, ${st.color}55, ${st.color}22)`,
             }}
-            className="relative flex items-end border-r border-[#222] last:border-r-0"
+            className="relative flex items-end overflow-hidden border-r border-[#222] last:border-r-0"
           >
             <span className="absolute inset-x-0 top-0 h-1" style={{ background: st.color }} aria-hidden />
             {st.id === "peak" ? (
               <span className="sr-only">{st.name}</span>
             ) : (
-              <span className="w-full px-1.5 pb-1.5 text-[10px] font-medium leading-tight text-[#e8eef7] sm:truncate sm:px-2 sm:pb-2 sm:text-xs">
-                {st.name}
-              </span>
+              <>
+                {st.id === "decline" ? <span className="sr-only sm:hidden">{st.name}</span> : null}
+                <span
+                  className={`w-full px-1.5 pb-1.5 text-[10px] font-medium leading-tight text-[#e8eef7] sm:px-2 sm:pb-2 sm:text-xs ${
+                    st.id === "decline" ? "hidden sm:block" : ""
+                  }`}
+                >
+                  {st.name}
+                </span>
+              </>
             )}
           </div>
         ))}

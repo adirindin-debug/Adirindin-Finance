@@ -733,6 +733,9 @@ export function PowerTop10() {
             {fx ? ` at ${fx.usdPerAud.toFixed(4)} USD per AUD (${fx.label}, ${fx.asOf})` : ""}. The scouter caps at{" "}
             {fmtGroup(P_DISPLAY_MAX)}.
           </p>
+          <p className="mt-2 text-xs text-muted" data-health-note>
+            Health inputs (like body fat) only count when you enter your own; rich-list power levels use net worth only.
+          </p>
         </>
       )}
     </section>

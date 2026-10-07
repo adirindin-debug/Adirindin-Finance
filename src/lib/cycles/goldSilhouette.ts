@@ -13,6 +13,8 @@
  */
 
 import {
+  GOLD_TILE_PEAK_S,
+  GOLD_TILE_RANGE_START_S,
   GOLD_TROUGH_FRAC,
   goldCycleProgress,
   goldLivePhaseLine,
@@ -41,7 +43,7 @@ const PEAK_U = 1 - GOLD_TROUGH_FRAC;
  * compressed (~38% of the width) and the long post-peak drift gets the rest.
  * Live timing is warped to match (see tileX), so the dot stays just after the peak.
  */
-const PEAK_S = 0.38;
+const PEAK_S = GOLD_TILE_PEAK_S;
 /** Right-side ending level, as a share of the peak's height above the starting trough. */
 export const GOLD_TILE_END_LOW = 0.58;
 /** Starting (left trough) level of the tile shape — first knot height. */
@@ -83,8 +85,9 @@ const KNOTS: [number, number][] = [
   [0.428, 0.775],
   [0.443, 0.785],
   [0.468, 0.69],
-  [0.5, 0.645],
-  // long down-sideways drift: rebound hump, ripples, smaller later hump
+  // end of the sharp drop = start of the range-bound zone (GOLD_TILE_RANGE_START_S)
+  [GOLD_TILE_RANGE_START_S, 0.645],
+  // long down-sideways drift (range-bound zone): rebound hump, ripples, smaller later hump
   [0.523, 0.665],
   [0.556, 0.765],
   [0.584, 0.78],

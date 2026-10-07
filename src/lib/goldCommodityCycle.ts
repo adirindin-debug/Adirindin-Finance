@@ -7,7 +7,7 @@
  * the bond yield / real estate / BTC cycle charts (one ridge, many laps):
  *
  *   peak zone → post-peak decline → trough zone (~20y after the peak)
- *             → primary advance → mid-run pause (shoulder) → final run → next peak zone
+ *             → primary advance → mid-run correction (shoulder) → final run → next peak zone
  *
  * Trough zones are derived from the shape (peak + GOLD_TROUGH_OFFSET_YEARS), not
  * separately locked — 2000 lines up with the 1999–2001 free-market low; 1954 sits
@@ -209,13 +209,37 @@ export function goldModelUnitAt(ms: number): number {
   return goldModelUnit(goldCycleProgress(ms).frac);
 }
 
-export type GoldPhaseName = "Post-peak decline" | "Advance from trough" | "Final run to peak zone";
+export type GoldPhaseName =
+  | "Post-peak decline"
+  | "Range-bound zone"
+  | "Advance from trough"
+  | "Final run to peak zone";
 
-/** Mid-run pause shoulder ends here; final run into the peak zone follows. */
+/**
+ * Silhouette geometry shared with the tile (src/lib/cycles/goldSilhouette.ts):
+ * the peak sits at tile s = 0.38 and the sharp post-peak drop ends at s = 0.50 — the
+ * knot where the long "down-sideways" drift (rebound hump, ripples, later hump) begins.
+ */
+export const GOLD_TILE_PEAK_S = 0.38;
+export const GOLD_TILE_RANGE_START_S = 0.5;
+/**
+ * Range-bound zone start as a fraction of the peak→peak lap. The tile maps the peak→trough
+ * leg (GOLD_TROUGH_FRAC of the lap) linearly onto s 0.38 → 1, so
+ * (0.50 − 0.38) ÷ (1 − 0.38) × 20y ≈ 3.9 years after each peak.
+ */
+export const GOLD_RANGE_START_FRAC =
+  ((GOLD_TILE_RANGE_START_S - GOLD_TILE_PEAK_S) / (1 - GOLD_TILE_PEAK_S)) * (GOLD_TROUGH_OFFSET_YEARS / GOLD_CYCLE_YEARS);
+/** Years from a peak-zone marker to the start of the range-bound zone (≈ 3.9). */
+export const GOLD_DECLINE_YEARS = GOLD_RANGE_START_FRAC * GOLD_CYCLE_YEARS;
+/** Years of the range-bound zone, to the next trough zone (≈ 16.1). */
+export const GOLD_RANGE_YEARS = GOLD_TROUGH_OFFSET_YEARS - GOLD_DECLINE_YEARS;
+
+/** Mid-run correction shoulder ends here; final run into the peak zone follows. */
 export const GOLD_FINAL_RUN_FRAC = 0.8;
 
 export function goldPhaseName(frac: number): GoldPhaseName {
-  if (frac < GOLD_TROUGH_FRAC) return "Post-peak decline";
+  if (frac < GOLD_RANGE_START_FRAC) return "Post-peak decline";
+  if (frac < GOLD_TROUGH_FRAC) return "Range-bound zone";
   if (frac < GOLD_FINAL_RUN_FRAC) return "Advance from trough";
   return "Final run to peak zone";
 }
