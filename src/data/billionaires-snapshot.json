@@ -1,0 +1,80 @@
+{
+  "source": "Forbes Real-Time Billionaires",
+  "sourceUrl": "https://www.forbes.com/real-time-billionaires/",
+  "apiUrl": "https://www.forbes.com/forbesapi/person/rtb/0/position/true.json",
+  "asOf": "2026-10-07T03:30:02.217Z",
+  "fetchedAt": "2026-10-07T03:33:30Z",
+  "note": "Snapshot of the Forbes Real-Time Billionaires top 10 (finalWorth, US$ millions), saved 7 Oct 2026 AEDT as a fallback when the live list can't be reached.",
+  "people": [
+    {
+      "rank": 1,
+      "name": "Elon Musk",
+      "netWorthUsdM": 1051255.139,
+      "wealthSource": "Tesla, SpaceX",
+      "country": "United States"
+    },
+    {
+      "rank": 2,
+      "name": "Jeff Bezos",
+      "netWorthUsdM": 375409.616,
+      "wealthSource": "Amazon",
+      "country": "United States"
+    },
+    {
+      "rank": 3,
+      "name": "Larry Page",
+      "netWorthUsdM": 285097.467,
+      "wealthSource": "Google",
+      "country": "United States"
+    },
+    {
+      "rank": 4,
+      "name": "Michael Dell",
+      "netWorthUsdM": 280754.832,
+      "wealthSource": "Dell Technologies",
+      "country": "United States"
+    },
+    {
+      "rank": 5,
+      "name": "Sergey Brin",
+      "netWorthUsdM": 262364.684,
+      "wealthSource": "Google",
+      "country": "United States"
+    },
+    {
+      "rank": 6,
+      "name": "Mark Zuckerberg",
+      "netWorthUsdM": 253303.186,
+      "wealthSource": "Facebook",
+      "country": "United States"
+    },
+    {
+      "rank": 7,
+      "name": "Jensen Huang",
+      "netWorthUsdM": 206964.797,
+      "wealthSource": "Nvidia",
+      "country": "United States"
+    },
+    {
+      "rank": 8,
+      "name": "Larry Ellison",
+      "netWorthUsdM": 187411.692,
+      "wealthSource": "Oracle",
+      "country": "United States"
+    },
+    {
+      "rank": 9,
+      "name": "Steve Ballmer",
+      "netWorthUsdM": 163560.963,
+      "wealthSource": "Microsoft",
+      "country": "United States"
+    },
+    {
+      "rank": 10,
+      "name": "Warren Buffett",
+      "netWorthUsdM": 143611.164,
+      "wealthSource": "Berkshire Hathaway",
+      "country": "United States"
+    }
+  ]
+}

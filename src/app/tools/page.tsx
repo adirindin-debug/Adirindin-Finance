@@ -4,7 +4,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Tools",
   description:
-    "Research tools desk: portfolio tracker, Australian property prices, a market risk & sentiment gauge and a compound interest calculator with historical asset growth rates. Educational and illustrative only — not financial advice.",
+    "Research tools desk: portfolio tracker, Australian property prices, a market risk & sentiment gauge, a compound interest calculator with historical asset growth rates and a just-for-fun Power Level scouter. Educational and illustrative only — not financial advice.",
 };
 
 type ToolCard = { href: string; title: string; badge?: string; blurb: string; meta: string; cta: string };
@@ -35,6 +35,15 @@ const tools: ToolCard[] = [
     cta: "Open the calculator",
   },
   {
+    href: "/tools/power-level",
+    title: "Power Level",
+    badge: "New",
+    blurb:
+      "A scouter-style power level for your standard of living, 0–100,000. Net worth, runway, savings rate and income on a log scale, with quick-fill examples and the planet's top 10 from Forbes. Runs in your browser — nothing stored or sent. Just for fun.",
+    meta: "Fun · log-scale score · client-side · not a measure of worth · NFA",
+    cta: "Scan your power level",
+  },
+  {
     href: "/property-prices",
     title: "Australian Property Prices",
     blurb:
@@ -50,7 +59,7 @@ export default function ToolsHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Research tools</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Desk for trackers, Australian property tools, a market risk &amp; sentiment gauge and a compound interest calculator. Cycle theories live under{" "}
+        Desk for trackers, Australian property tools, a market risk &amp; sentiment gauge, a compound interest calculator and a just-for-fun Power Level scouter. Cycle theories live under{" "}
         <Link href="/cycles" className="text-accent hover:underline">
           Market cycles
         </Link>
