@@ -1,11 +1,15 @@
 /**
  * Gold-led ~46-year commodity cycle theory schematic (educational diagram).
- * The lap shape is the Market cycles hub gold tile silhouette (goldSilhouette.ts:
+ * The cycle shape is the Market cycles hub gold tile silhouette (goldSilhouette.ts:
  * flat start → steep run-up → sharp correction → spike to the peak → sharp drop →
- * long down-sideways drift), repeated lap after lap. Each lap ends ~58% of the way
- * up, so the next lap starts from there — the same secular uptrend the tile shows.
- * Calendar timing is the tile's: trough zone → peak zone (~26y) → next trough
- * zone (~20y), peaks at Jan 1934 / 1980 / 2026 / 2072*, troughs 20y after each peak.
+ * long down-sideways drift). Two views (toggle on the chart):
+ *  - "Repeating cycle" (default): that one shape repeated identically, every lap at
+ *    the same level, on an even (linear) time scale inside equal 46-year windows
+ *    bounded by the peak zones Jan 1934 / 1980 / 2026 / 2072* / 2118*. Dates map
+ *    exactly like the tile (troughs 20y after each peak); the seam into each trough
+ *    is eased with a short smoothstep join (see repeatUnit).
+ *  - "Secular uptrend": each lap starts where the last one ended (~58% up) — the
+ *    stepped version as first built.
  * Yellow labels mark the peak / trough zones and the 15 Aug 1971 Nixon Shock.
  * Green Live marker is calendar-dated (computed client-side after mount, re-ticks
  * hourly / on tab focus). No price data on this chart — shape only · NFA.
@@ -184,22 +188,8 @@ function SpanArrow({ x1, x2, y, label, fs }: { x1: number; x2: number; y: number
   );
 }
 
-export default function GoldCycleChart() {
-  const nowMs = useLiveNow();
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  /** Phones: bigger on-chart labels so the yellow dates stay readable. */
-  const [narrow, setNarrow] = useState(false);
-
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? el.clientWidth;
-      setNarrow(w > 0 && w < 560);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+/** Alternate view: the stepped "secular uptrend" laps (kept exactly as first built). */
+function UptrendView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean }) {
   const fs = narrow ? 1.6 : 1;
 
   const live = useMemo(() => {
@@ -225,359 +215,832 @@ export default function GoldCycleChart() {
   const labelFs = 10.5 * fs;
 
   return (
-    <div ref={boxRef} className="relative mt-6 w-full">
-      <svg
-        viewBox={`0 0 ${SVG_W} ${SVG_H}`}
-        className="h-auto w-full overflow-visible"
-        role="img"
-        aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — the hub tile's lap shape (flat start, steep run-up, sharp correction, spike to the peak, sharp drop, down-sideways drift) repeated across laps. Yellow labels: peak zones Jan ${GOLD_PEAK_ANCHORS.join(", ")} (2072 theoretical); trough zones about ${TROUGHS.map((t) => t.year).join(", ")} (2046 theoretical); 15 Aug 1971 Nixon Shock. Live marker positioned by today's date. Shape only — no price data, not a predictive model or financial advice`}
-        style={{ overflow: "visible" }}
+    <svg
+      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+      className="h-auto w-full overflow-visible"
+      role="img"
+      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — the hub tile's lap shape (flat start, steep run-up, sharp correction, spike to the peak, sharp drop, down-sideways drift) repeated across laps. Yellow labels: peak zones Jan ${GOLD_PEAK_ANCHORS.join(", ")} (2072 theoretical); trough zones about ${TROUGHS.map((t) => t.year).join(", ")} (2046 theoretical); 15 Aug 1971 Nixon Shock. Live marker positioned by today's date. Shape only — no price data, not a predictive model or financial advice`}
+      style={{ overflow: "visible" }}
+    >
+      <defs>
+        <filter id="gold-cycle-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="gold-cycle-live-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="2.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <linearGradient id="gold-cycle-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#e8eef7" stopOpacity="0.07" />
+          <stop offset="100%" stopColor="#e8eef7" stopOpacity="0" />
+        </linearGradient>
+        <style>{`
+          @keyframes gold-cycle-live-pulse {
+            0% { opacity: 0.55; r: 7; }
+            70% { opacity: 0; r: 22; }
+            100% { opacity: 0; r: 22; }
+          }
+          .gold-cycle-live-ring {
+            animation: gold-cycle-live-pulse 2.4s ease-out infinite;
+            transform-origin: center;
+            transform-box: fill-box;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .gold-cycle-live-ring { animation: none; opacity: 0.35; r: 12; }
+          }
+        `}</style>
+      </defs>
+
+      <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
+
+      <text
+        x={SVG_W / 2}
+        y="26"
+        textAnchor="middle"
+        fill="#e8eef4"
+        fontSize={16 * (narrow ? 1.25 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontWeight="700"
       >
-        <defs>
-          <filter id="gold-cycle-glow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="1.2" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="gold-cycle-live-glow" x="-80%" y="-80%" width="260%" height="260%">
-            <feGaussianBlur stdDeviation="2.2" result="blur" />
-            <feMerge>
-              <feMergeNode in="blur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <linearGradient id="gold-cycle-fill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#e8eef7" stopOpacity="0.07" />
-            <stop offset="100%" stopColor="#e8eef7" stopOpacity="0" />
-          </linearGradient>
-          <style>{`
-            @keyframes gold-cycle-live-pulse {
-              0% { opacity: 0.55; r: 7; }
-              70% { opacity: 0; r: 22; }
-              100% { opacity: 0; r: 22; }
-            }
-            .gold-cycle-live-ring {
-              animation: gold-cycle-live-pulse 2.4s ease-out infinite;
-              transform-origin: center;
-              transform-box: fill-box;
-            }
-            @media (prefers-reduced-motion: reduce) {
-              .gold-cycle-live-ring { animation: none; opacity: 0.35; r: 12; }
-            }
-          `}</style>
-        </defs>
+        Gold-led ~{GOLD_CYCLE_YEARS}-year commodity cycle theory
+      </text>
+      <text
+        x={SVG_W / 2}
+        y={narrow ? 50 : 44}
+        textAnchor="middle"
+        fill="#8b9bb4"
+        fontSize={10 * (narrow ? 1.35 : 1)}
+        fontFamily="system-ui, sans-serif"
+      >
+        {narrow
+          ? "Repeating lap shape · yellow = key dates · * = theoretical · NFA"
+          : "Stylised sketch · one lap shape repeating every ~46y · yellow = key dates · * = theoretical · no price data · NFA"}
+      </text>
 
-        <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
+      {/* Faint horizontal guides */}
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const y = Y_TOP - 10 + (i * (Y_BOTTOM - Y_TOP + 20)) / 5;
+        return (
+          <line key={i} x1={X_LEFT - 12} y1={y} x2={X_RIGHT + 8} y2={y} stroke="#1a1a1a" strokeWidth="1" />
+        );
+      })}
 
-        <text
-          x={SVG_W / 2}
-          y="26"
-          textAnchor="middle"
-          fill="#e8eef4"
-          fontSize={16 * (narrow ? 1.25 : 1)}
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-        >
-          Gold-led ~{GOLD_CYCLE_YEARS}-year commodity cycle theory
-        </text>
-        <text
-          x={SVG_W / 2}
-          y={narrow ? 50 : 44}
-          textAnchor="middle"
-          fill="#8b9bb4"
-          fontSize={10 * (narrow ? 1.35 : 1)}
-          fontFamily="system-ui, sans-serif"
-        >
-          {narrow
-            ? "Repeating lap shape · yellow = key dates · * = theoretical · NFA"
-            : "Stylised sketch · one lap shape repeating every ~46y · yellow = key dates · * = theoretical · no price data · NFA"}
-        </text>
+      {/* Peak / trough verticals (dashed, faint) */}
+      {PEAKS.map((m) => {
+        const p = ptAt(m.g);
+        return (
+          <line
+            key={`pv-${m.year}`}
+            x1={p.x}
+            y1={p.y + 8}
+            x2={p.x}
+            y2={Y_BOTTOM + 8}
+            stroke="#ef6b6b"
+            strokeWidth="1.25"
+            strokeDasharray="4 4"
+            opacity={m.theo ? 0.35 : 0.55}
+          />
+        );
+      })}
+      {TROUGHS.map((m) => {
+        const p = ptAt(m.g);
+        return (
+          <line
+            key={`tv-${m.year}`}
+            x1={p.x}
+            y1={Y_TOP - 10}
+            x2={p.x}
+            y2={p.y - 6}
+            stroke={LIVE_GREEN}
+            strokeWidth="1.25"
+            strokeDasharray="4 4"
+            opacity={m.theo ? 0.3 : 0.5}
+          />
+        );
+      })}
 
-        {/* Faint horizontal guides */}
-        {[0, 1, 2, 3, 4, 5].map((i) => {
-          const y = Y_TOP - 10 + (i * (Y_BOTTOM - Y_TOP + 20)) / 5;
-          return (
-            <line key={i} x1={X_LEFT - 12} y1={y} x2={X_RIGHT + 8} y2={y} stroke="#1a1a1a" strokeWidth="1" />
-          );
-        })}
-
-        {/* Peak / trough verticals (dashed, faint) */}
-        {PEAKS.map((m) => {
-          const p = ptAt(m.g);
-          return (
+      {/* Historical marker — 15 Aug 1971 (Nixon Shock) */}
+      {HISTORICAL.map((h) => {
+        const p = ptAt(h.g);
+        return (
+          <g key={`h-${h.t}`} data-marker="historical">
+            <title>{`${h.label} — ${h.note}`}</title>
             <line
-              key={`pv-${m.year}`}
               x1={p.x}
-              y1={p.y + 8}
-              x2={p.x}
-              y2={Y_BOTTOM + 8}
-              stroke="#ef6b6b"
-              strokeWidth="1.25"
-              strokeDasharray="4 4"
-              opacity={m.theo ? 0.35 : 0.55}
-            />
-          );
-        })}
-        {TROUGHS.map((m) => {
-          const p = ptAt(m.g);
-          return (
-            <line
-              key={`tv-${m.year}`}
-              x1={p.x}
-              y1={Y_TOP - 10}
+              y1={Y_TOP - 18}
               x2={p.x}
               y2={p.y - 6}
-              stroke={LIVE_GREEN}
+              stroke={YELLOW}
               strokeWidth="1.25"
-              strokeDasharray="4 4"
-              opacity={m.theo ? 0.3 : 0.5}
-            />
-          );
-        })}
-
-        {/* Historical marker — 15 Aug 1971 (Nixon Shock) */}
-        {HISTORICAL.map((h) => {
-          const p = ptAt(h.g);
-          return (
-            <g key={`h-${h.t}`} data-marker="historical">
-              <title>{`${h.label} — ${h.note}`}</title>
-              <line
-                x1={p.x}
-                y1={Y_TOP - 18}
-                x2={p.x}
-                y2={p.y - 6}
-                stroke={YELLOW}
-                strokeWidth="1.25"
-                strokeDasharray="2 3"
-                opacity="0.8"
-              />
-              <text
-                x={p.x}
-                y={Y_TOP - 34 - (narrow ? 8 : 0)}
-                textAnchor="middle"
-                fill={YELLOW}
-                fontSize={labelFs}
-                fontFamily="system-ui, sans-serif"
-                fontWeight="700"
-              >
-                {h.label}
-              </text>
-              <text
-                x={p.x}
-                y={Y_TOP - 22}
-                textAnchor="middle"
-                fill={YELLOW}
-                fontSize={8.5 * fs}
-                fontFamily="system-ui, sans-serif"
-                fontWeight="600"
-                opacity="0.85"
-              >
-                Nixon Shock
-              </text>
-              <circle cx={p.x} cy={p.y} r={3.5} fill="#0a0a0a" stroke={YELLOW} strokeWidth={1.75} />
-            </g>
-          );
-        })}
-
-        {/* Repeating lap line — soft fill, glowing white line */}
-        <path d={FILL_PATH} fill="url(#gold-cycle-fill)" stroke="none" />
-        <path
-          d={LINE_PATH}
-          fill="none"
-          stroke={LINE}
-          strokeWidth="3"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          filter="url(#gold-cycle-glow)"
-        />
-
-        {/* Peak zones — yellow labels left of each peak (Live sits just right of the 2026 peak) */}
-        {PEAKS.map((m) => {
-          const p = ptAt(m.g);
-          const fill = m.theo ? YELLOW_THEO : YELLOW;
-          return (
-            <g key={`peak-${m.year}`} data-marker="peak">
-              <title>{`Peak zone Jan ${m.year}${m.theo ? " (theoretical)" : ""} — ${m.note}`}</title>
-              <circle cx={p.x} cy={p.y} r={4.5} fill="#0a0a0a" stroke={fill} strokeWidth={2.25} />
-              <text
-                x={p.x - 9}
-                y={p.y - 9}
-                textAnchor="end"
-                fill={fill}
-                fontSize={labelFs}
-                fontFamily="system-ui, sans-serif"
-                fontWeight="700"
-                fontStyle={m.theo ? "italic" : undefined}
-              >
-                {`Jan ${m.year}${m.theo ? "*" : ""}`}
-              </text>
-              {!narrow ? (
-                <text
-                  x={p.x - 9}
-                  y={p.y + 3}
-                  textAnchor="end"
-                  fill="#9eb0c8"
-                  fontSize="8.5"
-                  fontFamily="system-ui, sans-serif"
-                  fontWeight="600"
-                >
-                  peak zone
-                </text>
-              ) : null}
-            </g>
-          );
-        })}
-
-        {/* Trough zones — yellow labels under each trough */}
-        {TROUGHS.map((m) => {
-          const p = ptAt(m.g);
-          const fill = m.theo ? YELLOW_THEO : YELLOW;
-          return (
-            <g key={`trough-${m.year}`} data-marker="trough">
-              <title>{`Trough zone ~${m.year}${m.theo ? " (theoretical)" : ""} — ${m.note}`}</title>
-              <circle cx={p.x} cy={p.y} r={4} fill="#0a0a0a" stroke={fill} strokeWidth={2} />
-              <text
-                x={p.x}
-                y={p.y + 20 * (narrow ? 1.25 : 1)}
-                textAnchor="middle"
-                fill={fill}
-                fontSize={labelFs}
-                fontFamily="system-ui, sans-serif"
-                fontWeight="700"
-                fontStyle={m.theo ? "italic" : undefined}
-              >
-                {`~${m.year}${m.theo ? "*" : ""}`}
-              </text>
-              {!narrow ? (
-                <text
-                  x={p.x}
-                  y={p.y + 31}
-                  textAnchor="middle"
-                  fill="#9eb0c8"
-                  fontSize="8.5"
-                  fontFamily="system-ui, sans-serif"
-                  fontWeight="600"
-                >
-                  trough zone
-                </text>
-              ) : null}
-            </g>
-          );
-        })}
-
-        {spanFrom && spanTo && spanPeak ? (
-          <>
-            <SpanArrow
-              x1={ptAt(spanFrom.g).x + 3}
-              x2={ptAt(spanPeak.g).x - 3}
-              y={378}
-              fs={narrow ? 1.3 : 1}
-              label={`~${GOLD_CYCLE_YEARS - GOLD_TROUGH_OFFSET_YEARS}y to peak`}
-            />
-            <SpanArrow
-              x1={ptAt(spanPeak.g).x + 3}
-              x2={ptAt(spanTo.g).x - 3}
-              y={378}
-              fs={narrow ? 1.3 : 1}
-              label={`~${GOLD_TROUGH_OFFSET_YEARS}y to trough`}
-            />
-          </>
-        ) : null}
-
-        <text
-          x={SVG_W / 2}
-          y={408}
-          textAnchor="middle"
-          fill="#a8b4c8"
-          fontSize={10 * (narrow ? 1.25 : 1)}
-          fontFamily="system-ui, sans-serif"
-          fontWeight="600"
-        >
-          {narrow
-            ? `One lap shape, repeated every ~${GOLD_CYCLE_YEARS}y · shape only, not a price path`
-            : `Same lap shape as the Market cycles tile, repeated every ~${GOLD_CYCLE_YEARS} years · each lap starts where the last one ended · shape only, not a USD price path`}
-        </text>
-        <text
-          x={SVG_W / 2}
-          y={424}
-          textAnchor="middle"
-          fill="#6b7a90"
-          fontSize={9 * (narrow ? 1.25 : 1)}
-          fontFamily="system-ui, sans-serif"
-          fontStyle="italic"
-        >
-          Peak zones Jan 1934 / 1980 / 2026 / 2072* · trough zones ~20y after each peak · 15 Aug 1971 Nixon Shock
-        </text>
-
-        <rect x="40" y="440" width={SVG_W - 80} height="46" rx="6" fill="#121820" stroke="#3a4558" strokeWidth="1" />
-        <text
-          x={SVG_W / 2}
-          y="458"
-          textAnchor="middle"
-          fill="#d0d8e4"
-          fontSize={10 * (narrow ? 1.2 : 1)}
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-        >
-          Future markers are theoretical: no gold price target for any date.
-        </text>
-        <text
-          x={SVG_W / 2}
-          y="474"
-          textAnchor="middle"
-          fill="#9eb0c8"
-          fontSize={9 * (narrow ? 1.2 : 1)}
-          fontFamily="system-ui, sans-serif"
-        >
-          Observational sketch · not a model, not a signal · research / educational only · not financial advice (NFA).
-        </text>
-
-        {/* Live pulse — client-computed from today's date (hidden until mounted) */}
-        {live ? (
-          <g filter="url(#gold-cycle-live-glow)" aria-label="Live position on cycle path" data-live-dot="">
-            <title>{`Live · ${liveDayLabel.format(new Date(nowMs as number))} · ${live.phaseLine} · theoretical, NFA`}</title>
-            <circle
-              className="gold-cycle-live-ring"
-              cx={live.x}
-              cy={live.y}
-              r={7}
-              fill="none"
-              stroke={LIVE_GREEN}
-              strokeWidth="2"
-            />
-            <circle cx={live.x} cy={live.y} r={5.5} fill={LIVE_GREEN} />
-            <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
-            <rect
-              x={live.x + 10}
-              y={live.y - 30 * (narrow ? 1.3 : 1)}
-              width={34 * (narrow ? 1.4 : 1)}
-              height={14 * (narrow ? 1.4 : 1)}
-              rx="3"
-              fill="#0f2418"
-              stroke={LIVE_GREEN}
-              strokeWidth="1"
+              strokeDasharray="2 3"
+              opacity="0.8"
             />
             <text
-              x={live.x + 10 + 17 * (narrow ? 1.4 : 1)}
-              y={live.y - 30 * (narrow ? 1.3 : 1) + 10 * (narrow ? 1.4 : 1)}
+              x={p.x}
+              y={Y_TOP - 34 - (narrow ? 8 : 0)}
               textAnchor="middle"
-              fill="#7dffb0"
-              fontSize={9 * (narrow ? 1.4 : 1)}
+              fill={YELLOW}
+              fontSize={labelFs}
               fontFamily="system-ui, sans-serif"
-              fontWeight="800"
+              fontWeight="700"
             >
-              Live
+              {h.label}
             </text>
+            <text
+              x={p.x}
+              y={Y_TOP - 22}
+              textAnchor="middle"
+              fill={YELLOW}
+              fontSize={8.5 * fs}
+              fontFamily="system-ui, sans-serif"
+              fontWeight="600"
+              opacity="0.85"
+            >
+              Nixon Shock
+            </text>
+            <circle cx={p.x} cy={p.y} r={3.5} fill="#0a0a0a" stroke={YELLOW} strokeWidth={1.75} />
           </g>
-        ) : null}
-      </svg>
+        );
+      })}
 
-      <p className="mt-3 min-h-[1.25rem] text-center font-mono text-xs text-[#7dffb0]" aria-live="polite">
-        {live && nowMs != null
-          ? `Live · ${liveDayLabel.format(new Date(nowMs))} · ${live.phaseLine}`
-          : "\u00a0"}
+      {/* Repeating lap line — soft fill, glowing white line */}
+      <path d={FILL_PATH} fill="url(#gold-cycle-fill)" stroke="none" />
+      <path
+        d={LINE_PATH}
+        fill="none"
+        stroke={LINE}
+        strokeWidth="3"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        filter="url(#gold-cycle-glow)"
+      />
+
+      {/* Peak zones — yellow labels left of each peak (Live sits just right of the 2026 peak) */}
+      {PEAKS.map((m) => {
+        const p = ptAt(m.g);
+        const fill = m.theo ? YELLOW_THEO : YELLOW;
+        return (
+          <g key={`peak-${m.year}`} data-marker="peak">
+            <title>{`Peak zone Jan ${m.year}${m.theo ? " (theoretical)" : ""} — ${m.note}`}</title>
+            <circle cx={p.x} cy={p.y} r={4.5} fill="#0a0a0a" stroke={fill} strokeWidth={2.25} />
+            <text
+              x={p.x - 9}
+              y={p.y - 9}
+              textAnchor="end"
+              fill={fill}
+              fontSize={labelFs}
+              fontFamily="system-ui, sans-serif"
+              fontWeight="700"
+              fontStyle={m.theo ? "italic" : undefined}
+            >
+              {`Jan ${m.year}${m.theo ? "*" : ""}`}
+            </text>
+            {!narrow ? (
+              <text
+                x={p.x - 9}
+                y={p.y + 3}
+                textAnchor="end"
+                fill="#9eb0c8"
+                fontSize="8.5"
+                fontFamily="system-ui, sans-serif"
+                fontWeight="600"
+              >
+                peak zone
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+
+      {/* Trough zones — yellow labels under each trough */}
+      {TROUGHS.map((m) => {
+        const p = ptAt(m.g);
+        const fill = m.theo ? YELLOW_THEO : YELLOW;
+        return (
+          <g key={`trough-${m.year}`} data-marker="trough">
+            <title>{`Trough zone ~${m.year}${m.theo ? " (theoretical)" : ""} — ${m.note}`}</title>
+            <circle cx={p.x} cy={p.y} r={4} fill="#0a0a0a" stroke={fill} strokeWidth={2} />
+            <text
+              x={p.x}
+              y={p.y + 20 * (narrow ? 1.25 : 1)}
+              textAnchor="middle"
+              fill={fill}
+              fontSize={labelFs}
+              fontFamily="system-ui, sans-serif"
+              fontWeight="700"
+              fontStyle={m.theo ? "italic" : undefined}
+            >
+              {`~${m.year}${m.theo ? "*" : ""}`}
+            </text>
+            {!narrow ? (
+              <text
+                x={p.x}
+                y={p.y + 31}
+                textAnchor="middle"
+                fill="#9eb0c8"
+                fontSize="8.5"
+                fontFamily="system-ui, sans-serif"
+                fontWeight="600"
+              >
+                trough zone
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+
+      {spanFrom && spanTo && spanPeak ? (
+        <>
+          <SpanArrow
+            x1={ptAt(spanFrom.g).x + 3}
+            x2={ptAt(spanPeak.g).x - 3}
+            y={378}
+            fs={narrow ? 1.3 : 1}
+            label={`~${GOLD_CYCLE_YEARS - GOLD_TROUGH_OFFSET_YEARS}y to peak`}
+          />
+          <SpanArrow
+            x1={ptAt(spanPeak.g).x + 3}
+            x2={ptAt(spanTo.g).x - 3}
+            y={378}
+            fs={narrow ? 1.3 : 1}
+            label={`~${GOLD_TROUGH_OFFSET_YEARS}y to trough`}
+          />
+        </>
+      ) : null}
+
+      <text
+        x={SVG_W / 2}
+        y={408}
+        textAnchor="middle"
+        fill="#a8b4c8"
+        fontSize={10 * (narrow ? 1.25 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontWeight="600"
+      >
+        {narrow
+          ? `One lap shape, repeated every ~${GOLD_CYCLE_YEARS}y · shape only, not a price path`
+          : `Same lap shape as the Market cycles tile, repeated every ~${GOLD_CYCLE_YEARS} years · each lap starts where the last one ended · shape only, not a USD price path`}
+      </text>
+      <text
+        x={SVG_W / 2}
+        y={424}
+        textAnchor="middle"
+        fill="#6b7a90"
+        fontSize={9 * (narrow ? 1.25 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontStyle="italic"
+      >
+        Peak zones Jan 1934 / 1980 / 2026 / 2072* · trough zones ~20y after each peak · 15 Aug 1971 Nixon Shock
+      </text>
+
+      <rect x="40" y="440" width={SVG_W - 80} height="46" rx="6" fill="#121820" stroke="#3a4558" strokeWidth="1" />
+      <text
+        x={SVG_W / 2}
+        y="458"
+        textAnchor="middle"
+        fill="#d0d8e4"
+        fontSize={10 * (narrow ? 1.2 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontWeight="700"
+      >
+        Future markers are theoretical: no gold price target for any date.
+      </text>
+      <text
+        x={SVG_W / 2}
+        y="474"
+        textAnchor="middle"
+        fill="#9eb0c8"
+        fontSize={9 * (narrow ? 1.2 : 1)}
+        fontFamily="system-ui, sans-serif"
+      >
+        Observational sketch · not a model, not a signal · research / educational only · not financial advice (NFA).
+      </text>
+
+      {/* Live pulse — client-computed from today's date (hidden until mounted) */}
+      {live ? (
+        <g filter="url(#gold-cycle-live-glow)" aria-label="Live position on cycle path" data-live-dot="">
+          <title>{`Live · ${liveDayLabel.format(new Date(nowMs as number))} · ${live.phaseLine} · theoretical, NFA`}</title>
+          <circle
+            className="gold-cycle-live-ring"
+            cx={live.x}
+            cy={live.y}
+            r={7}
+            fill="none"
+            stroke={LIVE_GREEN}
+            strokeWidth="2"
+          />
+          <circle cx={live.x} cy={live.y} r={5.5} fill={LIVE_GREEN} />
+          <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
+          <rect
+            x={live.x + 10}
+            y={live.y - 30 * (narrow ? 1.3 : 1)}
+            width={34 * (narrow ? 1.4 : 1)}
+            height={14 * (narrow ? 1.4 : 1)}
+            rx="3"
+            fill="#0f2418"
+            stroke={LIVE_GREEN}
+            strokeWidth="1"
+          />
+          <text
+            x={live.x + 10 + 17 * (narrow ? 1.4 : 1)}
+            y={live.y - 30 * (narrow ? 1.3 : 1) + 10 * (narrow ? 1.4 : 1)}
+            textAnchor="middle"
+            fill="#7dffb0"
+            fontSize={9 * (narrow ? 1.4 : 1)}
+            fontFamily="system-ui, sans-serif"
+            fontWeight="800"
+          >
+            Live
+          </text>
+        </g>
+      ) : null}
+    </svg>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Default view: one cycle shape repeating identically in 46-year windows      */
+/* -------------------------------------------------------------------------- */
+
+/** Window boundaries = peak zones; the last one is +46y after the final locked anchor. */
+const WINDOW_BOUNDS: number[] = [
+  ...GOLD_PEAK_ANCHORS,
+  GOLD_PEAK_ANCHORS[GOLD_PEAK_ANCHORS.length - 1] + GOLD_CYCLE_YEARS,
+];
+const R_YEAR_FROM = WINDOW_BOUNDS[0]! - 4;
+const R_YEAR_TO = WINDOW_BOUNDS[WINDOW_BOUNDS.length - 1]! + 4;
+const R_Y_TOP = 112;
+const R_Y_BOTTOM = 330;
+
+/**
+ * Seam join. The tile shape starts at its trough base (~1.5% up) but ends ~58% up,
+ * so identical laps would meet in a vertical cliff at every trough. Over the last
+ * stretch of the down-sideways drift (from the final hump at s ≈ 0.822, ~5½ years
+ * before the trough) the shape is eased down to the base with a smoothstep, so the
+ * drift rolls over into the next lap's flat base. Tile end tangents are flat, so the
+ * seam is smooth (no kink, no cliff). Everything else is the tile shape unchanged.
+ */
+const JOIN_S = 0.822;
+const JOIN_DROP = GOLD_TILE_END_LOW - GOLD_TILE_START_LOW;
+
+function repeatUnit(s: number): number {
+  const base = goldTileUnit(s);
+  if (s <= JOIN_S) return base;
+  const x = Math.min(1, (s - JOIN_S) / (1 - JOIN_S));
+  return base - JOIN_DROP * (x * x * (3 - 2 * x));
+}
+
+/** Calendar year → unit height, via the tile's own date mapping (troughs 20y after peaks). */
+function repeatUnitAtYear(y: number): number {
+  const laps = (y - LAP0_TROUGH_YEAR) / GOLD_CYCLE_YEARS;
+  const u = laps - Math.floor(laps);
+  return repeatUnit(goldTileX(u));
+}
+
+function rxOf(y: number): number {
+  return X_LEFT + ((y - R_YEAR_FROM) / (R_YEAR_TO - R_YEAR_FROM)) * (X_RIGHT - X_LEFT);
+}
+
+function ryOf(unit: number): number {
+  return R_Y_BOTTOM - unit * (R_Y_BOTTOM - R_Y_TOP);
+}
+
+function rPtAtYear(y: number): Pt {
+  return { x: rxOf(y), y: ryOf(repeatUnitAtYear(y)) };
+}
+
+const R_LINE_PATH = (() => {
+  const years: number[] = [];
+  const n = 3200;
+  for (let i = 0; i <= n; i++) years.push(R_YEAR_FROM + (i / n) * (R_YEAR_TO - R_YEAR_FROM));
+  // Make sure every peak tip is sampled exactly.
+  for (const b of WINDOW_BOUNDS) years.push(b);
+  years.sort((a, b) => a - b);
+  return years
+    .map((y, i) => {
+      const p = rPtAtYear(y);
+      return `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    })
+    .join(" ");
+})();
+const R_FILL_PATH = `${R_LINE_PATH} L ${X_RIGHT} ${R_Y_BOTTOM + 8} L ${X_LEFT} ${R_Y_BOTTOM + 8} Z`;
+
+function troughsAll() {
+  return Object.keys(GOLD_TROUGH_NOTES)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((year) => ({ year, theo: isTheoreticalGoldYear(year), note: GOLD_TROUGH_NOTES[year] ?? "" }));
+}
+
+const R_TROUGHS = troughsAll();
+
+function RepeatView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean }) {
+  const fs = narrow ? 1.6 : 1;
+  const labelFs = 10.5 * fs;
+
+  const live = useMemo(() => {
+    if (nowMs == null) return null;
+    const y = fracYear(nowMs);
+    if (y < R_YEAR_FROM || y > R_YEAR_TO) return null;
+    return rPtAtYear(y);
+  }, [nowMs]);
+
+  return (
+    <svg
+      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+      className="h-auto w-full overflow-visible"
+      role="img"
+      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory — the hub tile's cycle shape repeated identically in evenly spaced ${GOLD_CYCLE_YEARS}-year windows bounded by peak zones Jan ${WINDOW_BOUNDS.join(", ")} (2072 and 2118 theoretical). Yellow labels: peak zones, trough zones about ${R_TROUGHS.map((t) => t.year).join(", ")} (2046 theoretical) and 15 Aug 1971 Nixon Shock. Live marker at today's date. Shape only — no price data, not a predictive model or financial advice`}
+      style={{ overflow: "visible" }}
+    >
+      <defs>
+        <filter id="gold-repeat-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="1.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="gold-repeat-live-glow" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur stdDeviation="2.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <linearGradient id="gold-repeat-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#e8eef7" stopOpacity="0.07" />
+          <stop offset="100%" stopColor="#e8eef7" stopOpacity="0" />
+        </linearGradient>
+        <style>{`
+          @keyframes gold-repeat-live-pulse {
+            0% { opacity: 0.55; r: 7; }
+            70% { opacity: 0; r: 22; }
+            100% { opacity: 0; r: 22; }
+          }
+          .gold-repeat-live-ring {
+            animation: gold-repeat-live-pulse 2.4s ease-out infinite;
+            transform-origin: center;
+            transform-box: fill-box;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .gold-repeat-live-ring { animation: none; opacity: 0.35; r: 12; }
+          }
+        `}</style>
+      </defs>
+
+      <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
+
+      <text
+        x={SVG_W / 2}
+        y="26"
+        textAnchor="middle"
+        fill="#e8eef4"
+        fontSize={16 * (narrow ? 1.25 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontWeight="700"
+      >
+        Gold-led ~{GOLD_CYCLE_YEARS}-year commodity cycle theory
+      </text>
+      <text
+        x={SVG_W / 2}
+        y={narrow ? 50 : 44}
+        textAnchor="middle"
+        fill="#8b9bb4"
+        fontSize={10 * (narrow ? 1.35 : 1)}
+        fontFamily="system-ui, sans-serif"
+      >
+        {narrow
+          ? "One shape repeating · white lines = 46y windows · * = theoretical · NFA"
+          : "One cycle shape repeating identically · white lines = 46-year windows at peak zones · yellow = key dates · * = theoretical · NFA"}
+      </text>
+
+      {/* Faint horizontal guides */}
+      {[0, 1, 2, 3, 4, 5].map((i) => {
+        const y = R_Y_TOP - 10 + (i * (R_Y_BOTTOM - R_Y_TOP + 20)) / 5;
+        return <line key={i} x1={X_LEFT - 12} y1={y} x2={X_RIGHT + 8} y2={y} stroke="#1a1a1a" strokeWidth="1" />;
+      })}
+
+      {/* 46-year window boundaries — subtle white verticals at each peak zone */}
+      {WINDOW_BOUNDS.map((yr) => {
+        const x = rxOf(yr);
+        const theo = isTheoreticalGoldYear(yr);
+        return (
+          <line
+            key={`wb-${yr}`}
+            x1={x}
+            y1={86}
+            x2={x}
+            y2={R_Y_BOTTOM + 14}
+            stroke="#e8eef7"
+            strokeWidth="1.25"
+            strokeDasharray={theo ? "5 4" : undefined}
+            opacity={theo ? 0.22 : 0.3}
+          />
+        );
+      })}
+
+      {/* Trough verticals (faint green, like the sibling charts) */}
+      {R_TROUGHS.map((m) => {
+        const p = rPtAtYear(m.year);
+        return (
+          <line
+            key={`rtv-${m.year}`}
+            x1={p.x}
+            y1={R_Y_TOP + 20}
+            x2={p.x}
+            y2={p.y - 6}
+            stroke={LIVE_GREEN}
+            strokeWidth="1.25"
+            strokeDasharray="4 4"
+            opacity={m.theo ? 0.25 : 0.4}
+          />
+        );
+      })}
+
+      {/* Repeating cycle line — soft fill, glowing white line */}
+      <path d={R_FILL_PATH} fill="url(#gold-repeat-fill)" stroke="none" />
+      <path
+        d={R_LINE_PATH}
+        fill="none"
+        stroke={LINE}
+        strokeWidth="3"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        filter="url(#gold-repeat-glow)"
+      />
+
+      {/* Historical marker — 15 Aug 1971 (Nixon Shock) */}
+      {HISTORICAL.map((h) => {
+        const p = rPtAtYear(fracYear(h.t));
+        const labelY = p.y - 44 * (narrow ? 1.3 : 1);
+        return (
+          <g key={`rh-${h.t}`} data-marker="historical">
+            <title>{`${h.label} — ${h.note}`}</title>
+            <line x1={p.x} y1={labelY + 6} x2={p.x} y2={p.y - 6} stroke={YELLOW} strokeWidth="1.25" strokeDasharray="2 3" opacity="0.8" />
+            <text
+              x={p.x + 6}
+              y={labelY - 12 * fs}
+              textAnchor="end"
+              fill={YELLOW}
+              fontSize={labelFs}
+              fontFamily="system-ui, sans-serif"
+              fontWeight="700"
+            >
+              {h.label}
+            </text>
+            <text
+              x={p.x + 6}
+              y={labelY}
+              textAnchor="end"
+              fill={YELLOW}
+              fontSize={8.5 * fs}
+              fontFamily="system-ui, sans-serif"
+              fontWeight="600"
+              opacity="0.85"
+            >
+              Nixon Shock
+            </text>
+            <circle cx={p.x} cy={p.y} r={3.5} fill="#0a0a0a" stroke={YELLOW} strokeWidth={1.75} />
+          </g>
+        );
+      })}
+
+      {/* Peak zones — yellow labels at the top of each window boundary */}
+      {WINDOW_BOUNDS.map((yr) => {
+        const p = rPtAtYear(yr);
+        const theo = isTheoreticalGoldYear(yr);
+        const fill = theo ? YELLOW_THEO : YELLOW;
+        const note =
+          GOLD_ANCHOR_NOTES[yr] ??
+          `Theoretical window boundary — ${GOLD_CYCLE_YEARS} years after Jan ${yr - GOLD_CYCLE_YEARS}; illustrative only.`;
+        return (
+          <g key={`rp-${yr}`} data-marker="peak">
+            <title>{`Peak zone Jan ${yr}${theo ? " (theoretical)" : ""} — ${note}`}</title>
+            <text
+              x={p.x}
+              y={80}
+              textAnchor="middle"
+              fill={fill}
+              fontSize={labelFs}
+              fontFamily="system-ui, sans-serif"
+              fontWeight="700"
+              fontStyle={theo ? "italic" : undefined}
+            >
+              {`Jan ${yr}${theo ? "*" : ""}`}
+            </text>
+            <circle cx={p.x} cy={p.y} r={4.5} fill="#0a0a0a" stroke={fill} strokeWidth={2.25} />
+          </g>
+        );
+      })}
+
+      {/* Trough zones — yellow labels under each trough */}
+      {R_TROUGHS.map((m) => {
+        const p = rPtAtYear(m.year);
+        const fill = m.theo ? YELLOW_THEO : YELLOW;
+        return (
+          <g key={`rt-${m.year}`} data-marker="trough">
+            <title>{`Trough zone ~${m.year}${m.theo ? " (theoretical)" : ""} — ${m.note}`}</title>
+            <circle cx={p.x} cy={p.y} r={4} fill="#0a0a0a" stroke={fill} strokeWidth={2} />
+            <text
+              x={p.x}
+              y={p.y + 20 * (narrow ? 1.25 : 1)}
+              textAnchor="middle"
+              fill={fill}
+              fontSize={labelFs}
+              fontFamily="system-ui, sans-serif"
+              fontWeight="700"
+              fontStyle={m.theo ? "italic" : undefined}
+            >
+              {`~${m.year}${m.theo ? "*" : ""}`}
+            </text>
+            {!narrow ? (
+              <text
+                x={p.x}
+                y={p.y + 31}
+                textAnchor="middle"
+                fill="#9eb0c8"
+                fontSize="8.5"
+                fontFamily="system-ui, sans-serif"
+                fontWeight="600"
+              >
+                trough zone
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+
+      {/* Equal 46-year windows */}
+      {WINDOW_BOUNDS.slice(0, -1).map((yr, i) => (
+        <SpanArrow
+          key={`ws-${yr}`}
+          x1={rxOf(yr) + 3}
+          x2={rxOf(WINDOW_BOUNDS[i + 1]!) - 3}
+          y={378}
+          fs={narrow ? 1.3 : 1}
+          label={`${GOLD_CYCLE_YEARS} years`}
+        />
+      ))}
+
+      <text
+        x={SVG_W / 2}
+        y={408}
+        textAnchor="middle"
+        fill="#a8b4c8"
+        fontSize={10 * (narrow ? 1.25 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontWeight="600"
+      >
+        {narrow
+          ? `Tile shape repeated every ${GOLD_CYCLE_YEARS}y · even time scale · not a price path`
+          : `Same cycle shape as the Market cycles tile, repeated identically in each ${GOLD_CYCLE_YEARS}-year window · even time scale · shape only, not a USD price path`}
+      </text>
+      <text
+        x={SVG_W / 2}
+        y={424}
+        textAnchor="middle"
+        fill="#6b7a90"
+        fontSize={9 * (narrow ? 1.25 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontStyle="italic"
+      >
+        Peak zones Jan 1934 / 1980 / 2026 / 2072* / 2118* · trough zones ~20y after each peak · 15 Aug 1971 Nixon Shock
+      </text>
+
+      <rect x="40" y="440" width={SVG_W - 80} height="46" rx="6" fill="#121820" stroke="#3a4558" strokeWidth="1" />
+      <text
+        x={SVG_W / 2}
+        y="458"
+        textAnchor="middle"
+        fill="#d0d8e4"
+        fontSize={10 * (narrow ? 1.2 : 1)}
+        fontFamily="system-ui, sans-serif"
+        fontWeight="700"
+      >
+        Future markers are theoretical: no gold price target for any date.
+      </text>
+      <text
+        x={SVG_W / 2}
+        y="474"
+        textAnchor="middle"
+        fill="#9eb0c8"
+        fontSize={9 * (narrow ? 1.2 : 1)}
+        fontFamily="system-ui, sans-serif"
+      >
+        Observational sketch · not a model, not a signal · research / educational only · not financial advice (NFA).
+      </text>
+
+      {/* Live pulse — client-computed from today's date (hidden until mounted) */}
+      {live && nowMs != null ? (
+        <g filter="url(#gold-repeat-live-glow)" aria-label="Live position on cycle path" data-live-dot="">
+          <title>{`Live · ${liveDayLabel.format(new Date(nowMs))} · ${goldLivePhaseLine(nowMs)} · theoretical, NFA`}</title>
+          <circle className="gold-repeat-live-ring" cx={live.x} cy={live.y} r={7} fill="none" stroke={LIVE_GREEN} strokeWidth="2" />
+          <circle cx={live.x} cy={live.y} r={5.5} fill={LIVE_GREEN} />
+          <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
+          <rect
+            x={live.x + 12}
+            y={live.y - 8 * (narrow ? 1.4 : 1)}
+            width={34 * (narrow ? 1.4 : 1)}
+            height={14 * (narrow ? 1.4 : 1)}
+            rx="3"
+            fill="#0f2418"
+            stroke={LIVE_GREEN}
+            strokeWidth="1"
+          />
+          <text
+            x={live.x + 12 + 17 * (narrow ? 1.4 : 1)}
+            y={live.y - 8 * (narrow ? 1.4 : 1) + 10 * (narrow ? 1.4 : 1)}
+            textAnchor="middle"
+            fill="#7dffb0"
+            fontSize={9 * (narrow ? 1.4 : 1)}
+            fontFamily="system-ui, sans-serif"
+            fontWeight="800"
+          >
+            Live
+          </text>
+        </g>
+      ) : null}
+    </svg>
+  );
+}
+
+type ViewMode = "repeat" | "uptrend";
+
+export default function GoldCycleChart() {
+  const nowMs = useLiveNow();
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  /** Phones: bigger on-chart labels so the yellow dates stay readable. */
+  const [narrow, setNarrow] = useState(false);
+  const [mode, setMode] = useState<ViewMode>("repeat");
+
+  useEffect(() => {
+    const el = boxRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width ?? el.clientWidth;
+      setNarrow(w > 0 && w < 560);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const btn =
+    "min-h-10 rounded-md px-3 py-2 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-0 sm:py-1.5 sm:text-xs";
+
+  return (
+    <div ref={boxRef} className="relative mt-6 w-full">
+      <div className="mb-2 flex justify-end">
+        <div
+          className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+          role="group"
+          aria-label="Cycle view"
+        >
+          {(
+            [
+              { k: "repeat", l: "Repeating cycle" },
+              { k: "uptrend", l: "Secular uptrend" },
+            ] as const
+          ).map((o) => (
+            <button
+              key={o.k}
+              type="button"
+              data-view={o.k}
+              className={`${btn} ${
+                mode === o.k
+                  ? "bg-accent text-white shadow-sm"
+                  : "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground"
+              }`}
+              aria-pressed={mode === o.k}
+              onClick={() => setMode(o.k)}
+            >
+              {o.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {mode === "repeat" ? (
+        <RepeatView nowMs={nowMs} narrow={narrow} />
+      ) : (
+        <UptrendView nowMs={nowMs} narrow={narrow} />
+      )}
+
+      <p className="mt-2 text-center text-[11px] text-muted">
+        {mode === "repeat"
+          ? "Repeating cycle: the same shape at the same level in every 46-year window."
+          : "Secular uptrend: each lap starts where the last one ended (~58% up), like the hub tile’s ending level."}
+      </p>
+
+      <p className="mt-2 min-h-[1.25rem] text-center font-mono text-xs text-[#7dffb0]" aria-live="polite">
+        {nowMs != null ? `Live · ${liveDayLabel.format(new Date(nowMs))} · ${goldLivePhaseLine(nowMs)}` : "\u00a0"}
       </p>
 
       <dl className="mt-4 grid gap-x-6 gap-y-2 text-xs sm:grid-cols-2">

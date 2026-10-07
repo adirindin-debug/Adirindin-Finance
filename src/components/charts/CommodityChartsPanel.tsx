@@ -2,8 +2,10 @@
 
 /**
  * Commodity charts — gold (default), silver, copper, nickel, lithium, iron ore.
- * One metal at a time in its own unit, auto-scaled axis (log or linear),
- * timeframe toggles, hover read-out and per-metal source attribution.
+ * Multi-select toggles: one metal = native units; 2+ metals = overlay with each
+ * series indexed to 100 at the start of the visible window (daily + monthly
+ * aligned on dates). Auto-scaled axis (log or linear), timeframe toggles,
+ * hover read-out for every selected series and per-metal source attribution.
  * Gold is the long-run USD series that used to sit on /tools/gold-cycle
  * (with its 15 Aug 1971 Nixon Shock marker). Educational · NFA.
  */
@@ -45,7 +47,6 @@ const PAD = { top: 28, right: 18, bottom: 40, left: 66 };
 const YEAR_SEC = 365.2425 * 86400;
 const HISTORICAL = "#ffe14a";
 
-type HoverState = { svgX: number; svgY: number; point: CommodityPoint };
 
 function fmtDay(t: number) {
   return new Date(t * 1000).toLocaleDateString("en-AU", {
@@ -64,7 +65,7 @@ function fmtMonth(t: number) {
   });
 }
 
-function nearestPoint(points: CommodityPoint[], t: number): CommodityPoint | null {
+function nearestPoint<T extends { t: number }>(points: T[], t: number): T | null {
   if (!points.length) return null;
   let lo = 0;
   let hi = points.length - 1;
@@ -143,13 +144,26 @@ function fmtTick(v: number): string {
   return v.toFixed(2);
 }
 
+type Drawn = {
+  id: CommodityId;
+  color: string;
+  label: string;
+  /** Windowed raw points. */
+  raw: CommodityPoint[];
+  /** Plotted values: native units (single) or indexed to 100 (overlay). */
+  pts: { t: number; v: number }[];
+  base: CommodityPoint | null;
+  /** True when the series starts after the window start (rebased at its own first print). */
+  lateStart: boolean;
+};
+
 export function CommodityChartsPanel() {
   const [data, setData] = useState<CommoditiesPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [metal, setMetal] = useState<CommodityId>("gold");
+  const [selected, setSelected] = useState<CommodityId[]>(["gold"]);
   const [tf, setTf] = useState<TfKey>("ALL");
   const [log, setLog] = useState<boolean>(COMMODITY_META.gold.defaultLog);
-  const [hover, setHover] = useState<HoverState | null>(null);
+  const [hoverT, setHoverT] = useState<number | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [narrow, setNarrow] = useState(false);
@@ -199,71 +213,108 @@ export function CommodityChartsPanel() {
     };
   }, []);
 
-  useEffect(() => setHover(null), [tf, metal, log]);
+  /** Selected metals that actually have data, in the fixed legend order. */
+  const active = useMemo(
+    () => COMMODITY_ORDER.filter((id) => selected.includes(id) && (data?.series?.[id]?.points.length ?? 0) >= 2),
+    [selected, data],
+  );
+  const overlay = active.length >= 2;
+  const single = !overlay ? active[0] ?? null : null;
 
-  const series = data?.series?.[metal];
-  const allPoints = useMemo(() => series?.points ?? [], [series]);
-  const spanYears = allPoints.length >= 2 ? (allPoints[allPoints.length - 1]!.t - allPoints[0]!.t) / YEAR_SEC : 0;
+  useEffect(() => setHoverT(null), [tf, selected, log]);
 
-  const pickMetal = (id: CommodityId) => {
-    setMetal(id);
-    setLog(COMMODITY_META[id].defaultLog);
-    // Keep the timeframe if the new metal has the history for it; else ALL.
+  const spanOf = useCallback(
+    (id: CommodityId) => {
+      const pts = data?.series?.[id]?.points ?? [];
+      return pts.length >= 2 ? (pts[pts.length - 1]!.t - pts[0]!.t) / YEAR_SEC : 0;
+    },
+    [data],
+  );
+  /** Longest history among the selection — timeframes beyond it are disabled. */
+  const maxSpan = active.length ? Math.max(...active.map(spanOf)) : 0;
+
+  const toggleMetal = (id: CommodityId) => {
+    const on = selected.includes(id);
+    if (on && selected.length === 1) return; // keep at least one metal on
+    const next = on ? selected.filter((x) => x !== id) : [...selected, id];
+    const nextActive = COMMODITY_ORDER.filter((m) => next.includes(m));
+    setSelected(nextActive);
+    // Overlay reads best on log (equal % moves = equal distance); single uses the metal default.
+    setLog(nextActive.length >= 2 ? true : COMMODITY_META[nextActive[0]!].defaultLog);
     const meta = TIMEFRAMES.find((t) => t.key === tf)!;
-    const pts = data?.series?.[id]?.points ?? [];
-    const span = pts.length >= 2 ? (pts[pts.length - 1]!.t - pts[0]!.t) / YEAR_SEC : 0;
-    if (meta.years != null && meta.years > span + 0.5) setTf("ALL");
+    const longest = Math.max(...nextActive.map(spanOf), 0);
+    if (meta.years != null && longest > 0 && meta.years > longest + 0.5) setTf("ALL");
   };
 
-  const windowed = useMemo(() => {
-    if (allPoints.length < 2) return [];
-    const meta = TIMEFRAMES.find((t) => t.key === tf)!;
-    if (meta.years == null) return allPoints;
-    const tEnd = allPoints[allPoints.length - 1]!.t;
-    const tStart = tEnd - meta.years * YEAR_SEC;
-    return allPoints.filter((p) => p.t >= tStart);
-  }, [allPoints, tf]);
-
   const chart = useMemo(() => {
-    const points = windowed;
-    if (points.length < 2) return null;
-    const t0 = points[0]!.t;
-    const t1 = points[points.length - 1]!.t;
-    let cMin = Infinity;
-    let cMax = -Infinity;
-    for (const p of points) {
-      cMin = Math.min(cMin, p.c);
-      cMax = Math.max(cMax, p.c);
+    if (!active.length || !data?.series) return null;
+    const all = active.map((id) => ({ id, pts: data.series![id]!.points }));
+    const tEnd = Math.max(...all.map((s) => s.pts[s.pts.length - 1]!.t));
+    const meta = TIMEFRAMES.find((t) => t.key === tf)!;
+    let tStart: number;
+    if (meta.years != null) tStart = tEnd - meta.years * YEAR_SEC;
+    else if (all.length >= 2) tStart = Math.max(...all.map((s) => s.pts[0]!.t)); // ALL overlay: common start
+    else tStart = all[0]!.pts[0]!.t;
+
+    const drawn: Drawn[] = [];
+    for (const s of all) {
+      const raw = s.pts.filter((p) => p.t >= tStart && p.t <= tEnd && p.c > 0);
+      if (raw.length < 2) continue;
+      const base = overlay ? raw[0]! : null;
+      drawn.push({
+        id: s.id,
+        color: COMMODITY_META[s.id].color,
+        label: COMMODITY_META[s.id].label,
+        raw,
+        base,
+        lateStart: overlay && raw[0]!.t - tStart > 40 * 86400,
+        pts: raw.map((p) => ({ t: p.t, v: base ? (p.c / base.c) * 100 : p.c })),
+      });
     }
-    if (!Number.isFinite(cMin) || cMin <= 0) return null;
-    const useLog = log && cMax / cMin > 1.05;
+    if (!drawn.length) return null;
+
+    const t0 = Math.min(...drawn.map((d) => d.pts[0]!.t));
+    const t1 = Math.max(...drawn.map((d) => d.pts[d.pts.length - 1]!.t));
+    let vMin = Infinity;
+    let vMax = -Infinity;
+    for (const d of drawn) for (const p of d.pts) {
+      vMin = Math.min(vMin, p.v);
+      vMax = Math.max(vMax, p.v);
+    }
+    if (!Number.isFinite(vMin) || vMin <= 0) return null;
+    const useLog = log && vMax / vMin > 1.05;
     const f = (v: number) => (useLog ? Math.log(v) : v);
-    let v0 = f(cMin);
-    let v1 = f(cMax);
+    let v0 = f(vMin);
+    let v1 = f(vMax);
     const pad = (v1 - v0) * 0.07 || Math.abs(v1) * 0.05 || 1;
     v0 -= pad;
     v1 += pad;
-    if (!useLog && v0 < 0 && cMin >= 0) v0 = Math.max(0, v0);
+    if (!useLog && v0 < 0) v0 = 0;
     const iw = W - PAD.left - PAD.right;
     const ih = H - PAD.top - PAD.bottom;
     const xOf = (t: number) => PAD.left + ((t - t0) / Math.max(t1 - t0, 1)) * iw;
-    const yOf = (c: number) => PAD.top + ((v1 - f(Math.max(c, 1e-9))) / Math.max(v1 - v0, 1e-12)) * ih;
-    const drawn = decimate(points, 900);
-    const path = drawn
-      .map((p, i) => `${i === 0 ? "M" : "L"}${xOf(p.t).toFixed(1)} ${yOf(p.c).toFixed(1)}`)
-      .join(" ");
+    const yOf = (v: number) => PAD.top + ((v1 - f(Math.max(v, 1e-9))) / Math.max(v1 - v0, 1e-12)) * ih;
+    const paths = drawn.map((d) => {
+      const dec = decimate(
+        d.pts.map((p) => ({ t: p.t, c: p.v })),
+        drawn.length > 1 ? 700 : 900,
+      );
+      return {
+        id: d.id,
+        color: d.color,
+        d: dec.map((p, i) => `${i === 0 ? "M" : "L"}${xOf(p.t).toFixed(1)} ${yOf(p.c).toFixed(1)}`).join(" "),
+      };
+    });
     const lo = useLog ? Math.exp(v0) : v0;
     const hi = useLog ? Math.exp(v1) : v1;
     const target = narrow ? 4 : 6;
     const yTicks = useLog ? logTicks(lo, hi, target) : linearTicks(lo, hi, target);
 
-    // Year ticks
     const y0 = new Date(t0 * 1000).getUTCFullYear();
     const y1 = new Date(t1 * 1000).getUTCFullYear();
     const span = (t1 - t0) / YEAR_SEC;
     let xTicks: { t: number; label: string }[] = [];
     if (span <= 1.5) {
-      // Quarter starts
       const d = new Date(t0 * 1000);
       let y = d.getUTCFullYear();
       let m = Math.ceil((d.getUTCMonth() + 1) / 3) * 3;
@@ -287,15 +338,29 @@ export function CommodityChartsPanel() {
     }
     if (xTicks.length > 9) xTicks = xTicks.filter((_, i) => i % 2 === 0);
 
-    const historical =
-      metal === "gold"
-        ? GOLD_HISTORICAL_POINTS.map((h) => ({ ...h, ts: h.t / 1000 })).filter(
-            (h) => h.ts >= t0 && h.ts <= t1,
-          )
-        : [];
+    const historical = active.includes("gold")
+      ? GOLD_HISTORICAL_POINTS.map((h) => ({ ...h, ts: h.t / 1000 })).filter((h) => h.ts >= t0 && h.ts <= t1)
+      : [];
 
-    return { t0, t1, xOf, yOf, path, yTicks, xTicks, historical, useLog, points };
-  }, [windowed, log, narrow, metal, H]);
+    return { t0, t1, tStart, xOf, yOf, paths, drawn, yTicks, xTicks, historical, useLog };
+  }, [active, data, tf, log, narrow, overlay, H]);
+
+  /** Hover: nearest print per selected series (daily and monthly aligned on the date). */
+  const hover = useMemo(() => {
+    if (!chart || hoverT == null) return null;
+    const rows = chart.drawn
+      .map((d) => {
+        const monthly = data?.series?.[d.id]?.frequency === "monthly";
+        const maxGap = (monthly ? 46 : 10) * 86400;
+        const p = nearestPoint(d.pts, hoverT);
+        if (!p || Math.abs(p.t - hoverT) > maxGap) return null;
+        const raw = nearestPoint(d.raw, p.t);
+        return { id: d.id, label: d.label, color: d.color, t: p.t, v: p.v, raw: raw?.c ?? null, monthly };
+      })
+      .filter((r): r is NonNullable<typeof r> => r != null);
+    if (!rows.length) return null;
+    return { x: chart.xOf(hoverT), t: hoverT, rows };
+  }, [chart, hoverT, data]);
 
   const onMove = useCallback(
     (e: ReactMouseEvent<SVGSVGElement>) => {
@@ -304,22 +369,32 @@ export function CommodityChartsPanel() {
       if (!rect.width) return;
       const svgX = ((e.clientX - rect.left) / rect.width) * W;
       if (svgX < PAD.left || svgX > W - PAD.right) {
-        setHover(null);
+        setHoverT(null);
         return;
       }
-      const t = chart.t0 + ((svgX - PAD.left) / (W - PAD.left - PAD.right)) * (chart.t1 - chart.t0);
-      const pt = nearestPoint(chart.points, t);
-      if (!pt) return;
-      setHover({ svgX: chart.xOf(pt.t), svgY: chart.yOf(pt.c), point: pt });
+      let t = chart.t0 + ((svgX - PAD.left) / (W - PAD.left - PAD.right)) * (chart.t1 - chart.t0);
+      // Single series: snap to its nearest print.
+      if (chart.drawn.length === 1) {
+        const p = nearestPoint(chart.drawn[0]!.raw, t);
+        if (p) t = p.t;
+      }
+      setHoverT(t);
     },
     [chart],
   );
 
-  const color = COMMODITY_META[metal].color;
-  const last = windowed.length ? windowed[windowed.length - 1]! : null;
-  const first = windowed.length ? windowed[0]! : null;
+  const singleSeries = single ? data?.series?.[single] : undefined;
+  const singleDrawn = single && chart ? chart.drawn[0] : undefined;
+  const last = singleDrawn ? singleDrawn.raw[singleDrawn.raw.length - 1]! : null;
+  const first = singleDrawn ? singleDrawn.raw[0]! : null;
   const chg = first && last ? (last.c / first.c - 1) * 100 : null;
-  const fmtT = (t: number) => (series?.frequency === "monthly" ? fmtMonth(t) : fmtDay(t));
+  const fmtFor = (id: CommodityId, t: number) =>
+    data?.series?.[id]?.frequency === "monthly" ? fmtMonth(t) : fmtDay(t);
+  const fmtIdx = (v: number) => {
+    const pct = v - 100;
+    return `${v.toLocaleString("en-AU", { maximumFractionDigits: v >= 1000 ? 0 : 1 })} (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)`;
+  };
+  const headColor = single ? COMMODITY_META[single].color : "#e8eef7";
 
   const toggleBtn =
     "min-h-10 shrink-0 rounded-md px-2.5 py-2 text-[11px] font-semibold uppercase tracking-wide transition-colors disabled:cursor-not-allowed disabled:opacity-35 sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs";
@@ -328,65 +403,90 @@ export function CommodityChartsPanel() {
 
   return (
     <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
-      <div
-        className="flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
-        role="group"
-        aria-label="Metal"
-      >
-        {COMMODITY_ORDER.map((id) => {
-          const on = metal === id;
-          const has = Boolean(data?.series?.[id]);
-          return (
-            <button
-              key={id}
-              type="button"
-              className={`${toggleBtn} inline-flex items-center gap-1.5 normal-case ${on ? toggleOn : toggleOff}`}
-              aria-pressed={on}
-              disabled={!loading && !has}
-              onClick={() => pickMetal(id)}
-            >
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: COMMODITY_META[id].color }}
-                aria-hidden
-              />
-              {COMMODITY_META[id].label}
-            </button>
-          );
-        })}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div
+          className="flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
+          role="group"
+          aria-label="Metals (multi-select)"
+        >
+          {COMMODITY_ORDER.map((id) => {
+            const on = selected.includes(id);
+            const has = Boolean(data?.series?.[id]);
+            const c = COMMODITY_META[id].color;
+            return (
+              <button
+                key={id}
+                type="button"
+                className={`${toggleBtn} inline-flex items-center gap-1.5 border normal-case ${
+                  on ? "text-[#f2f5f9]" : "border-transparent text-foreground/60 hover:bg-white/5 hover:text-foreground"
+                }`}
+                style={on ? { borderColor: `${c}cc`, background: `${c}2e` } : undefined}
+                aria-pressed={on}
+                disabled={!loading && !has}
+                title={on && selected.length === 1 ? "At least one metal stays on" : undefined}
+                onClick={() => toggleMetal(id)}
+              >
+                <span
+                  className="h-2.5 w-2.5 rounded-full border"
+                  style={{ background: on ? c : "transparent", borderColor: c }}
+                  aria-hidden
+                />
+                {COMMODITY_META[id].label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-[11px] text-muted">Tap several metals to overlay them.</p>
       </div>
 
       <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold uppercase tracking-[0.14em]" style={{ color }}>
-            {COMMODITY_META[metal].label}
-            {series ? (
-              <span className="ml-2 font-mono text-[11px] normal-case tracking-normal text-muted">
-                {series.unit} · {series.frequency}
-                {chart?.useLog ? " · log" : ""}
-              </span>
-            ) : null}
-          </h2>
-          {series ? <p className="mt-1 max-w-xl text-xs text-muted sm:text-sm">{series.benchmark}</p> : null}
+          {overlay ? (
+            <>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
+                Overlay · indexed
+                <span className="ml-2 font-mono text-[11px] normal-case tracking-normal text-muted">
+                  100 = {chart ? fmtMonth(chart.drawn.reduce((m, d) => Math.min(m, d.base?.t ?? m), Infinity)) : "start"}
+                  {chart?.useLog ? " · log" : ""}
+                </span>
+              </h2>
+              <p className="mt-1 max-w-xl text-xs text-muted sm:text-sm">
+                Each metal is rebased to 100 at its first print in the visible window, so lines show
+                relative % moves — not prices. Daily and monthly series are aligned on dates.
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-sm font-semibold uppercase tracking-[0.14em]" style={{ color: headColor }}>
+                {single ? COMMODITY_META[single].label : "—"}
+                {singleSeries ? (
+                  <span className="ml-2 font-mono text-[11px] normal-case tracking-normal text-muted">
+                    {singleSeries.unit} · {singleSeries.frequency}
+                    {chart?.useLog ? " · log" : ""}
+                  </span>
+                ) : null}
+              </h2>
+              {singleSeries ? (
+                <p className="mt-1 max-w-xl text-xs text-muted sm:text-sm">{singleSeries.benchmark}</p>
+              ) : null}
+            </>
+          )}
         </div>
-        {last ? (
+        {!overlay && last && single ? (
           <div className="text-right">
             <p className="font-mono text-3xl font-semibold tabular-nums text-foreground">
-              {fmtCommodityValue(metal, last.c)}
+              {fmtCommodityValue(single, last.c)}
             </p>
             <p className="mt-0.5 font-mono text-[11px] text-muted">
-              {series?.unit} · {fmtT(last.t)}
-              {series && !series.live ? (
+              {singleSeries?.unit} · {fmtFor(single, last.t)}
+              {singleSeries && !singleSeries.live ? (
                 <span className="ml-1.5 uppercase tracking-wide text-amber-300/90">
-                  {series.snapshot ? "snapshot" : "stale"}
+                  {singleSeries.snapshot ? "snapshot" : "stale"}
                 </span>
               ) : null}
             </p>
             {chg != null ? (
-              <p
-                className="mt-0.5 font-mono text-xs"
-                style={{ color: chg >= 0 ? "#3dcc9a" : "#ef6b6b" }}
-              >
+              <p className="mt-0.5 font-mono text-xs" style={{ color: chg >= 0 ? "#3dcc9a" : "#ef6b6b" }}>
                 {chg >= 0 ? "+" : ""}
                 {chg.toFixed(1)}% over window
               </p>
@@ -407,7 +507,7 @@ export function CommodityChartsPanel() {
               type="button"
               className={`${toggleBtn} ${tf === w.key ? toggleOn : toggleOff}`}
               aria-pressed={tf === w.key}
-              disabled={w.years != null && spanYears > 0 && w.years > spanYears + 0.5}
+              disabled={w.years != null && maxSpan > 0 && w.years > maxSpan + 0.5}
               onClick={() => setTf(w.key)}
             >
               {w.label}
@@ -436,6 +536,26 @@ export function CommodityChartsPanel() {
         </div>
       </div>
 
+      {overlay && chart ? (
+        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5" aria-label="Legend">
+          {chart.drawn.map((d) => {
+            const lastV = d.pts[d.pts.length - 1]!.v;
+            return (
+              <li key={d.id} className="inline-flex items-center gap-1.5 text-xs">
+                <span className="h-[3px] w-4 rounded-full" style={{ background: d.color }} aria-hidden />
+                <span className="font-semibold" style={{ color: d.color }}>
+                  {d.label}
+                </span>
+                <span className="font-mono text-muted">
+                  {fmtIdx(lastV)}
+                  {d.lateStart && d.base ? ` · from ${fmtMonth(d.base.t)}` : ""}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+
       <div ref={boxRef} className="mt-3">
         {loading && <p className="py-20 text-center text-sm text-muted">Loading commodity prices…</p>}
         {!loading && data && !data.ok && (
@@ -443,9 +563,9 @@ export function CommodityChartsPanel() {
             {data.error ?? "Could not load commodity prices"}
           </p>
         )}
-        {!loading && data?.ok && !series && (
+        {!loading && data?.ok && !active.length && (
           <p className="py-16 text-center text-sm text-muted">
-            {COMMODITY_META[metal].label} data is unavailable right now — never invented, so nothing is drawn.
+            Selected metal data is unavailable right now — never invented, so nothing is drawn.
           </p>
         )}
         {!loading && chart && (
@@ -455,9 +575,13 @@ export function CommodityChartsPanel() {
               viewBox={`0 0 ${W} ${H}`}
               className="w-full cursor-crosshair touch-pan-y"
               role="img"
-              aria-label={`${COMMODITY_META[metal].label} price, ${series?.unit}, ${tf} window${chart.useLog ? ", log scale" : ""}. Hover for values.`}
+              aria-label={
+                overlay
+                  ? `${chart.drawn.map((d) => d.label).join(", ")} overlaid, each indexed to 100 at the start of the ${tf} window${chart.useLog ? ", log scale" : ""}. Hover for values.`
+                  : `${single ? COMMODITY_META[single].label : ""} price, ${singleSeries?.unit ?? ""}, ${tf} window${chart.useLog ? ", log scale" : ""}. Hover for values.`
+              }
               onMouseMove={onMove}
-              onMouseLeave={() => setHover(null)}
+              onMouseLeave={() => setHoverT(null)}
             >
               <rect width={W} height={H} fill="#0a0a0a" rx="6" />
               {chart.yTicks.map((v) => (
@@ -467,8 +591,9 @@ export function CommodityChartsPanel() {
                     x2={W - PAD.right}
                     y1={chart.yOf(v)}
                     y2={chart.yOf(v)}
-                    stroke="#1c2430"
+                    stroke={overlay && v === 100 ? "#3a4558" : "#1c2430"}
                     strokeWidth={1}
+                    strokeDasharray={overlay && v === 100 ? "4 3" : undefined}
                   />
                   <text
                     x={PAD.left - 8}
@@ -502,6 +627,11 @@ export function CommodityChartsPanel() {
                   </text>
                 </g>
               ))}
+              {overlay ? (
+                <text x={PAD.left} y={PAD.top - 10} fill="#6b7a90" fontSize={9 * fs}>
+                  Index · 100 = window start
+                </text>
+              ) : null}
 
               {chart.historical.map((h) => {
                 const x = chart.xOf(h.ts);
@@ -518,13 +648,7 @@ export function CommodityChartsPanel() {
                       strokeDasharray="3 3"
                       opacity={0.8}
                     />
-                    <text
-                      x={x + 5}
-                      y={PAD.top + 12 * fs}
-                      fill={HISTORICAL}
-                      fontSize={10 * fs}
-                      fontWeight={700}
-                    >
+                    <text x={x + 5} y={PAD.top + 12 * fs} fill={HISTORICAL} fontSize={10 * fs} fontWeight={700}>
                       {h.label}
                     </text>
                     <text x={x + 5} y={PAD.top + 24 * fs} fill={HISTORICAL} fontSize={8.5 * fs} opacity={0.85}>
@@ -534,20 +658,23 @@ export function CommodityChartsPanel() {
                 );
               })}
 
-              <path
-                d={chart.path}
-                fill="none"
-                stroke={color}
-                strokeWidth={narrow ? 2.4 : 1.9}
-                strokeLinejoin="round"
-                strokeLinecap="round"
-              />
+              {chart.paths.map((p) => (
+                <path
+                  key={p.id}
+                  d={p.d}
+                  fill="none"
+                  stroke={p.color}
+                  strokeWidth={(narrow ? 2.4 : 1.9) * (overlay && p.id !== "gold" ? 0.9 : 1)}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+              ))}
 
               {hover && (
                 <g pointerEvents="none">
                   <line
-                    x1={hover.svgX}
-                    x2={hover.svgX}
+                    x1={hover.x}
+                    x2={hover.x}
                     y1={PAD.top}
                     y2={H - PAD.bottom}
                     stroke="#9eb0c8"
@@ -555,41 +682,78 @@ export function CommodityChartsPanel() {
                     strokeDasharray="3 3"
                     opacity={0.85}
                   />
-                  <circle cx={hover.svgX} cy={hover.svgY} r={4} fill={color} stroke="#0a0a0a" strokeWidth={1.5} />
+                  {hover.rows.map((r) => (
+                    <circle
+                      key={r.id}
+                      cx={chart.xOf(r.t)}
+                      cy={chart.yOf(r.v)}
+                      r={4}
+                      fill={r.color}
+                      stroke="#0a0a0a"
+                      strokeWidth={1.5}
+                    />
+                  ))}
                 </g>
               )}
             </svg>
             {hover && (
               <div
-                className="pointer-events-none absolute z-10 min-w-[160px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
+                className="pointer-events-none absolute z-10 min-w-[190px] rounded-md border border-border/80 bg-[#121820]/95 px-2.5 py-2 shadow-lg backdrop-blur-sm"
                 style={{
-                  left: `clamp(8px, calc(${(hover.svgX / W) * 100}% + 12px), calc(100% - 180px))`,
+                  left: `clamp(8px, calc(${(hover.x / W) * 100}% + 12px), calc(100% - ${overlay ? 250 : 200}px))`,
                   top: 12,
                 }}
               >
-                <p className="mb-1 text-[11px] font-semibold text-[#e8eef7]">{fmtT(hover.point.t)}</p>
-                <p className="flex items-center justify-between gap-3 text-[11px] tabular-nums">
-                  <span className="flex items-center gap-1.5 text-muted">
-                    <span className="inline-block h-2 w-2 rounded-full" style={{ background: color }} aria-hidden />
-                    {COMMODITY_META[metal].label}
-                  </span>
-                  <span className="font-mono font-semibold text-[#e8eef7]">
-                    {fmtCommodityValue(metal, hover.point.c)} <span className="text-muted">{series?.unit}</span>
-                  </span>
+                <p className="mb-1 text-[11px] font-semibold text-[#e8eef7]">
+                  {overlay ? fmtMonth(hover.t) : fmtFor(hover.rows[0]!.id, hover.rows[0]!.t)}
                 </p>
+                {hover.rows.map((r) => (
+                  <p key={r.id} className="mt-0.5 flex items-center justify-between gap-3 text-[11px] tabular-nums">
+                    <span className="flex items-center gap-1.5 text-muted">
+                      <span className="inline-block h-2 w-2 rounded-full" style={{ background: r.color }} aria-hidden />
+                      {r.label}
+                    </span>
+                    <span className="font-mono font-semibold text-[#e8eef7]">
+                      {overlay ? (
+                        <>
+                          {fmtIdx(r.v)}
+                          {r.raw != null ? (
+                            <span className="ml-1 font-normal text-muted">
+                              {fmtCommodityValue(r.id, r.raw)}
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {fmtCommodityValue(r.id, r.v)}{" "}
+                          <span className="text-muted">{data?.series?.[r.id]?.unit}</span>
+                        </>
+                      )}
+                    </span>
+                  </p>
+                ))}
               </div>
             )}
-            {series ? (
-              <p className="mt-2 text-[11px] leading-relaxed text-muted">
-                Source:{" "}
-                <a href={series.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                  {series.source}
-                </a>{" "}
-                · {series.frequency === "daily" ? "daily closes" : "monthly"} · {series.unit} ·{" "}
-                {fmtT(allPoints[0]!.t)} – {fmtT(allPoints[allPoints.length - 1]!.t)}
-                {series.snapshot ? " · dated snapshot (live source unavailable)" : series.stale ? " · last good copy" : ""}
-              </p>
-            ) : null}
+            <div className="mt-2 space-y-0.5 text-[11px] leading-relaxed text-muted">
+              {chart.drawn.map((d) => {
+                const s = data?.series?.[d.id];
+                if (!s) return null;
+                return (
+                  <p key={d.id}>
+                    <span className="font-semibold" style={{ color: d.color }}>
+                      {d.label}
+                    </span>{" "}
+                    ·{" "}
+                    <a href={s.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                      {s.source}
+                    </a>{" "}
+                    · {s.frequency === "daily" ? "daily closes" : "monthly"} · {s.unit} ·{" "}
+                    {fmtFor(d.id, s.points[0]!.t)} – {fmtFor(d.id, s.points[s.points.length - 1]!.t)}
+                    {s.snapshot ? " · dated snapshot (live source unavailable)" : s.stale ? " · last good copy" : ""}
+                  </p>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -627,8 +791,9 @@ export function CommodityChartsPanel() {
           International Monetary Fund; nickel / iron ore fall back to the same IMF series via FRED®
           (Federal Reserve Bank of St. Louis). Gold peg-era levels are documented official prints,
           not invented. The lithium series is the IMF’s lithium metal benchmark, not lithium
-          carbonate or spodumene. No endorsement implied. Educational only — not financial advice
-          (NFA).
+          carbonate or spodumene. Overlay mode indexes each metal to 100 at the window start — it
+          compares % moves, not prices. No endorsement implied. Educational only — not financial
+          advice (NFA).
         </p>
       </div>
     </section>
