@@ -39,6 +39,8 @@ import {
 } from "@/lib/riskSentiment";
 import { MONTH_LABELS, MONTH_NAMES, fmtRet } from "@/lib/seasonality";
 
+const SEASON_WEIGHT = COMPONENTS.find((c) => c.key === "season")?.weight ?? 8;
+
 type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "MAX";
 const TIMEFRAMES: { key: TfKey; label: string; years: number | null }[] = [
   { key: "1Y", label: "1Y", years: 1 },
@@ -137,8 +139,11 @@ function seasonBaseText(st: SeasonStat): string {
     : `URTH ${urthFrom}–${st.lastYear}`;
 }
 
+const signed = (n: number, dp: number) => `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(dp)}`;
+const trendText = (gap: number, slope: number) => `${signed(gap, 1)}% vs 200-day · slope ${signed(slope, 2)}%/mo`;
+
 function rawText(key: ComponentKey, r: RsRow, st?: SeasonStat | null): string | null {
-  const [d, , spx, spxDd, spxRsiD, spxRsiW, wPx, wDd, wRsiD, wRsiW, vix, vixPct, usFng, cryptoFng, trRaw, trPct, btc, re] = r;
+  const [d, , spx, spxDd, spxRsiD, spxRsiW, wPx, wDd, wRsiD, wRsiW, vix, vixPct, usFng, cryptoFng, trRaw, trPct, btc, re, , baa, baaChg, , spxGap, spxSlope, wGap, wSlope] = r;
   switch (key) {
     case "wDd":
       return wPx == null || wDd == null ? null : `${ddText(wDd)} · URTH ${fmtLevel(wPx)}`;
@@ -166,6 +171,14 @@ function rawText(key: ComponentKey, r: RsRow, st?: SeasonStat | null): string | 
       return btc == null ? null : `Calendar height ${btc.toFixed(0)}/100`;
     case "reCycle":
       return re == null ? null : `Calendar height ${re.toFixed(0)}/100`;
+    case "credit":
+      return baa == null || baaChg == null
+        ? null
+        : `BAA − 10y ${baa.toFixed(2)}% · 3m ${baaChg >= 0 ? "+" : "−"}${Math.abs(baaChg).toFixed(2)} pp`;
+    case "wTrend":
+      return wGap == null || wSlope == null ? null : trendText(wGap, wSlope);
+    case "trend":
+      return spxGap == null || spxSlope == null ? null : trendText(spxGap, spxSlope);
     case "season":
       return st
         ? `${MONTH_LABELS[st.month - 1]} · avg ${fmtRet(st.avg, 2)} · ${Math.round(st.pctGreen)}% green · ${st.n} yrs`
@@ -498,7 +511,7 @@ export function RiskSentimentPanel() {
       title:
         `${MONTH_NAMES[st.month - 1]} on the gauge's equity base (${seasonBaseText(st)}): average monthly return ${fmtRet(st.avg, 2)}, ` +
         `${st.pctGreen.toFixed(1)}% of months green, vs ${fmtRet(st.baseAvg, 2)} and ${st.basePctGreen.toFixed(1)}% across all ${st.baseN} prior months. ` +
-        `Seasonality sub-score ${st.score.toFixed(0)}/100 (10% weight)` +
+        `Seasonality sub-score ${st.score.toFixed(0)}/100 (${SEASON_WEIGHT}% weight)` +
         (pts == null ? "." : `, moving the day's raw blend ${pts >= 0 ? "+" : "−"}${Math.abs(pts).toFixed(1)} pts vs an average month.`) +
         " Prior years only — history, not a forecast.",
     };

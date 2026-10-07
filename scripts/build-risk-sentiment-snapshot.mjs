@@ -16,6 +16,7 @@
  *  - Nasdaq Composite (^IXIC) daily close — Yahoo Finance chart API. Base chart
  *    overlay only, not a score input
  *  - VIX close — FRED VIXCLS (CSV, citation required)
+ *  - Moody's BAA minus 10-year Treasury — FRED BAA10Y daily (CSV, credit spreads input)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
  *  - Crypto Fear & Greed — Alternative.me public API
  *  - Google Trends "bitcoin" worldwide monthly interest (unofficial web endpoint;
@@ -107,6 +108,22 @@ async function vix() {
   return { asOf: rows.at(-1)[0], source: "Cboe VIX close via FRED VIXCLS", rows };
 }
 
+async function baa10y() {
+  const r = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAA10Y", {
+    headers: { "User-Agent": FRED_UA },
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!r.ok) throw new Error(`FRED HTTP ${r.status}`);
+  const rows = [];
+  for (const line of (await r.text()).trim().split(/\r?\n/).slice(1)) {
+    const [d, v] = line.split(",");
+    const n = Number(v);
+    if (d && v && v !== "." && Number.isFinite(n)) rows.push([d, n]);
+  }
+  if (rows.length < 9000) throw new Error("BAA10Y short");
+  return { asOf: rows.at(-1)[0], source: "Moody's BAA minus 10-year Treasury via FRED BAA10Y", rows };
+}
+
 async function cryptoFng() {
   const j = await getJson("https://api.alternative.me/fng/?limit=0", { Accept: "application/json" });
   const rows = (j.data ?? [])
@@ -164,7 +181,7 @@ async function trendsBitcoin() {
 }
 
 const out = { _note: "", fetched: new Date().toISOString() };
-for (const [key, fn] of Object.entries({ world, spx, ixic, vix, cryptoFng, usFng, trendsBitcoin })) {
+for (const [key, fn] of Object.entries({ world, spx, ixic, vix, baa10y, cryptoFng, usFng, trendsBitcoin })) {
   try {
     out[key] = await fn();
     console.log(`${key}: ${out[key].rows.length} rows, ${out[key].rows[0][0]} → ${out[key].asOf}`);

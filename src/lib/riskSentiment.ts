@@ -11,10 +11,17 @@
  * data the other takes the pair's full weight (see EQUITY_PAIRS / dayWeights).
  * Before URTH history (~Jan 2012) the S&P pair logic fills the equity block.
  *
- * Seasonality (10%) scores the calendar month from that same equity base: the
+ * Seasonality (8%) scores the calendar month from that same equity base: the
  * month's historical average return and green-month odds, using only months
  * completed before the date (expanding window, no look-ahead). See
  * buildSeasonality below.
+ *
+ * Credit spreads (10%) score Moody's BAA minus the 10-year Treasury (FRED
+ * BAA10Y): level and 3-month change, each as a percentile against all prior
+ * completed months (expanding window, no look-ahead) — wide or widening = low.
+ * Trend (10%) scores price vs its 200-day average and that average's slope,
+ * URTH-led with the S&P 500 as the paired fallback (8% + 2%).
+ * Adding them scaled every earlier weight by 0.8 (ratios unchanged).
  *
  * Theoretical estimation and study aid only. Not a signal, not a timing model,
  * not financial advice (NFA).
@@ -41,15 +48,19 @@ export type ComponentKey =
   | "trends"
   | "btcCycle"
   | "reCycle"
-  | "season";
+  | "season"
+  | "credit"
+  | "wTrend"
+  | "trend";
 
 export type ComponentMeta = {
   key: ComponentKey;
   label: string;
   short: string;
   /**
-   * Percent when every input has data (sums to 100). Seasonality takes 10%; the
-   * other inputs keep their original ratios, scaled by 0.9 to share the other 90%.
+   * Percent when every input has data (sums to 100). Credit spreads 10% and trend
+   * 10% (v2); every earlier input keeps its ratio, scaled by 0.8 to share the other
+   * 80% (seasonality 10 → 8).
    */
   weight: number;
   /**
@@ -57,7 +68,7 @@ export type ComponentMeta = {
    * S&P 500 partner has no data that day (the pair's full share).
    */
   soloWeight?: number;
-  group: "Price risk" | "Volatility" | "Sentiment" | "Attention" | "Cycle calendar" | "Seasonality";
+  group: "Price risk" | "Trend" | "Volatility" | "Credit" | "Sentiment" | "Attention" | "Cycle calendar" | "Seasonality";
   how: string;
   color: string;
 };
@@ -67,8 +78,8 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "wDd",
     label: "URTH distance from all-time high",
     short: "URTH drawdown",
-    weight: 18,
-    soloWeight: 22.5,
+    weight: 14.4,
+    soloWeight: 18,
     group: "Price risk",
     how: "100 at a fresh all-time high, falling in a straight line to 0 at −30% or worse (URTH adjusted close vs running high). Primary equity input — iShares MSCI World ETF as a developed-markets proxy (not the licensed MSCI index series).",
     color: "#3dcc9a",
@@ -77,8 +88,8 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "wRsiW",
     label: "URTH weekly RSI (14)",
     short: "URTH RSI weekly",
-    weight: 10.8,
-    soloWeight: 13.5,
+    weight: 8.64,
+    soloWeight: 10.8,
     group: "Price risk",
     how: "Wilder 14-week RSI on URTH weekly adjusted closes; the current week uses the latest daily close. Used as-is (0–100).",
     color: "#4c9fff",
@@ -87,8 +98,8 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "wRsiD",
     label: "URTH daily RSI (14)",
     short: "URTH RSI daily",
-    weight: 7.2,
-    soloWeight: 9,
+    weight: 5.76,
+    soloWeight: 7.2,
     group: "Price risk",
     how: "Wilder 14-day RSI on URTH daily adjusted closes. Used as-is (0–100).",
     color: "#38bdf8",
@@ -97,46 +108,75 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "dd",
     label: "S&P 500 distance from all-time high (confirmation)",
     short: "SPX drawdown",
-    weight: 4.5,
-    soloWeight: 22.5,
+    weight: 3.6,
+    soloWeight: 18,
     group: "Price risk",
-    how: "Same rule as URTH (0% → 100, −30% or worse → 0) on the S&P 500 daily close. Secondary check; takes the full 22.5% on any day URTH has no data (including before URTH history ~Jan 2012).",
+    how: "Same rule as URTH (0% → 100, −30% or worse → 0) on the S&P 500 daily close. Secondary check; takes the full 18% on any day URTH has no data (including before URTH history ~Jan 2012).",
     color: "#1f9e74",
   },
   {
     key: "rsiW",
     label: "S&P 500 weekly RSI (14) (confirmation)",
     short: "SPX RSI weekly",
-    weight: 2.7,
-    soloWeight: 13.5,
+    weight: 2.16,
+    soloWeight: 10.8,
     group: "Price risk",
-    how: "Wilder 14-week RSI on S&P 500 weekly closes. Secondary check; takes the full 13.5% on any day URTH has no data.",
+    how: "Wilder 14-week RSI on S&P 500 weekly closes. Secondary check; takes the full 10.8% on any day URTH has no data.",
     color: "#3672b8",
   },
   {
     key: "rsiD",
     label: "S&P 500 daily RSI (14) (confirmation)",
     short: "SPX RSI daily",
-    weight: 1.8,
-    soloWeight: 9,
+    weight: 1.44,
+    soloWeight: 7.2,
     group: "Price risk",
-    how: "Wilder 14-day RSI on S&P 500 daily closes. Secondary check; takes the full 9% on any day URTH has no data.",
+    how: "Wilder 14-day RSI on S&P 500 daily closes. Secondary check; takes the full 7.2% on any day URTH has no data.",
     color: "#2a87ad",
+  },
+  {
+    key: "wTrend",
+    label: "URTH 200-day trend",
+    short: "URTH trend",
+    weight: 8,
+    soloWeight: 10,
+    group: "Trend",
+    how: "Half from distance to the 200-day simple moving average (−10% → 0, at the average → 50, +10% → 100) and half from that average's slope over the last 21 sessions (−2% → 0, flat → 50, +2% a month → 100), each capped 0–100. URTH adjusted close; takes the full 10% on any day the S&P 500 has no data.",
+    color: "#facc15",
+  },
+  {
+    key: "trend",
+    label: "S&P 500 200-day trend (confirmation)",
+    short: "SPX trend",
+    weight: 2,
+    soloWeight: 10,
+    group: "Trend",
+    how: "Same rule as URTH on the S&P 500 daily close. Secondary check; takes the full 10% on any day URTH has no data (including before URTH history ~Jan 2012).",
+    color: "#ca8a04",
   },
   {
     key: "vix",
     label: "VIX calm (inverse 5-year percentile)",
     short: "VIX calm",
-    weight: 13.5,
+    weight: 10.8,
     group: "Volatility",
     how: "100 − the VIX close's percentile against the prior 5 years of closes. Low vol = hotter, vol spike = colder.",
     color: "#a78bfa",
   },
   {
+    key: "credit",
+    label: "Credit spreads (Moody's BAA − 10-year Treasury)",
+    short: "Credit spreads",
+    weight: 10,
+    group: "Credit",
+    how: "FRED BAA10Y, previous session's value. Two percentiles, each against every prior completed month (expanding window, no look-ahead; monthly BAA − long Treasury history from 1925 before daily data starts in 1986): the spread's level and its 3-month change. Sub-score = 100 − their average, so wide or widening spreads read cold and tight or tightening spreads read hot.",
+    color: "#fb923c",
+  },
+  {
     key: "usFng",
     label: "US stocks Fear & Greed (FearGreedChart.com)",
     short: "US F&G",
-    weight: 9,
+    weight: 7.2,
     group: "Sentiment",
     how: "Independent daily US stock Fear & Greed score, used as-is (0–100). Not CNN's index.",
     color: "#84cc16",
@@ -145,7 +185,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "cryptoFng",
     label: "Crypto Fear & Greed (Alternative.me)",
     short: "Crypto F&G",
-    weight: 9,
+    weight: 7.2,
     group: "Sentiment",
     how: "Alternative.me daily crypto Fear & Greed score, used as-is (0–100).",
     color: "#f7931a",
@@ -154,7 +194,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "trends",
     label: 'Google Trends "bitcoin" attention',
     short: "BTC search attention",
-    weight: 4.5,
+    weight: 3.6,
     group: "Attention",
     how: "Percentile of last completed month's worldwide search interest vs the prior 60 months. Applied to the following month (no look-ahead).",
     color: "#f472b6",
@@ -163,7 +203,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "btcCycle",
     label: "BTC 4-year cycle theory position (calendar)",
     short: "BTC 4y calendar",
-    weight: 4.5,
+    weight: 3.6,
     group: "Cycle calendar",
     how: "Height of the date on the Adirindin BTC 4y theory silhouette (trough 0 → theory peak 100). Calendar framework only — no price.",
     color: "#fbbf24",
@@ -172,7 +212,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "reCycle",
     label: "Real estate 18-year cycle position (calendar)",
     short: "RE 18y calendar",
-    weight: 4.5,
+    weight: 3.6,
     group: "Cycle calendar",
     how: "Height of the date on the Adirindin real estate (Anderson-style) silhouette (low 0 → major peak 100). Calendar framework only.",
     color: "#2dd4bf",
@@ -181,7 +221,7 @@ export const COMPONENTS: ComponentMeta[] = [
     key: "season",
     label: "Seasonality (calendar month, URTH / S&P 500 history)",
     short: "Seasonality",
-    weight: 10,
+    weight: 8,
     group: "Seasonality",
     how: "This calendar month's average return and green-month odds on the gauge's equity base (URTH adjusted-close monthly returns from Feb 2012, S&P 500 before that, back to 1950), using only months completed before the date. Each is compared with the all-month average in standard errors (so thin or noisy records count less): 50 = an average month, ±12.5 points per standard error on each half, capped 0–100. Needs at least 10 prior years of that month.",
     color: "#e879f9",
@@ -196,6 +236,7 @@ export const EQUITY_PAIRS: Array<[ComponentKey, ComponentKey]> = [
   ["wDd", "dd"],
   ["wRsiW", "rsiW"],
   ["wRsiD", "rsiD"],
+  ["wTrend", "trend"],
 ];
 
 export const COMPONENT_KEYS = COMPONENTS.map((c) => c.key);
@@ -313,14 +354,26 @@ export function arcHeight(frac: number): number {
  *  spxClose, spxDdPct, spxRsiD, spxRsiW,
  *  worldClose, worldDdPct, worldRsiD, worldRsiW,
  *  vixClose, vixPct5y, usFng, cryptoFng, trendsRaw, trendsPct, btcCycle, reCycle,
- *  seasonScore]
+ *  seasonScore,
+ *  baa10y, baa10yChg3m, creditScore,
+ *  spxGapPct, spxSlopePct, worldGapPct, worldSlopePct]
  * seasonScore is the 0–100 seasonality sub-score for the row's calendar month
- * (details per month in RsPayload.season).
+ * (details per month in RsPayload.season). baa10y is the BAA − 10y spread (pp)
+ * as of the previous session, baa10yChg3m its change over 3 months (pp) and
+ * creditScore the credit sub-score. Gap = % from the 200-day average; slope = %
+ * change in that average over 21 sessions.
  * Equity values are the latest close on or before the row date (≤ 4 days old),
  * null when that series has none.
  */
 export type RsRow = [
   string,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
+  number | null,
   number | null,
   number | null,
   number | null,
@@ -495,8 +548,21 @@ export type RsPayload = {
 
 const ddScore = (ddPct: number | null) => (ddPct == null ? null : clamp(100 * (1 + ddPct / 30), 0, 100));
 
+/** Trend scale: ±10% from the 200-day average and ±2% a month of slope map to 0 / 100. */
+export const TREND_GAP_PTS = 5;
+export const TREND_SLOPE_PTS = 25;
+export const TREND_MA = 200;
+export const TREND_SLOPE_SESSIONS = 21;
+
+/** Trend sub-score from % gap to the 200-day average and its 21-session slope (%). */
+export function trendScore(gapPct: number | null, slopePct: number | null): number | null {
+  if (gapPct == null || slopePct == null) return null;
+  const s = 0.5 * clamp(50 + TREND_GAP_PTS * gapPct, 0, 100) + 0.5 * clamp(50 + TREND_SLOPE_PTS * slopePct, 0, 100);
+  return Math.round(s * 10) / 10;
+}
+
 export function subScores(r: RsRow): Record<ComponentKey, number | null> {
-  const [, , , spxDd, spxRsiD, spxRsiW, , wDd, wRsiD, wRsiW, , vixPct, usFng, cryptoFng, , trendsPct, btcCycle, reCycle, season] = r;
+  const [, , , spxDd, spxRsiD, spxRsiW, , wDd, wRsiD, wRsiW, , vixPct, usFng, cryptoFng, , trendsPct, btcCycle, reCycle, season, , , credit, spxGap, spxSlope, wGap, wSlope] = r;
   return {
     wDd: ddScore(wDd),
     wRsiW,
@@ -511,6 +577,9 @@ export function subScores(r: RsRow): Record<ComponentKey, number | null> {
     btcCycle,
     reCycle,
     season: season ?? null,
+    credit: credit ?? null,
+    wTrend: trendScore(wGap ?? null, wSlope ?? null),
+    trend: trendScore(spxGap ?? null, spxSlope ?? null),
   };
 }
 
@@ -576,6 +645,13 @@ export type RawInputs = {
    * month-ends from `spx` win wherever both exist.
    */
   spxMonths?: MonthClose[] | null;
+  /** FRED BAA10Y daily (Moody's BAA − 10-year Treasury, pp), 2 Jan 1986 →. */
+  baa10y?: Series | null;
+  /**
+   * Static monthly BAA − long Treasury (pp), [YYYY-MM, value], Jan 1925 – Dec 1985
+   * (src/data/credit-spread-history.json). Reference history before BAA10Y.
+   */
+  creditMonths?: Series | null;
 };
 
 function wilderRsi(closes: number[], period = 14): Array<number | null> {
@@ -720,7 +796,7 @@ function silhouetteHeat(y: number, troughY: number, peakY: number): number {
 const r1 = (n: number | null) => (n == null ? null : Math.round(n * 10) / 10);
 
 /** Per-date equity metrics for one price series (ATH distance, daily + weekly RSI). */
-type EqMetrics = { px: number; dd: number; rsiD: number | null; rsiW: number | null };
+type EqMetrics = { px: number; dd: number; rsiD: number | null; rsiW: number | null; gap: number | null; slope: number | null };
 
 function equityMetrics(series: Series | null): Array<[string, EqMetrics]> | null {
   if (!series?.length) return null;
@@ -728,14 +804,32 @@ function equityMetrics(series: Series | null): Array<[string, EqMetrics]> | null
   const closes = series.map((r) => r[1]);
   const rsiD = wilderRsi(closes);
   const rsiW = weeklyRsiDaily(dates, closes);
+  // 200-day simple moving average (sessions of this series) for the trend input.
+  const ma: Array<number | null> = new Array(series.length).fill(null);
+  let run = 0;
+  for (let i = 0; i < series.length; i++) {
+    run += closes[i]!;
+    if (i >= TREND_MA) run -= closes[i - TREND_MA]!;
+    if (i >= TREND_MA - 1) ma[i] = run / TREND_MA;
+  }
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
   const out: Array<[string, EqMetrics]> = [];
   let ath = 0;
   for (let i = 0; i < series.length; i++) {
     const px = closes[i]!;
     if (px > ath) ath = px;
+    const m = ma[i];
+    const m0 = i >= TREND_SLOPE_SESSIONS ? ma[i - TREND_SLOPE_SESSIONS] : null;
     out.push([
       dates[i]!,
-      { px, dd: Math.round((px / ath - 1) * 10_000) / 100, rsiD: r1(rsiD[i] ?? null), rsiW: r1(rsiW[i] ?? null) },
+      {
+        px,
+        dd: Math.round((px / ath - 1) * 10_000) / 100,
+        rsiD: r1(rsiD[i] ?? null),
+        rsiW: r1(rsiW[i] ?? null),
+        gap: m == null ? null : r3((px / m - 1) * 100),
+        slope: m == null || m0 == null ? null : r3((m / m0 - 1) * 100),
+      },
     ]);
   }
   return out;
@@ -907,6 +1001,104 @@ export function buildSeasonality(rets: BaseMonthReturn[], monthKeys: string[]): 
   return out;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Credit spreads (expanding-window percentiles, no look-ahead)               */
+/* -------------------------------------------------------------------------- */
+
+/** Fewest prior completed months (level, 3-month change) before a credit score. */
+export const CREDIT_MIN_MONTHS = 60;
+/** First date the daily BAA10Y value is used (series starts 2 Jan 1986). */
+const CREDIT_DAILY_FROM = "1986-01-03";
+/** Daily spread may be at most this many calendar days old. */
+const CREDIT_MAX_GAP = 10;
+
+/** Same calendar date `n` months earlier, day clamped to that month's length. */
+function minusMonths(d: string, n: number): string {
+  let y = Number(d.slice(0, 4));
+  let m = Number(d.slice(5, 7)) - n;
+  while (m < 1) {
+    m += 12;
+    y--;
+  }
+  const dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const day = Math.min(Number(d.slice(8, 10)), dim);
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export type CreditPoint = { level: number; chg3m: number; score: number };
+
+/**
+ * Credit spreads sub-score per row date. Reference = monthly spread history:
+ * the static BAA − long Treasury months to Dec 1985, then monthly means of daily
+ * BAA10Y. For a date: level = BAA10Y on the previous session (strictly before the
+ * date); 3-month change = level − the same lookup 3 calendar months earlier. Each
+ * is ranked against every month completed before the date's month (levels vs
+ * monthly levels, changes vs monthly 3-month changes); needs CREDIT_MIN_MONTHS of
+ * each. Score = 100 − mean(level pct, change pct): wide / widening = low.
+ */
+export function creditScores(
+  dates: string[],
+  daily: Series | null | undefined,
+  hist: Series | null | undefined,
+): Map<string, CreditPoint> {
+  const out = new Map<string, CreditPoint>();
+  if (!daily?.length) return out;
+  const mon = new Map<string, number>();
+  for (const [k, v] of hist ?? []) if (k <= "1985-12") mon.set(k, v);
+  const acc = new Map<string, { s: number; n: number }>();
+  for (const [d, v] of daily) {
+    const k = d.slice(0, 7);
+    if (k < "1986-01") continue;
+    const a = acc.get(k) ?? { s: 0, n: 0 };
+    a.s += v;
+    a.n++;
+    acc.set(k, a);
+  }
+  for (const [k, a] of acc) mon.set(k, a.s / a.n);
+  const mKeys = [...mon.keys()].sort();
+  const mVals = mKeys.map((k) => mon.get(k)!);
+  const cKeys = mKeys.slice(3);
+  const cVals = mVals.slice(3).map((v, i) => v - mVals[i]!);
+  const countLe = (keys: string[], key: string) => {
+    let lo = 0;
+    let hi = keys.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (keys[mid]! <= key) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  };
+  const levelAt = (d: string): number | null => {
+    if (d < CREDIT_DAILY_FROM) {
+      const v = mon.get(monthKeyPrev(d));
+      return v == null ? null : v;
+    }
+    const j = lowerBound(daily, d) - 1; // strictly before d
+    if (j < 0) return null;
+    const gap = (Date.parse(`${d}T00:00:00Z`) - Date.parse(`${daily[j]![0]}T00:00:00Z`)) / 86_400_000;
+    return gap > CREDIT_MAX_GAP ? null : daily[j]![1];
+  };
+  for (const d of dates) {
+    const lvl = levelAt(d);
+    const lvl3 = levelAt(minusMonths(d, 3));
+    if (lvl == null || lvl3 == null) continue;
+    const chg = lvl - lvl3;
+    const last = monthKeyPrev(d);
+    const n = countLe(mKeys, last);
+    const k = countLe(cKeys, last);
+    if (n < CREDIT_MIN_MONTHS || k < CREDIT_MIN_MONTHS) continue;
+    let le = 0;
+    for (let i = 0; i < n; i++) if (mVals[i]! <= lvl) le++;
+    let ce = 0;
+    for (let i = 0; i < k; i++) if (cVals[i]! <= chg) ce++;
+    const lp = (100 * le) / n;
+    const cp = (100 * ce) / k;
+    out.set(d, { level: lvl, chg3m: Math.round(chg * 100) / 100, score: Math.round((100 - (lp + cp) / 2) * 10) / 10 });
+  }
+  return out;
+}
+
 /** Equity close may be at most this many calendar days old for a row (long weekends). */
 const EQUITY_MAX_GAP = 4;
 
@@ -930,6 +1122,7 @@ export function computeRows(inp: RawInputs, season?: Map<string, SeasonStat | nu
   const crAt = makeAsOf(inp.cryptoFng, 3);
   const tp = trendsPercentiles(inp.trends);
   const vixPctCache = new Map<number, number>();
+  const credit = creditScores(dates, inp.baa10y, inp.creditMonths);
 
   const rows: RsRow[] = [];
   for (const d of dates) {
@@ -972,6 +1165,13 @@ export function computeRows(inp: RawInputs, season?: Map<string, SeasonStat | nu
       btc,
       re,
       season?.get(d.slice(0, 7))?.score ?? null,
+      credit.get(d)?.level ?? null,
+      credit.get(d)?.chg3m ?? null,
+      credit.get(d)?.score ?? null,
+      sp ? sp.gap : null,
+      sp ? sp.slope : null,
+      wo ? wo.gap : null,
+      wo ? wo.slope : null,
     ];
     row[1] = blend(subScores(row)).score;
     rows.push(row);

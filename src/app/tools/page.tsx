@@ -22,7 +22,7 @@ const tools: ToolCard[] = [
     href: "/tools/risk-sentiment",
     title: "Market risk & sentiment gauge",
     blurb:
-      "One 0–100 reading from washout to euphoria-leaning, blended from public URTH and S&P 500 drawdown and RSI, VIX, Fear & Greed, search attention, calendar-month seasonality and a light touch of the cycle calendars. Scrub the history over an S&P 500, Nasdaq or URTH base chart. Study aid — not a signal.",
+      "One 0–100 reading from washout to euphoria-leaning, blended from public URTH and S&P 500 drawdown, RSI and 200-day trend, VIX, credit spreads (Moody's BAA − 10y via FRED), Fear & Greed, search attention, calendar-month seasonality and a light touch of the cycle calendars. Scrub the history over an S&P 500, Nasdaq or URTH base chart. Study aid — not a signal.",
     meta: "Composite · transparent weights · 3Y default · educational · NFA",
     cta: "Open the gauge",
   },

@@ -12,6 +12,9 @@
  *  - Nasdaq Composite (^IXIC) daily close — Yahoo Finance chart API. Base chart
  *    overlay only (returned as `ixic`, aligned to rows) — NOT a score input
  *  - VIX close — FRED VIXCLS (API if FRED_API_KEY, else CSV)
+ *  - Credit spreads — Moody's BAA minus 10-year Treasury, FRED BAA10Y daily (API
+ *    if FRED_API_KEY, else CSV). Percentiles also use the static monthly BAA −
+ *    long Treasury history 1925–1985 (src/data/credit-spread-history.json)
  *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
  *  - Crypto Fear & Greed — Alternative.me public API
  *  - Google Trends "bitcoin" monthly — snapshot only (unofficial endpoint; never
@@ -24,6 +27,7 @@
 
 import snapshot from "@/data/risk-sentiment-snapshot.json";
 import seasonSnapshot from "@/data/seasonality-snapshot.json";
+import creditHistory from "@/data/credit-spread-history.json";
 import type { MonthClose } from "@/lib/seasonality";
 import {
   alignToRows,
@@ -60,6 +64,7 @@ type Snap = {
   ixic?: SnapBlock;
   world?: SnapBlock;
   vix?: SnapBlock;
+  baa10y?: SnapBlock;
   usFng?: SnapBlock;
   cryptoFng?: SnapBlock;
   trendsBitcoin?: SnapBlock;
@@ -69,6 +74,9 @@ const SNAP = snapshot as unknown as Snap;
 const SPX_MONTHS = ((seasonSnapshot as unknown as { spx?: { months?: MonthClose[] } }).spx?.months ?? null) as
   | MonthClose[]
   | null;
+
+/** Monthly BAA − long Treasury, Jan 1925 – Dec 1985 (Moody's via FRED). */
+const CREDIT_MONTHS = ((creditHistory as unknown as { months?: Series }).months ?? null) as Series | null;
 
 let lastGood: { at: number; body: RsPayload } | null = null;
 const MEMO_MS = 30 * 60 * 1000;
@@ -161,50 +169,56 @@ const fetchSpx = () => fetchYahooDaily("^GSPC");
 const fetchIxic = () => fetchYahooDaily("^IXIC");
 const fetchWorld = () => fetchUrth();
 
-async function fetchVix(): Promise<Series> {
+/** FRED daily series — API when FRED_API_KEY is set, else the public CSV. Cached ~1 h. */
+async function fetchFredDaily(id: string, label: string, minRows: number, positiveOnly: boolean): Promise<Series> {
   const key = process.env.FRED_API_KEY?.trim();
   const errors: string[] = [];
+  const ok = (n: number) => Number.isFinite(n) && (!positiveOnly || n > 0);
   if (key) {
     try {
       const res = await fetch(
-        `https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key=${encodeURIComponent(key)}&file_type=json`,
+        `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${encodeURIComponent(key)}&file_type=json`,
         { headers: { "User-Agent": FRED_UA }, next: { revalidate: 3600 }, signal: AbortSignal.timeout(FETCH_MS) },
       );
-      if (!res.ok) throw new Error(`FRED API VIX: HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`FRED API ${label}: HTTP ${res.status}`);
       const json = (await res.json()) as { observations?: Array<{ date: string; value: string }> };
       const out: Series = [];
       for (const o of json.observations ?? []) {
         const n = Number(o.value);
-        if (o.value !== "." && Number.isFinite(n) && n > 0) out.push([o.date, n]);
+        if (o.value !== "." && o.value !== "" && ok(n)) out.push([o.date, n]);
       }
-      if (out.length > 8000) return out;
-      throw new Error("FRED API VIX: too short");
+      if (out.length >= minRows) return out;
+      throw new Error(`FRED API ${label}: too short`);
     } catch (e) {
-      errors.push(e instanceof Error ? e.message : "FRED API VIX failed");
+      errors.push(e instanceof Error ? e.message : `FRED API ${label} failed`);
     }
   }
   try {
-    const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS", {
+    const res = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}`, {
       headers: { "User-Agent": FRED_UA, Accept: "text/csv,text/plain,*/*" },
       next: { revalidate: 3600 },
       signal: AbortSignal.timeout(FETCH_MS),
     });
-    if (!res.ok) throw new Error(`FRED VIX CSV: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`FRED ${label} CSV: HTTP ${res.status}`);
     const text = (await res.text()).trimStart();
-    if (text.startsWith("<")) throw new Error("FRED VIX CSV: HTML page");
+    if (text.startsWith("<")) throw new Error(`FRED ${label} CSV: HTML page`);
     const out: Series = [];
     for (const line of text.split(/\r?\n/).slice(1)) {
       const [d, v] = line.trim().split(",");
       const n = Number(v);
-      if (d && v && v !== "." && Number.isFinite(n) && n > 0) out.push([d, n]);
+      if (d && v && v !== "." && ok(n)) out.push([d, n]);
     }
-    if (out.length < 8000) throw new Error("FRED VIX CSV: too short");
+    if (out.length < minRows) throw new Error(`FRED ${label} CSV: too short`);
     return out;
   } catch (e) {
-    errors.push(e instanceof Error ? e.message : "FRED VIX CSV failed");
+    errors.push(e instanceof Error ? e.message : `FRED ${label} CSV failed`);
     throw new Error(errors.join("; "));
   }
 }
+
+const fetchVix = () => fetchFredDaily("VIXCLS", "VIX", 8000, true);
+/** Moody's BAA − 10-year Treasury (pp), daily from 2 Jan 1986. */
+const fetchBaa10y = () => fetchFredDaily("BAA10Y", "BAA10Y", 9000, false);
 
 async function fetchUsFng(): Promise<Series> {
   const res = await fetch("https://feargreedchart.com/api/?action=history", {
@@ -287,10 +301,11 @@ export async function GET() {
   if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800);
 
   const warnings: string[] = [];
-  const [world, spx, vix, usFng, cryptoFng, ixic] = await Promise.all([
+  const [world, spx, vix, baa10y, usFng, cryptoFng, ixic] = await Promise.all([
     withFallback("world", `URTH (${WORLD_SYMBOL}) — MSCI World ETF proxy`, fetchWorld, SNAP.world, warnings),
     withFallback("spx", "S&P 500 (^GSPC)", fetchSpx, SNAP.spx, warnings),
     withFallback("vix", "VIX (FRED VIXCLS)", fetchVix, SNAP.vix, warnings),
+    withFallback("baa10y", "Credit spreads (FRED BAA10Y — Moody's BAA − 10y)", fetchBaa10y, SNAP.baa10y, warnings),
     withFallback("usFng", "US stocks Fear & Greed (FearGreedChart.com)", fetchUsFng, SNAP.usFng, warnings),
     withFallback("cryptoFng", "Crypto Fear & Greed (Alternative.me)", fetchCryptoFng, SNAP.cryptoFng, warnings),
     withFallback("ixic", "Nasdaq Composite (^IXIC) — chart overlay only", fetchIxic, SNAP.ixic, warnings),
@@ -307,7 +322,7 @@ export async function GET() {
       }
     : { key: "trends", label: 'Google Trends "bitcoin" (monthly)', origin: "missing", from: null, asOf: null, note: "Pending" };
 
-  const sources = [world.status, spx.status, vix.status, usFng.status, cryptoFng.status, trendsStatus, ixic.status];
+  const sources = [world.status, spx.status, vix.status, baa10y.status, usFng.status, cryptoFng.status, trendsStatus, ixic.status];
 
   if (!spx.series && !world.series) {
     return respond(
@@ -332,6 +347,8 @@ export async function GET() {
     cryptoFng: cryptoFng.series,
     trends: tb?.rows ?? null,
     spxMonths: SPX_MONTHS,
+    baa10y: baa10y.series,
+    creditMonths: CREDIT_MONTHS,
   };
   const season = buildSeasonality(baseMonthlyReturns(inputs), rowMonthKeys(inputs));
   const rows = thinRows(computeRows(inputs, season));
