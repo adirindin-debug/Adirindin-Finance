@@ -3,11 +3,11 @@
  * The cycle shape is the Market cycles hub gold tile silhouette (goldSilhouette.ts:
  * flat start → steep run-up → sharp correction → spike to the peak → sharp drop →
  * long down-sideways drift). Two views (toggle on the chart):
- *  - "Repeating cycle" (default): that one shape repeated identically, every lap at
- *    the same level, on an even (linear) time scale inside equal 46-year windows
- *    bounded by the peak zones Jan 1934 / 1980 / 2026 / 2072* / 2118*. Dates map
- *    exactly like the tile (troughs 20y after each peak); the seam into each trough
- *    is eased with a short smoothstep join (see repeatUnit).
+ *  - "Repeating cycle" (default): ONE lap of the exact tile silhouette, laid out like
+ *    the RE / bond detail charts — regime bands, key points with stacked lap years
+ *    (active lap bold yellow), dashed "next lap resets onto the same loop" wrap,
+ *    orange duration spans, 15 Aug 1971 at its phase in the 1954–2000 lap, Live dot
+ *    on the tile's own date mapping and a current-phase callout.
  *  - "Secular uptrend": each lap starts where the last one ended (~58% up) — the
  *    stepped version as first built.
  * Yellow labels mark the peak / trough zones and the 15 Aug 1971 Nixon Shock.
@@ -21,6 +21,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   GOLD_ANCHOR_NOTES,
   GOLD_CYCLE_YEARS,
+  GOLD_FINAL_RUN_FRAC,
+  GOLD_LAST_OBSERVED_YEAR,
   GOLD_HISTORICAL_POINTS,
   GOLD_PEAK_ANCHORS,
   GOLD_TROUGH_FRAC,
@@ -28,6 +30,7 @@ import {
   GOLD_TROUGH_OFFSET_YEARS,
   goldCycleProgress,
   goldLivePhaseLine,
+  goldPhaseName,
   isTheoreticalGoldYear,
   janMs,
 } from "@/lib/goldCommodityCycle";
@@ -566,144 +569,284 @@ function UptrendView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean 
 }
 
 /* -------------------------------------------------------------------------- */
-/* Default view: one cycle shape repeating identically in 46-year windows      */
+/* Default view: ONE lap of the tile silhouette (RE / bond detail-chart style) */
 /* -------------------------------------------------------------------------- */
 
-/** Window boundaries = peak zones; the last one is +46y after the final locked anchor. */
-const WINDOW_BOUNDS: number[] = [
-  ...GOLD_PEAK_ANCHORS,
-  GOLD_PEAK_ANCHORS[GOLD_PEAK_ANCHORS.length - 1] + GOLD_CYCLE_YEARS,
-];
-const R_YEAR_FROM = WINDOW_BOUNDS[0]! - 4;
-const R_YEAR_TO = WINDOW_BOUNDS[WINDOW_BOUNDS.length - 1]! + 4;
-const R_Y_TOP = 112;
-const R_Y_BOTTOM = 330;
+/** Same canvas geometry as the bond detail chart and the hub tile (trough x 88 → next trough x 760). */
+const S_X0 = 88;
+const S_X1 = 760;
+const S_Y_PEAK = 78;
+const S_Y_BASE = 300;
+const S_TOP_PAD = 64;
+const S_CHART_H = 524;
+const S_SVG_H = S_CHART_H + S_TOP_PAD;
+const S_BAND_TOP = 18;
+const S_BAND_BOTTOM = 322;
+const S_WRAP_Y = 348;
 
-/**
- * Seam join. The tile shape starts at its trough base (~1.5% up) but ends ~58% up,
- * so identical laps would meet in a vertical cliff at every trough. Over the last
- * stretch of the down-sideways drift (from the final hump at s ≈ 0.822, ~5½ years
- * before the trough) the shape is eased down to the base with a smoothstep, so the
- * drift rolls over into the next lap's flat base. Tile end tangents are flat, so the
- * seam is smooth (no kink, no cliff). Everything else is the tile shape unchanged.
- */
-const JOIN_S = 0.822;
-const JOIN_DROP = GOLD_TILE_END_LOW - GOLD_TILE_START_LOW;
+const RISE_GREEN = "#3dcc9a";
+const FINAL_GOLD = "#d4a017";
+const FALL_RED = "#ef6b6b";
+const ACTIVE_YEAR_FILL = "#ffe14a";
+const MUTED_YEAR_FILL = "#c8d0dc";
+const OLD_YEAR_FILL = "#8b9bb4";
 
-function repeatUnit(s: number): number {
-  const base = goldTileUnit(s);
-  if (s <= JOIN_S) return base;
-  const x = Math.min(1, (s - JOIN_S) / (1 - JOIN_S));
-  return base - JOIN_DROP * (x * x * (3 - 2 * x));
+/** Final-run phase starts at GOLD_FINAL_RUN_FRAC of the peak→peak lap (same rule as goldPhaseName). */
+const FINAL_RUN_U = (GOLD_FINAL_RUN_FRAC * GOLD_CYCLE_YEARS - GOLD_TROUGH_OFFSET_YEARS) / GOLD_CYCLE_YEARS;
+const FINAL_RUN_S = goldTileX(FINAL_RUN_U);
+/** Trough → peak and peak → trough durations (years), from the existing anchors. */
+const RUN_UP_YEARS = GOLD_CYCLE_YEARS - GOLD_TROUGH_OFFSET_YEARS;
+const DECLINE_YEARS = GOLD_TROUGH_OFFSET_YEARS;
+
+function sX(s: number): number {
+  return S_X0 + s * (S_X1 - S_X0);
+}
+function sY(unit: number): number {
+  return S_Y_BASE - unit * (S_Y_BASE - S_Y_PEAK);
+}
+function sPt(s: number): Pt {
+  return { x: sX(s), y: sY(goldTileUnit(s)) };
 }
 
-/** Calendar year → unit height, via the tile's own date mapping (troughs 20y after peaks). */
-function repeatUnitAtYear(y: number): number {
-  const laps = (y - LAP0_TROUGH_YEAR) / GOLD_CYCLE_YEARS;
-  const u = laps - Math.floor(laps);
-  return repeatUnit(goldTileX(u));
-}
-
-function rxOf(y: number): number {
-  return X_LEFT + ((y - R_YEAR_FROM) / (R_YEAR_TO - R_YEAR_FROM)) * (X_RIGHT - X_LEFT);
-}
-
-function ryOf(unit: number): number {
-  return R_Y_BOTTOM - unit * (R_Y_BOTTOM - R_Y_TOP);
-}
-
-function rPtAtYear(y: number): Pt {
-  return { x: rxOf(y), y: ryOf(repeatUnitAtYear(y)) };
-}
-
-const R_LINE_PATH = (() => {
-  const years: number[] = [];
-  const n = 3200;
-  for (let i = 0; i <= n; i++) years.push(R_YEAR_FROM + (i / n) * (R_YEAR_TO - R_YEAR_FROM));
-  // Make sure every peak tip is sampled exactly.
-  for (const b of WINDOW_BOUNDS) years.push(b);
-  years.sort((a, b) => a - b);
-  return years
-    .map((y, i) => {
-      const p = rPtAtYear(y);
-      return `${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
-    })
-    .join(" ");
+/** Exact hub-tile silhouette: goldTileUnit(s) across one lap (trough → peak → next trough). */
+const S_LINE_PATH = (() => {
+  const parts: string[] = [];
+  const n = 480;
+  for (let i = 0; i <= n; i++) {
+    const p = sPt(i / n);
+    parts.push(`${i === 0 ? "M" : "L"} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`);
+  }
+  return parts.join(" ");
 })();
-const R_FILL_PATH = `${R_LINE_PATH} L ${X_RIGHT} ${R_Y_BOTTOM + 8} L ${X_LEFT} ${R_Y_BOTTOM + 8} Z`;
+const S_FILL_PATH = `${S_LINE_PATH} L ${S_X1} ${S_BAND_BOTTOM} L ${S_X0} ${S_BAND_BOTTOM} Z`;
 
-function troughsAll() {
-  return Object.keys(GOLD_TROUGH_NOTES)
-    .map(Number)
-    .sort((a, b) => a - b)
-    .map((year) => ({ year, theo: isTheoreticalGoldYear(year), note: GOLD_TROUGH_NOTES[year] ?? "" }));
+const S_START = sPt(0);
+const S_PEAK = sPt(PEAK_S);
+const S_END = sPt(1);
+
+/** Lap k runs trough(k) → peak(k) (+26y) → trough(k+1) (+46y). Lap 0 starts 1908 (geometry only). */
+function lapStart(k: number): number {
+  return LAP0_TROUGH_YEAR + k * GOLD_CYCLE_YEARS;
+}
+function lapPeak(k: number): number {
+  return lapStart(k) + RUN_UP_YEARS;
 }
 
-const R_TROUGHS = troughsAll();
+/** Active lap = the lap whose [start trough, next trough) contains the date (bond / RE rule). */
+function activeLapAt(ms: number): number {
+  return Math.floor((fracYear(ms) - LAP0_TROUGH_YEAR) / GOLD_CYCLE_YEARS);
+}
+/** Pre-mount fallback: the lap containing the last observed year (2000 → 2046). */
+const DEFAULT_LAP = Math.floor((GOLD_LAST_OBSERVED_YEAR - LAP0_TROUGH_YEAR) / GOLD_CYCLE_YEARS);
 
-function RepeatView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean }) {
-  const fs = narrow ? 1.6 : 1;
-  const labelFs = 10.5 * fs;
+/** Only dates already in the code: peak anchors + trough notes. */
+const KNOWN_PEAKS = new Set<number>(GOLD_PEAK_ANCHORS);
+const KNOWN_TROUGHS = new Set<number>(Object.keys(GOLD_TROUGH_NOTES).map(Number));
+
+type StackRow = { label: string; active: boolean; theo: boolean };
+
+/** Future above older; active lap bold yellow, others muted (oldest dimmest). */
+function stackRows(col: "left" | "peak" | "right", lap: number): StackRow[] {
+  const laps = [lap + 1, lap, lap - 1, lap - 2];
+  const rows: StackRow[] = [];
+  for (const k of laps) {
+    const year = col === "left" ? lapStart(k) : col === "peak" ? lapPeak(k) : lapStart(k + 1);
+    const known = col === "peak" ? KNOWN_PEAKS.has(year) : KNOWN_TROUGHS.has(year);
+    if (!known) continue;
+    const theo = isTheoreticalGoldYear(year);
+    rows.push({
+      label: `${col === "peak" ? "" : "~"}${year}${theo ? "*" : ""}`,
+      active: k === lap,
+      theo,
+    });
+  }
+  return rows;
+}
+
+function SingleYearColumn({
+  x,
+  pointY,
+  dx,
+  rows,
+  tagActive,
+}: {
+  x: number;
+  pointY: number;
+  dx: number;
+  rows: StackRow[];
+  tagActive?: boolean;
+}) {
+  const lineH = 13;
+  const gap = 1;
+  const n = rows.length;
+  const totalH = n * lineH + Math.max(0, n - 1) * gap;
+  const startY = pointY - 14 - totalH + lineH;
+  const cx = x + dx;
+  return (
+    <g>
+      {rows.map((r, i) => {
+        const y = startY + i * (lineH + gap);
+        const fill = r.active ? ACTIVE_YEAR_FILL : i === n - 1 ? OLD_YEAR_FILL : MUTED_YEAR_FILL;
+        return (
+          <g key={`${r.label}-${i}`}>
+            <text
+              x={cx}
+              y={y}
+              textAnchor="middle"
+              fill={fill}
+              fontSize={r.active ? 11 : 10}
+              fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+              fontWeight={r.active ? 700 : 500}
+              textDecoration={r.active ? "underline" : undefined}
+            >
+              {r.label}
+            </text>
+            {r.active && tagActive && r.theo ? (
+              <text
+                x={cx + 28}
+                y={y - 1}
+                textAnchor="start"
+                fill="#b8a060"
+                fontSize="8"
+                fontStyle="italic"
+                fontFamily="system-ui, sans-serif"
+              >
+                theoretical
+              </text>
+            ) : null}
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+/** Orange double-headed span under the chart (RE / bond framing). */
+function OrangeSpan({ x1, x2, y, label }: { x1: number; x2: number; y: number; label: string }) {
+  const mid = (x1 + x2) / 2;
+  const color = "#e8873a";
+  return (
+    <g>
+      <line x1={x1} y1={y} x2={x2} y2={y} stroke={color} strokeWidth="2" />
+      <polyline
+        points={`${x1 + 8},${y - 5} ${x1},${y} ${x1 + 8},${y + 5}`}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <polyline
+        points={`${x2 - 8},${y - 5} ${x2},${y} ${x2 - 8},${y + 5}`}
+        fill="none"
+        stroke={color}
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <text
+        x={mid}
+        y={y + 16}
+        textAnchor="middle"
+        fill={color}
+        fontSize="11"
+        fontFamily="system-ui, sans-serif"
+        fontWeight="600"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
+/** 15 Aug 1971 sits in the 1954 → 2000 lap; place it at its phase position on the one lap. */
+const NIXON = (() => {
+  const h = GOLD_HISTORICAL_POINTS[0];
+  if (!h) return null;
+  const y = fracYear(h.t);
+  const laps = (y - LAP0_TROUGH_YEAR) / GOLD_CYCLE_YEARS;
+  const k = Math.floor(laps);
+  const s = goldTileX(laps - k);
+  return { ...h, s, lapFrom: lapStart(k), lapTo: lapStart(k + 1), pt: sPt(s) };
+})();
+
+const S_BANDS = [
+  { id: "advance", from: 0, to: FINAL_RUN_S, color: RISE_GREEN, label: "Advance from trough", phase: "Advance from trough", opacity: 0.05 },
+  { id: "final", from: FINAL_RUN_S, to: PEAK_S, color: FINAL_GOLD, label: "Final run", phase: "Final run to peak zone", opacity: 0.07 },
+  { id: "decline", from: PEAK_S, to: 1, color: FALL_RED, label: "Post-peak decline", phase: "Post-peak decline", opacity: 0.06 },
+] as const;
+
+function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean }) {
+  const lap = nowMs != null ? activeLapAt(nowMs) : DEFAULT_LAP;
 
   const live = useMemo(() => {
     if (nowMs == null) return null;
-    const y = fracYear(nowMs);
-    if (y < R_YEAR_FROM || y > R_YEAR_TO) return null;
-    return rPtAtYear(y);
+    const { frac } = goldCycleProgress(nowMs);
+    // Same mapping as the hub tile Live dot: trough-lap position u → tile s.
+    const s = goldTileX((frac - GOLD_TROUGH_FRAC + 1) % 1);
+    return { ...sPt(s), s, phase: goldPhaseName(frac) };
   }, [nowMs]);
+
+  const activeBand = live ? S_BANDS.find((b) => b.phase === live.phase) : undefined;
+  /** Current-phase callout (RE "Winner's Curse" style): left label, dotted leader to Live. */
+  const callout =
+    live && activeBand
+      ? {
+          x: Math.min(Math.max(live.x + 110, sX(activeBand.from) + 90), S_X1 - 20),
+          y: Math.min(live.y + 150, S_BAND_BOTTOM - 70),
+        }
+      : null;
 
   return (
     <svg
-      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+      viewBox={`0 0 ${SVG_W} ${S_SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory — the hub tile's cycle shape repeated identically in evenly spaced ${GOLD_CYCLE_YEARS}-year windows bounded by peak zones Jan ${WINDOW_BOUNDS.join(", ")} (2072 and 2118 theoretical). Yellow labels: peak zones, trough zones about ${R_TROUGHS.map((t) => t.year).join(", ")} (2046 theoretical) and 15 Aug 1971 Nixon Shock. Live marker at today's date. Shape only — no price data, not a predictive model or financial advice`}
+      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — one lap of the hub tile silhouette: trough zone, ~${RUN_UP_YEARS}-year run-up to the peak zone, ~${DECLINE_YEARS}-year post-peak decline to the next trough zone, then the next lap resets onto the same loop. Stacked marker years at each point (future above older), bold yellow for the active lap. 15 Aug 1971 Nixon Shock placed at its phase in the 1954–2000 lap. Live marker positioned by today's date. Educational sketch only — no price targets, not a model or financial advice`}
       style={{ overflow: "visible" }}
     >
       <defs>
-        <filter id="gold-repeat-glow" x="-20%" y="-20%" width="140%" height="140%">
+        <filter id="gold-single-glow" x="-20%" y="-20%" width="140%" height="140%">
           <feGaussianBlur stdDeviation="1.2" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        <filter id="gold-repeat-live-glow" x="-80%" y="-80%" width="260%" height="260%">
+        <filter id="gold-single-live-glow" x="-80%" y="-80%" width="260%" height="260%">
           <feGaussianBlur stdDeviation="2.2" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
-        <linearGradient id="gold-repeat-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id="gold-single-fill" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor="#e8eef7" stopOpacity="0.07" />
           <stop offset="100%" stopColor="#e8eef7" stopOpacity="0" />
         </linearGradient>
         <style>{`
-          @keyframes gold-repeat-live-pulse {
+          @keyframes gold-single-live-pulse {
             0% { opacity: 0.55; r: 7; }
             70% { opacity: 0; r: 22; }
             100% { opacity: 0; r: 22; }
           }
-          .gold-repeat-live-ring {
-            animation: gold-repeat-live-pulse 2.4s ease-out infinite;
+          .gold-single-live-ring {
+            animation: gold-single-live-pulse 2.4s ease-out infinite;
             transform-origin: center;
             transform-box: fill-box;
           }
           @media (prefers-reduced-motion: reduce) {
-            .gold-repeat-live-ring { animation: none; opacity: 0.35; r: 12; }
+            .gold-single-live-ring { animation: none; opacity: 0.35; r: 12; }
           }
         `}</style>
       </defs>
 
-      <rect width={SVG_W} height={SVG_H} fill="#0a0a0a" rx="8" />
+      <rect width={SVG_W} height={S_SVG_H} fill="#0a0a0a" rx="8" />
 
       <text
         x={SVG_W / 2}
-        y="26"
+        y="24"
         textAnchor="middle"
         fill="#e8eef4"
-        fontSize={16 * (narrow ? 1.25 : 1)}
+        fontSize="16"
         fontFamily="system-ui, sans-serif"
         fontWeight="700"
       >
@@ -711,263 +854,310 @@ function RepeatView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean }
       </text>
       <text
         x={SVG_W / 2}
-        y={narrow ? 50 : 44}
+        y="42"
         textAnchor="middle"
         fill="#8b9bb4"
-        fontSize={10 * (narrow ? 1.35 : 1)}
+        fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
         {narrow
-          ? "One shape repeating · white lines = 46y windows · * = theoretical · NFA"
-          : "One cycle shape repeating identically · white lines = 46-year windows at peak zones · yellow = key dates · * = theoretical · NFA"}
+          ? "One lap · bold yellow = active lap · * = theoretical · NFA"
+          : `Stylised sketch · ~${RUN_UP_YEARS}y up · ~${DECLINE_YEARS}y down · bold yellow = active lap · * = theoretical · yellow dot = historical marker · NFA`}
       </text>
 
-      {/* Faint horizontal guides */}
-      {[0, 1, 2, 3, 4, 5].map((i) => {
-        const y = R_Y_TOP - 10 + (i * (R_Y_BOTTOM - R_Y_TOP + 20)) / 5;
-        return <line key={i} x1={X_LEFT - 12} y1={y} x2={X_RIGHT + 8} y2={y} stroke="#1a1a1a" strokeWidth="1" />;
-      })}
-
-      {/* 46-year window boundaries — subtle white verticals at each peak zone */}
-      {WINDOW_BOUNDS.map((yr) => {
-        const x = rxOf(yr);
-        const theo = isTheoreticalGoldYear(yr);
-        return (
-          <line
-            key={`wb-${yr}`}
-            x1={x}
-            y1={86}
-            x2={x}
-            y2={R_Y_BOTTOM + 14}
-            stroke="#e8eef7"
-            strokeWidth="1.25"
-            strokeDasharray={theo ? "5 4" : undefined}
-            opacity={theo ? 0.22 : 0.3}
+      <g transform={`translate(0, ${S_TOP_PAD})`}>
+        {/* Regime bands — advance (green), final run (gold), post-peak decline (red) */}
+        {S_BANDS.map((b) => (
+          <rect
+            key={b.id}
+            x={sX(b.from)}
+            y={S_BAND_TOP}
+            width={sX(b.to) - sX(b.from)}
+            height={S_BAND_BOTTOM - S_BAND_TOP}
+            fill={b.color}
+            opacity={b.opacity}
           />
-        );
-      })}
+        ))}
+        {S_BANDS.map((b) => (
+          <text
+            key={`bl-${b.id}`}
+            x={(sX(b.from) + sX(b.to)) / 2 + (b.id === "decline" ? 40 : b.id === "advance" ? 22 : 0)}
+            y={S_BAND_BOTTOM - 8}
+            textAnchor="middle"
+            fill={b.color}
+            fontSize="10.5"
+            fontFamily="system-ui, sans-serif"
+            fontWeight="700"
+            opacity={activeBand?.id === b.id ? 1 : 0.8}
+          >
+            {b.label}
+          </text>
+        ))}
 
-      {/* Trough verticals (faint green, like the sibling charts) */}
-      {R_TROUGHS.map((m) => {
-        const p = rPtAtYear(m.year);
-        return (
+        {/* Subtle horizontal grid */}
+        {[58, 98, 138, 178, 218, 258, 298].map((y) => (
+          <line key={y} x1="56" y1={y} x2={S_X1 + 28} y2={y} stroke="#1a1a1a" strokeWidth="1" />
+        ))}
+
+        {/* Regime verticals — green = trough zones, red = peak zone */}
+        {[S_START, S_END].map((p, i) => (
           <line
-            key={`rtv-${m.year}`}
+            key={`tv-${i}`}
             x1={p.x}
-            y1={R_Y_TOP + 20}
+            y1={S_BAND_TOP}
             x2={p.x}
-            y2={p.y - 6}
-            stroke={LIVE_GREEN}
-            strokeWidth="1.25"
+            y2={S_BAND_BOTTOM}
+            stroke={RISE_GREEN}
+            strokeWidth="1.5"
             strokeDasharray="4 4"
-            opacity={m.theo ? 0.25 : 0.4}
+            opacity="0.7"
           />
-        );
-      })}
+        ))}
+        <line
+          x1={S_PEAK.x}
+          y1={S_PEAK.y + 10}
+          x2={S_PEAK.x}
+          y2={S_BAND_BOTTOM}
+          stroke={FALL_RED}
+          strokeWidth="1.5"
+          strokeDasharray="4 4"
+          opacity="0.75"
+        />
 
-      {/* Repeating cycle line — soft fill, glowing white line */}
-      <path d={R_FILL_PATH} fill="url(#gold-repeat-fill)" stroke="none" />
-      <path
-        d={R_LINE_PATH}
-        fill="none"
-        stroke={LINE}
-        strokeWidth="3"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        filter="url(#gold-repeat-glow)"
-      />
+        {/* Dashed wrap under the plot (next lap resets onto the same loop) */}
+        <path
+          d={`M ${S_END.x} ${S_END.y} L ${S_END.x + 24} ${S_WRAP_Y} L ${S_START.x - 16} ${S_WRAP_Y} L ${S_START.x} ${S_START.y}`}
+          fill="none"
+          stroke="#5a6a80"
+          strokeWidth="1.75"
+          strokeDasharray="5 5"
+          opacity="0.55"
+          strokeLinejoin="round"
+        />
+        <text
+          x={(S_X0 + S_X1) / 2}
+          y={362}
+          textAnchor="middle"
+          fill="#6b7a90"
+          fontSize="8"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          Next lap resets onto the same loop →
+        </text>
 
-      {/* Historical marker — 15 Aug 1971 (Nixon Shock) */}
-      {HISTORICAL.map((h) => {
-        const p = rPtAtYear(fracYear(h.t));
-        const labelY = p.y - 44 * (narrow ? 1.3 : 1);
-        return (
-          <g key={`rh-${h.t}`} data-marker="historical">
-            <title>{`${h.label} — ${h.note}`}</title>
-            <line x1={p.x} y1={labelY + 6} x2={p.x} y2={p.y - 6} stroke={YELLOW} strokeWidth="1.25" strokeDasharray="2 3" opacity="0.8" />
+        {/* Tile silhouette — soft fill, glowing white line, muted dashed echo (other laps) */}
+        <path d={S_FILL_PATH} fill="url(#gold-single-fill)" stroke="none" />
+        <path
+          d={S_LINE_PATH}
+          fill="none"
+          stroke={LINE}
+          strokeWidth="3.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          filter="url(#gold-single-glow)"
+        />
+        <path
+          d={S_LINE_PATH}
+          fill="none"
+          stroke="#8fa0b8"
+          strokeWidth="2"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          strokeDasharray="6 5"
+          opacity="0.4"
+        />
+
+        {/* Stacked lap years — future above older; active lap bold yellow + underlined */}
+        <SingleYearColumn x={S_START.x} pointY={S_START.y} dx={-26} rows={stackRows("left", lap)} />
+        <SingleYearColumn x={S_PEAK.x} pointY={S_PEAK.y} dx={0} rows={stackRows("peak", lap)} tagActive />
+        <SingleYearColumn x={S_END.x} pointY={S_END.y} dx={28} rows={stackRows("right", lap)} />
+
+        {/* Key points */}
+        {[
+          { id: "troughLeft", p: S_START, r: 4.5, title: "Trough zone (lap start)" },
+          { id: "peak", p: S_PEAK, r: 5.5, title: "Peak zone" },
+          { id: "troughRight", p: S_END, r: 4.5, title: "Next trough zone (lap end)" },
+        ].map((m) => (
+          <g key={m.id} data-marker={m.id}>
+            <title>{m.title}</title>
+            <circle cx={m.p.x} cy={m.p.y} r={m.r} fill="#0a0a0a" stroke={FINAL_GOLD} strokeWidth={2.25} />
+          </g>
+        ))}
+        <text
+          x={S_PEAK.x - 34}
+          y={S_PEAK.y + 4}
+          textAnchor="end"
+          fill="#9eb0c8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          Peak zone
+        </text>
+        <text
+          x={S_START.x}
+          y={S_START.y + 22}
+          textAnchor="middle"
+          fill="#9eb0c8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          Trough zone
+        </text>
+        <text
+          x={S_END.x - 8}
+          y={S_END.y + 22}
+          textAnchor="end"
+          fill="#9eb0c8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          Trough zone
+        </text>
+
+        {/* Historical marker — 15 Aug 1971 at its phase in the 1954 → 2000 lap */}
+        {NIXON ? (
+          <g data-marker="historical">
+            <title>{`${NIXON.label} — ${NIXON.note} Shown at its phase position in the ${NIXON.lapFrom}–${NIXON.lapTo} lap.`}</title>
+            <line
+              x1={NIXON.pt.x + 3}
+              y1={NIXON.pt.y + 4}
+              x2={NIXON.pt.x + 20}
+              y2={NIXON.pt.y + 34}
+              stroke={YELLOW}
+              strokeWidth="1.25"
+              strokeDasharray="2 3"
+              opacity="0.85"
+            />
+            <circle cx={NIXON.pt.x} cy={NIXON.pt.y} r={4} fill={YELLOW} stroke="#0a0a0a" strokeWidth={1.5} />
             <text
-              x={p.x + 6}
-              y={labelY - 12 * fs}
-              textAnchor="end"
+              x={NIXON.pt.x + 22}
+              y={NIXON.pt.y + 46}
+              textAnchor="start"
               fill={YELLOW}
-              fontSize={labelFs}
+              fontSize="11"
               fontFamily="system-ui, sans-serif"
               fontWeight="700"
             >
-              {h.label}
+              {NIXON.label}
             </text>
             <text
-              x={p.x + 6}
-              y={labelY}
-              textAnchor="end"
+              x={NIXON.pt.x + 22}
+              y={NIXON.pt.y + 58}
+              textAnchor="start"
               fill={YELLOW}
-              fontSize={8.5 * fs}
+              fontSize="8.5"
               fontFamily="system-ui, sans-serif"
               fontWeight="600"
               opacity="0.85"
             >
-              Nixon Shock
+              Nixon Shock · {NIXON.lapFrom}–{NIXON.lapTo} lap
             </text>
-            <circle cx={p.x} cy={p.y} r={3.5} fill="#0a0a0a" stroke={YELLOW} strokeWidth={1.75} />
           </g>
-        );
-      })}
+        ) : null}
 
-      {/* Peak zones — yellow labels at the top of each window boundary */}
-      {WINDOW_BOUNDS.map((yr) => {
-        const p = rPtAtYear(yr);
-        const theo = isTheoreticalGoldYear(yr);
-        const fill = theo ? YELLOW_THEO : YELLOW;
-        const note =
-          GOLD_ANCHOR_NOTES[yr] ??
-          `Theoretical window boundary — ${GOLD_CYCLE_YEARS} years after Jan ${yr - GOLD_CYCLE_YEARS}; illustrative only.`;
-        return (
-          <g key={`rp-${yr}`} data-marker="peak">
-            <title>{`Peak zone Jan ${yr}${theo ? " (theoretical)" : ""} — ${note}`}</title>
+        {/* Current-phase callout (RE "Winner's Curse" style) */}
+        {live && activeBand && callout ? (
+          <g>
             <text
-              x={p.x}
-              y={80}
-              textAnchor="middle"
-              fill={fill}
-              fontSize={labelFs}
+              x={callout.x}
+              y={callout.y}
+              textAnchor="start"
+              fill={activeBand.color}
+              fontSize="11"
               fontFamily="system-ui, sans-serif"
               fontWeight="700"
-              fontStyle={theo ? "italic" : undefined}
             >
-              {`Jan ${yr}${theo ? "*" : ""}`}
+              {activeBand.phase} · current phase
             </text>
-            <circle cx={p.x} cy={p.y} r={4.5} fill="#0a0a0a" stroke={fill} strokeWidth={2.25} />
+            <line
+              x1={callout.x - 4}
+              y1={callout.y - 6}
+              x2={live.x + 4}
+              y2={live.y + 6}
+              stroke={activeBand.color}
+              strokeWidth="1.25"
+              strokeDasharray="2 3"
+              opacity="0.85"
+            />
           </g>
-        );
-      })}
+        ) : null}
 
-      {/* Trough zones — yellow labels under each trough */}
-      {R_TROUGHS.map((m) => {
-        const p = rPtAtYear(m.year);
-        const fill = m.theo ? YELLOW_THEO : YELLOW;
-        return (
-          <g key={`rt-${m.year}`} data-marker="trough">
-            <title>{`Trough zone ~${m.year}${m.theo ? " (theoretical)" : ""} — ${m.note}`}</title>
-            <circle cx={p.x} cy={p.y} r={4} fill="#0a0a0a" stroke={fill} strokeWidth={2} />
+        {/* Orange duration spans (existing mapping: peak + 20y = trough, 46y lap) */}
+        <OrangeSpan x1={S_START.x + 4} x2={S_PEAK.x - 4} y={392} label={`~${RUN_UP_YEARS} years up (advance + final run)`} />
+        <OrangeSpan x1={S_PEAK.x + 4} x2={S_END.x - 4} y={392} label={`~${DECLINE_YEARS} years down (post-peak decline)`} />
+
+        <text
+          x={SVG_W / 2}
+          y={434}
+          textAnchor="middle"
+          fill="#a8b4c8"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="600"
+        >
+          {`One ~${GOLD_CYCLE_YEARS}-year lap of the Market cycles tile silhouette · peak zones Jan 1934 / 1980 / 2026 / 2072* · trough zones ~20y after each peak`}
+        </text>
+        <text
+          x={SVG_W / 2}
+          y={450}
+          textAnchor="middle"
+          fill="#6b7a90"
+          fontSize="9"
+          fontFamily="system-ui, sans-serif"
+          fontStyle="italic"
+        >
+          Bold yellow years mark the active lap (it moves on automatically at each trough zone). Shape only — not a USD price path.
+        </text>
+
+        <rect x="40" y="462" width={SVG_W - 80} height="46" rx="6" fill="#121820" stroke="#3a4558" strokeWidth="1" />
+        <text
+          x={SVG_W / 2}
+          y="480"
+          textAnchor="middle"
+          fill="#d0d8e4"
+          fontSize="10"
+          fontFamily="system-ui, sans-serif"
+          fontWeight="700"
+        >
+          Future markers are theoretical: no gold price target for any date.
+        </text>
+        <text
+          x={SVG_W / 2}
+          y="496"
+          textAnchor="middle"
+          fill="#9eb0c8"
+          fontSize="9"
+          fontFamily="system-ui, sans-serif"
+        >
+          Observational sketch · not a model, not a signal · research / educational only · not financial advice (NFA).
+        </text>
+
+        {/* Live pulse — client-computed from today's date (hidden until mounted) */}
+        {live && nowMs != null ? (
+          <g filter="url(#gold-single-live-glow)" aria-label="Live position on cycle path" data-live-dot="">
+            <title>{`Live · ${liveDayLabel.format(new Date(nowMs))} · ${goldLivePhaseLine(nowMs)} · theoretical, NFA`}</title>
+            <circle className="gold-single-live-ring" cx={live.x} cy={live.y} r={7} fill="none" stroke={LIVE_GREEN} strokeWidth="2" />
+            <circle cx={live.x} cy={live.y} r={5.5} fill={LIVE_GREEN} />
+            <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
+            <rect x={live.x + 12} y={live.y - 10} width="34" height="14" rx="3" fill="#0f2418" stroke={LIVE_GREEN} strokeWidth="1" />
             <text
-              x={p.x}
-              y={p.y + 20 * (narrow ? 1.25 : 1)}
+              x={live.x + 29}
+              y={live.y}
               textAnchor="middle"
-              fill={fill}
-              fontSize={labelFs}
+              fill="#7dffb0"
+              fontSize="9"
               fontFamily="system-ui, sans-serif"
-              fontWeight="700"
-              fontStyle={m.theo ? "italic" : undefined}
+              fontWeight="800"
             >
-              {`~${m.year}${m.theo ? "*" : ""}`}
+              Live
             </text>
-            {!narrow ? (
-              <text
-                x={p.x}
-                y={p.y + 31}
-                textAnchor="middle"
-                fill="#9eb0c8"
-                fontSize="8.5"
-                fontFamily="system-ui, sans-serif"
-                fontWeight="600"
-              >
-                trough zone
-              </text>
-            ) : null}
           </g>
-        );
-      })}
-
-      {/* Equal 46-year windows */}
-      {WINDOW_BOUNDS.slice(0, -1).map((yr, i) => (
-        <SpanArrow
-          key={`ws-${yr}`}
-          x1={rxOf(yr) + 3}
-          x2={rxOf(WINDOW_BOUNDS[i + 1]!) - 3}
-          y={378}
-          fs={narrow ? 1.3 : 1}
-          label={`${GOLD_CYCLE_YEARS} years`}
-        />
-      ))}
-
-      <text
-        x={SVG_W / 2}
-        y={408}
-        textAnchor="middle"
-        fill="#a8b4c8"
-        fontSize={10 * (narrow ? 1.25 : 1)}
-        fontFamily="system-ui, sans-serif"
-        fontWeight="600"
-      >
-        {narrow
-          ? `Tile shape repeated every ${GOLD_CYCLE_YEARS}y · even time scale · not a price path`
-          : `Same cycle shape as the Market cycles tile, repeated identically in each ${GOLD_CYCLE_YEARS}-year window · even time scale · shape only, not a USD price path`}
-      </text>
-      <text
-        x={SVG_W / 2}
-        y={424}
-        textAnchor="middle"
-        fill="#6b7a90"
-        fontSize={9 * (narrow ? 1.25 : 1)}
-        fontFamily="system-ui, sans-serif"
-        fontStyle="italic"
-      >
-        Peak zones Jan 1934 / 1980 / 2026 / 2072* / 2118* · trough zones ~20y after each peak · 15 Aug 1971 Nixon Shock
-      </text>
-
-      <rect x="40" y="440" width={SVG_W - 80} height="46" rx="6" fill="#121820" stroke="#3a4558" strokeWidth="1" />
-      <text
-        x={SVG_W / 2}
-        y="458"
-        textAnchor="middle"
-        fill="#d0d8e4"
-        fontSize={10 * (narrow ? 1.2 : 1)}
-        fontFamily="system-ui, sans-serif"
-        fontWeight="700"
-      >
-        Future markers are theoretical: no gold price target for any date.
-      </text>
-      <text
-        x={SVG_W / 2}
-        y="474"
-        textAnchor="middle"
-        fill="#9eb0c8"
-        fontSize={9 * (narrow ? 1.2 : 1)}
-        fontFamily="system-ui, sans-serif"
-      >
-        Observational sketch · not a model, not a signal · research / educational only · not financial advice (NFA).
-      </text>
-
-      {/* Live pulse — client-computed from today's date (hidden until mounted) */}
-      {live && nowMs != null ? (
-        <g filter="url(#gold-repeat-live-glow)" aria-label="Live position on cycle path" data-live-dot="">
-          <title>{`Live · ${liveDayLabel.format(new Date(nowMs))} · ${goldLivePhaseLine(nowMs)} · theoretical, NFA`}</title>
-          <circle className="gold-repeat-live-ring" cx={live.x} cy={live.y} r={7} fill="none" stroke={LIVE_GREEN} strokeWidth="2" />
-          <circle cx={live.x} cy={live.y} r={5.5} fill={LIVE_GREEN} />
-          <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />
-          <rect
-            x={live.x + 12}
-            y={live.y - 8 * (narrow ? 1.4 : 1)}
-            width={34 * (narrow ? 1.4 : 1)}
-            height={14 * (narrow ? 1.4 : 1)}
-            rx="3"
-            fill="#0f2418"
-            stroke={LIVE_GREEN}
-            strokeWidth="1"
-          />
-          <text
-            x={live.x + 12 + 17 * (narrow ? 1.4 : 1)}
-            y={live.y - 8 * (narrow ? 1.4 : 1) + 10 * (narrow ? 1.4 : 1)}
-            textAnchor="middle"
-            fill="#7dffb0"
-            fontSize={9 * (narrow ? 1.4 : 1)}
-            fontFamily="system-ui, sans-serif"
-            fontWeight="800"
-          >
-            Live
-          </text>
-        </g>
-      ) : null}
+        ) : null}
+      </g>
     </svg>
   );
 }
@@ -1028,14 +1218,14 @@ export default function GoldCycleChart() {
       </div>
 
       {mode === "repeat" ? (
-        <RepeatView nowMs={nowMs} narrow={narrow} />
+        <SingleLapView nowMs={nowMs} narrow={narrow} />
       ) : (
         <UptrendView nowMs={nowMs} narrow={narrow} />
       )}
 
       <p className="mt-2 text-center text-[11px] text-muted">
         {mode === "repeat"
-          ? "Repeating cycle: the same shape at the same level in every 46-year window."
+          ? "Repeating cycle: one lap of the tile silhouette — each new lap resets onto the same loop."
           : "Secular uptrend: each lap starts where the last one ended (~58% up), like the hub tile’s ending level."}
       </p>
 
