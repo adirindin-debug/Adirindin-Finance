@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ToolsBackLink } from "@/components/tools/ToolsBackLink";
 import { PowerLevelPanel, PowerTop10 } from "@/components/tools/PowerLevelPanel";
-import { E_CAP, E_KNEE, E_MID, INCOME_YEARS, PERSONAS, TIERS, computePower, tierFor } from "@/lib/powerLevel";
+import { E_CAP, INCOME_YEARS, PERSONAS, TIERS, computePower, displayReading, readingFromE, tierFor } from "@/lib/powerLevel";
 
 export const metadata: Metadata = {
   title: "Power Level",
@@ -60,10 +60,11 @@ export default function PowerLevelPage() {
               years ×1.15, on a log curve) and savings rate (×0.85 at −50% or worse → ×1.18 at 60%+).
             </li>
             <li>
-              <span className="text-foreground">Log-scale ladder:</span> up to A${fmt(E_KNEE)} the reading rises gently
-              (about 174 points per A$100k); from A${fmt(E_KNEE)} to A${fmt(E_MID)} it climbs steeply as a power curve
-              to 60,000; above that every ×10 in effective wealth adds the same ~7,300 points, reaching 100,000 at A$
-              {fmt(E_CAP / 1e9)} billion (about US$400B+). The screen caps at 99,999 — 100,000 is the theoretical maximum.
+              <span className="text-foreground">One smooth curve:</span> effective wealth goes through a single
+              continuous curve on a log scale — a gentle logistic climb centred around A$1.4M plus a softplus tail. No
+              kinks or jumps: the climb is steepest around A$1–1.5M (about 13,000 points per doubling) and eases to about
+              7,500 points per ×10 at the top, reaching 100,000 at A${fmt(E_CAP / 1e9)} billion (about US$400B+). The
+              screen caps at 99,999 — 100,000 is the theoretical maximum.
             </li>
           </ol>
           <div className="space-y-1 font-mono text-xs text-[#c8d0dc]">
@@ -71,9 +72,21 @@ export default function PowerLevelPage() {
               E = max(0, NW + {INCOME_YEARS}·income) ÷ √n × M<sub>runway</sub> × M<sub>savings</sub>
             </p>
             <p>
-              P = 523·(E ÷ 300k) for E ≤ A$300k · 523·(E ÷ 300k)<sup>2.5</sup> up to A$2M · 60,000 + 40,000·log
-              <sub>10</sub>(E ÷ 2M) ÷ log<sub>10</sub>(600B ÷ 2M) above
+              raw(x) = 60,000 ÷ (1 + e<sup>−3.3(x − 6.15)</sup>) + 9,600 · 0.53 · ln(1 + e<sup>(x − 4.65)/0.53</sup>), x =
+              log<sub>10</sub>(1 + E)
             </p>
+            <p>P = 100,000 × (raw(x) − raw(0)) ÷ (raw at A$600B − raw(0))</p>
+          </div>
+          <div>
+            <p className="text-foreground">Effective wealth → reading:</p>
+            <ul className="mt-1 grid grid-cols-2 gap-x-6 gap-y-1 sm:grid-cols-5">
+              {[0, 5e4, 3e5, 6e5, 1e6, 2e6, 1e7, 1e8, 1e9, 6e11].map((e) => (
+                <li key={e} className="flex justify-between gap-2 border-b border-border/40 py-1">
+                  <span>{e >= 1e9 ? `A$${fmt(e / 1e9)}B` : e >= 1e6 ? `A$${fmt(e / 1e6)}M` : e >= 1e3 ? `A$${fmt(e / 1e3)}k` : "A$0"}</span>
+                  <span className="font-mono tabular-nums text-foreground">{fmt(displayReading(readingFromE(e)))}</span>
+                </li>
+              ))}
+            </ul>
           </div>
           <div>
             <p className="text-foreground">Calibration with the illustrative examples:</p>

@@ -26,18 +26,21 @@
  *      M_savings = 1 + 0.30 × clamp(s, −0.5, 0.6)   (×0.85 … ×1.18; ×1 with no income)
  *      E = E_base × M_runway × M_savings
  *
- * 5. Log-scale ladder from E to the 0–100,000 reading (straight segments on a log chart):
- *      E ≤ A$300k:          P = 523 × (E ÷ 300k)              — gentle start (log–log slope 1)
- *      A$300k < E ≤ A$2M:   P = 523 × (E ÷ 300k)^2.5          — the steep climb (slope 2.5),
- *                                                               reaching 60,000 at A$2M
- *      E > A$2M:            P = 60,000 + 40,000 × log10(E ÷ 2M) ÷ log10(E_CAP ÷ 2M)
- *                           — pure log scale: every ×10 in E adds the same ~7,300 points
- *      E_CAP = A$600 billion (about US$400B+ at recent exchange rates).
+ * 5. One smooth curve from E to the 0–100,000 reading, on a log scale of wealth.
+ *    With x = log10(1 + E):
+ *      raw(x) = 60,000 ÷ (1 + e^(−3.3 · (x − 6.15)))            — logistic "climb", centred ≈ A$1.4M
+ *             + 9,600 · 0.53 · ln(1 + e^((x − 4.65) ÷ 0.53))     — softplus tail, ≈ 9,600 per ×10
+ *      P = 100,000 × (raw(x) − raw(0)) ÷ (raw(log10(1 + E_CAP)) − raw(0))
+ *    Both terms are smooth and always rising, so there are no kinks or jumps. The climb is
+ *    steepest around A$1–1.5M (≈ 45,000 points per ×10 in wealth, ≈ 13,000 per doubling) and
+ *    flattens to ≈ 7,500 points per ×10 at the top.
+ *    E_CAP = A$600 billion (about US$400B+ at recent exchange rates).
  *    The reading is capped at 99,999 on screen; 100,000 is the theoretical maximum.
  *
- * Calibration (illustrative personas): no income or assets → ~0; a uni student renting
- * → a few hundred; a median-ish Aussie household → low thousands; a homeowner
- * millionaire → ~50k–70k; Elon-level wealth → 99,999.
+ * Calibration (illustrative personas): no income or assets → 0; a uni student renting
+ * → ~3.4k; a median-ish Aussie household → ~20k; a homeowner millionaire → ~41k;
+ * A$10M → ~62k; A$100M → ~72k; A$1B → ~79k; the top 10 billionaires → high 90s;
+ * Elon-level wealth → 99,999.
  *
  * Gross income is converted to after-tax with 2026–27 Australian resident rates
  * (ATO), the low income tax offset and a 2% Medicare levy with the 2025–26 single
@@ -63,12 +66,21 @@ export type PowerInputs = {
 };
 
 export const INCOME_YEARS = 3;
-export const E_KNEE = 300_000;
-export const E_MID = 2_000_000;
-export const P_MID = 60_000;
-export const MID_EXP = 2.5;
-/** Reading at the knee, so the curve is continuous: 60,000 × (0.3M ÷ 2M)^2.5 ≈ 523. */
-export const P_KNEE = P_MID * Math.pow(E_KNEE / E_MID, MID_EXP);
+/** Smooth-curve parameters (x = log10(1 + E), E in A$). */
+export const CURVE = {
+  /** Height of the logistic "middle-class climb" term. */
+  A: 60_000,
+  /** Steepness of the logistic (per decade of wealth). */
+  k: 3.3,
+  /** Logistic midpoint: 10^6.15 ≈ A$1.4M. */
+  x0: 6.15,
+  /** Long-run slope of the softplus tail, per decade of wealth. */
+  C: 9_600,
+  /** Softplus elbow: 10^4.65 ≈ A$45k. */
+  x1: 4.65,
+  /** Softplus softness (decades). */
+  s: 0.53,
+} as const;
 export const E_CAP = 600_000_000_000;
 export const P_MAX = 100_000;
 export const P_DISPLAY_MAX = 99_999;
@@ -101,12 +113,24 @@ export function netWorth(i: PowerInputs): number {
   return n0(i.cash) + n0(i.investments) + home - mort + n0(i.carValue) - n0(i.carLoan) - n0(i.otherDebts);
 }
 
+const softplus = (z: number) => (z > 30 ? z : Math.log1p(Math.exp(z)));
+
+/** Raw curve: logistic climb + softplus tail, both smooth in x = log10(1 + E). */
+function rawCurve(x: number): number {
+  const { A, k, x0, C, x1, s } = CURVE;
+  return A / (1 + Math.exp(-k * (x - x0))) + C * s * softplus((x - x1) / s);
+}
+const RAW_ZERO = rawCurve(0);
+const RAW_CAP = rawCurve(Math.log10(1 + E_CAP));
+
+/**
+ * Smooth reading 0–100,000 from effective wealth E (A$). Rescaled so E = 0 → 0 and
+ * E = E_CAP → 100,000; anything above the cap stays at 100,000.
+ */
 export function readingFromE(E: number): number {
   if (!(E > 0)) return 0;
-  if (E <= E_KNEE) return P_KNEE * (E / E_KNEE);
-  if (E <= E_MID) return P_KNEE * Math.pow(E / E_KNEE, MID_EXP);
-  const p = P_MID + (P_MAX - P_MID) * (Math.log10(E / E_MID) / Math.log10(E_CAP / E_MID));
-  return Math.min(P_MAX, p);
+  const p = (P_MAX * (rawCurve(Math.log10(1 + E)) - RAW_ZERO)) / (RAW_CAP - RAW_ZERO);
+  return Math.min(P_MAX, Math.max(0, p));
 }
 
 /** Integer reading for display: floor, capped at 99,999. */
@@ -195,13 +219,13 @@ export type Tier = { min: number; name: string; blurb: string; colour: string };
 /** Original, light-hearted tier names (no franchise names or assets). */
 export const TIERS: Tier[] = [
   { min: 0, name: "Civilian", blurb: "Every legend starts here. The training arc begins.", colour: "#9eb0c8" },
-  { min: 300, name: "Trainee", blurb: "The basics are in place and the reps are adding up.", colour: "#7fc4ff" },
-  { min: 1_500, name: "Fighter", blurb: "Solid footing. Steady habits are building real power.", colour: "#4fd1c5" },
+  { min: 1_000, name: "Trainee", blurb: "The basics are in place and the reps are adding up.", colour: "#7fc4ff" },
+  { min: 3_000, name: "Fighter", blurb: "Solid footing. Steady habits are building real power.", colour: "#4fd1c5" },
   { min: 9_001, name: "Over 9,000", blurb: "The scouter is starting to sweat. Serious momentum.", colour: "#3dcc9a" },
   { min: 25_000, name: "Elite Warrior", blurb: "A strong position with plenty of breathing room.", colour: "#a3e635" },
-  { min: 50_000, name: "Golden Aura", blurb: "Glowing. Wealth is now doing a lot of the work.", colour: "#ffe14a" },
-  { min: 75_000, name: "Celestial", blurb: "Rarefied air — the top sliver of the planet.", colour: "#f59e0b" },
-  { min: 95_000, name: "Limit Breaker", blurb: "Off the charts for almost everyone alive.", colour: "#fb7185" },
+  { min: 40_000, name: "Golden Aura", blurb: "Glowing. Wealth is now doing a lot of the work.", colour: "#ffe14a" },
+  { min: 60_000, name: "Celestial", blurb: "Rarefied air — the top sliver of the planet.", colour: "#f59e0b" },
+  { min: 79_000, name: "Limit Breaker", blurb: "Off the charts for almost everyone alive.", colour: "#fb7185" },
   { min: 99_999, name: "Infinite Instinct", blurb: "Scouter maxed out. The scale stops here.", colour: "#e879f9" },
 ];
 
