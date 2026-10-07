@@ -27,7 +27,7 @@ const toggleOff = "bg-transparent text-foreground/70 hover:bg-white/5 hover:text
 
 type Currency = "AUD" | "USD";
 type MoneyKey = "income" | "monthlySpend" | "cash" | "investments" | "homeValue" | "mortgage" | "carValue" | "carLoan" | "otherDebts";
-type Form = Record<MoneyKey, string> & { incomeBasis: IncomeBasis; home: HomeStatus; householdSize: string };
+type Form = Record<MoneyKey, string> & { incomeBasis: IncomeBasis; home: HomeStatus; householdSize: string; bodyFatPct: string };
 
 const fmtGroup = (n: number) => new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 }).format(n);
 const parseAmount = (raw: string) => {
@@ -52,6 +52,7 @@ function toForm(i: PowerInputs): Form {
     incomeBasis: i.incomeBasis,
     home: i.home,
     householdSize: String(i.householdSize),
+    bodyFatPct: i.bodyFatPct != null && i.bodyFatPct > 0 ? String(Math.round(i.bodyFatPct * 10) / 10) : "",
   };
 }
 
@@ -217,6 +218,12 @@ export function PowerLevelPanel() {
       carLoan: m("carLoan"),
       otherDebts: m("otherDebts"),
       householdSize: hh,
+      bodyFatPct: (() => {
+        const raw = form.bodyFatPct.trim();
+        if (!raw) return null;
+        const n = parseAmount(raw);
+        return n > 0 ? n : null;
+      })(),
     };
   }, [form, currency, fx]);
 
@@ -421,6 +428,39 @@ export function PowerLevelPanel() {
               </button>
             </div>
           </Field>
+
+          <div className="rounded-lg border border-border/70 bg-[#0b1017]/60 p-3 space-y-3" data-health>
+            <p className={labelCls}>Health · optional</p>
+            <Field
+              id="pl-bf"
+              label="Body fat % (optional)"
+              hint="Skip if you are not sure — it only nudges the reading. Rough lifestyle habit, not health advice."
+            >
+              <div className="relative max-w-[10rem]">
+                <input
+                  id="pl-bf"
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="—"
+                  value={form.bodyFatPct}
+                  onChange={(e) => set("bodyFatPct", e.target.value)}
+                  onBlur={(e) => {
+                    const raw = e.target.value.trim();
+                    if (!raw) {
+                      set("bodyFatPct", "");
+                      return;
+                    }
+                    const n = Math.min(60, Math.max(1, parseAmount(raw)));
+                    set("bodyFatPct", String(Math.round(n * 10) / 10));
+                  }}
+                  className={`${inputCls} pr-8`}
+                  
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-xs text-muted">%</span>
+              </div>
+            </Field>
+          </div>
           {currency === "USD" ? (
             <p className="text-[11px] text-muted">
               {fx
@@ -534,6 +574,16 @@ export function PowerLevelPanel() {
             ))}
           </dl>
 
+          {res.bodyFatPct != null ? (
+            <p
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#3dcc9a]/35 bg-[#3dcc9a]/10 px-2.5 py-1 text-[11px] font-medium text-[#bff5df]"
+              data-health-chip
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-[#3dcc9a]" aria-hidden />
+              Health · body fat {res.bodyFatPct}% · ×{res.mBodyFat.toFixed(2)}
+            </p>
+          ) : null}
+
           {/* Lifts and drags */}
           <div className="rounded-xl border border-border bg-[#0b1017] p-4" data-breakdown>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -574,9 +624,9 @@ export function PowerLevelPanel() {
               </p>
             ) : null}
             <p className="mt-3 text-[11px] leading-relaxed text-muted">
-              Built up in order: assets, then debts, income, runway and savings rate. Points shift with the order and the
-              log scale, so read them as a rough guide. Every debt repaid, month of runway or extra dollar saved nudges the
-              reading up.
+              Built up in order: assets, then debts, income, runway, savings rate
+              {res.bodyFatPct != null ? " and body fat" : ""}. Points shift with the order and the log scale, so read them
+              as a rough guide. Every debt repaid, month of runway or extra dollar saved nudges the reading up.
             </p>
           </div>
         </div>

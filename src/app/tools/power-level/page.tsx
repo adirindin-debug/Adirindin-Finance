@@ -66,8 +66,10 @@ export default function PowerLevelPage() {
               rates, the low income tax offset and the Medicare levy, as one taxpayer — a rough estimate.
             </li>
             <li>
-              <span className="text-foreground">Habits</span> nudge it by up to about ±15%: runway (0 months ×0.85 → 10+
-              years ×1.15, on a log curve) and savings rate (×0.85 at −50% or worse → ×1.18 at 60%+).
+              <span className="text-foreground">Habits</span> nudge it by up to about ±10–15%: runway (0 months ×0.85 →
+              10+ years ×1.15, on a log curve), savings rate (×0.85 at −50% or worse → ×1.18 at 60%+), and optional body
+              fat % (blank = no change; peaks near ×1.10 around 12–18%; very high or extremely low holds back modestly
+              toward ×0.90). Body fat is a rough lifestyle nudge only — not medical or health advice.
             </li>
             <li>
               <span className="text-foreground">One smooth curve:</span> effective wealth goes through a single
@@ -79,7 +81,7 @@ export default function PowerLevelPage() {
           </ol>
           <div className="space-y-1 font-mono text-xs text-[#c8d0dc]">
             <p>
-              E = max(0, NW + {INCOME_YEARS}·income) ÷ √n × M<sub>runway</sub> × M<sub>savings</sub>
+              E = max(0, NW + {INCOME_YEARS}·income) ÷ √n × M<sub>runway</sub> × M<sub>savings</sub> × M<sub>bf</sub>
             </p>
             <p>
               raw(x) = 60,000 ÷ (1 + e<sup>−3.3(x − 6.15)</sup>) + 9,600 · 0.53 · ln(1 + e<sup>(x − 4.65)/0.53</sup>), x =
@@ -130,7 +132,8 @@ export default function PowerLevelPage() {
           </li>
           <li>
             The formula is a simplified, made-up scale. It ignores many things (super preservation rules, tax on assets,
-            cost of living where you are, health, family support) and the tax estimate is rough.
+            cost of living where you are, family support) and the tax estimate is rough. Optional body fat is a playful
+            lifestyle nudge only — not medical advice, not a diagnosis, and not a measure of fitness or health.
           </li>
           <li>
             Example personas are illustrative round numbers, not statistics. Billionaire net worths are third-party
