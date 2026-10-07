@@ -77,43 +77,12 @@ export default function GoldCyclePage() {
       <div className="mt-8 rounded-xl border border-border bg-black p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
-            Gold cycle silhouette
+            Classic cycle diagram
           </h2>
           <span className="font-mono text-xs text-muted">
-            ≈ {GOLD_CYCLE_YEARS}y · sketch · NFA
+            ≈ {GOLD_CYCLE_YEARS} years · schematic · NFA
           </span>
         </div>
-
-        <ol
-          className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[11px] text-muted sm:text-xs"
-          aria-label="One lap of the repeating gold cycle shape"
-        >
-          {[
-            "Peak zone",
-            `~${GOLD_TROUGH_OFFSET_YEARS}y decline`,
-            "Trough zone",
-            "Advance · mid-run pause",
-            "Final run",
-            `Next peak zone (+${GOLD_CYCLE_YEARS}y)`,
-          ].map((step, i, arr) => (
-            <li key={step} className="inline-flex items-center gap-2">
-              <span
-                className={
-                  i === 0 || i === 2 || i === arr.length - 1
-                    ? "font-mono font-semibold text-[#f5f0e6]"
-                    : ""
-                }
-              >
-                {step}
-              </span>
-              {i < arr.length - 1 ? (
-                <span className="text-[#5a6a80]" aria-hidden>
-                  →
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ol>
 
         <GoldCycleChart />
 

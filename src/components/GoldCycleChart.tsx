@@ -1162,6 +1162,75 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/* Stage bar (RE "Classic cycle diagram" / bond "Secular regime diagram" strip) */
+/* -------------------------------------------------------------------------- */
+
+/** Narrow peak zone: ±½ year around the Jan peak-zone marker, so Live (Oct 2026) stays in the decline. */
+const PEAK_ZONE_HALF_U = 0.5 / GOLD_CYCLE_YEARS;
+const PEAK_ZONE_FROM_S = goldTileX(PEAK_U - PEAK_ZONE_HALF_U);
+const PEAK_ZONE_TO_S = goldTileX(PEAK_U + PEAK_ZONE_HALF_U);
+
+/** Stage blocks in lap s-space — same edges as the single-lap chart's regime bands. */
+const STAGES = [
+  { id: "advance", name: "Advance from trough", from: 0, to: FINAL_RUN_S, color: RISE_GREEN, span: `~${Math.round(FINAL_RUN_U * GOLD_CYCLE_YEARS)}y` },
+  { id: "final", name: "Final run", from: FINAL_RUN_S, to: PEAK_ZONE_FROM_S, color: "#f0c14a", span: `~${Math.round((PEAK_U - FINAL_RUN_U) * GOLD_CYCLE_YEARS)}y` },
+  { id: "peak", name: "Peak zone", from: PEAK_ZONE_FROM_S, to: PEAK_ZONE_TO_S, color: FALL_RED, span: "Jan marker" },
+  { id: "decline", name: "Post-peak decline", from: PEAK_ZONE_TO_S, to: 1, color: "#b8333d", span: `~${DECLINE_YEARS}y` },
+] as const;
+
+/** Percent of the SVG width, so the HTML strip lines up with the chart's x-axis (viewBox 0–SVG_W). */
+const pctX = (x: number) => `${((x / SVG_W) * 100).toFixed(3)}%`;
+
+function StageBar() {
+  return (
+    <div className="mb-3" data-gold-stage-bar>
+      <div
+        className="relative flex h-14 overflow-hidden rounded-lg border border-[#222]"
+        style={{ marginLeft: pctX(S_X0), marginRight: pctX(SVG_W - S_X1) }}
+        role="list"
+        aria-label="Stages of one gold cycle lap, widths matching the chart below"
+      >
+        {STAGES.map((st) => (
+          <div
+            key={st.id}
+            role="listitem"
+            title={`${st.name} (${st.span})`}
+            style={{
+              width: `${((st.to - st.from) * 100).toFixed(3)}%`,
+              background: `linear-gradient(180deg, ${st.color}55, ${st.color}22)`,
+            }}
+            className="relative flex items-end border-r border-[#222] last:border-r-0"
+          >
+            <span className="absolute inset-x-0 top-0 h-1" style={{ background: st.color }} aria-hidden />
+            {st.id === "peak" ? (
+              <span className="sr-only">{st.name}</span>
+            ) : (
+              <span className="w-full px-1.5 pb-1.5 text-[10px] font-medium leading-tight text-[#e8eef7] sm:truncate sm:px-2 sm:pb-2 sm:text-xs">
+                {st.name}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div
+        className="relative mt-2 h-4 font-mono text-[10px] text-muted sm:text-xs"
+        style={{ marginLeft: pctX(S_X0), marginRight: pctX(SVG_W - S_X1) }}
+        aria-hidden
+      >
+        <span className="absolute left-0">Trough zone</span>
+        <span
+          className="absolute -translate-x-1/2 whitespace-nowrap text-[#ef6b6b]"
+          style={{ left: `${(((PEAK_ZONE_FROM_S + PEAK_ZONE_TO_S) / 2) * 100).toFixed(3)}%` }}
+        >
+          ▲ Peak zone
+        </span>
+        <span className="absolute right-0">Next trough zone</span>
+      </div>
+    </div>
+  );
+}
+
 type ViewMode = "repeat" | "uptrend";
 
 export default function GoldCycleChart() {
@@ -1216,6 +1285,8 @@ export default function GoldCycleChart() {
           ))}
         </div>
       </div>
+
+      {mode === "repeat" ? <StageBar /> : null}
 
       {mode === "repeat" ? (
         <SingleLapView nowMs={nowMs} narrow={narrow} />
