@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
 import "./globals.css";
@@ -35,7 +35,6 @@ export const metadata: Metadata = {
     apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   manifest: "/site.webmanifest",
-  themeColor: "#0f1419",
   openGraph: {
     type: "website",
     locale: "en_AU",
@@ -64,6 +63,11 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+};
+
+/** Next 15 reads theme colour from `viewport`, not `metadata` (it was being dropped). */
+export const viewport: Viewport = {
+  themeColor: "#0f1419",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
