@@ -235,6 +235,7 @@ function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
     ok?: boolean;
     current?: { ratio?: number };
     points?: Array<{ t: number; ratio: number }>;
+    snapshot?: boolean;
   };
   const ratio = data?.current?.ratio;
   if (!data?.ok || ratio == null || !Number.isFinite(ratio)) {
@@ -245,6 +246,7 @@ function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
     headline: fmtRatio(ratio),
     secondary: "Wilshire ÷ US M2",
     spark,
+    isLive: !data.snapshot,
   };
 }
 

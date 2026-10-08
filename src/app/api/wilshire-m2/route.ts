@@ -10,6 +10,7 @@
 
 import { readFileSync } from "fs";
 import { join } from "path";
+import { after } from "next/server";
 import snapshotJson from "@/data/wilshire-m2-snapshot.json";
 
 export const runtime = "nodejs";
@@ -26,6 +27,28 @@ const MIRROR_TIMEOUT_MS = 6_000;
 const FRESH_MS = 6 * 60 * 60 * 1000;
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const LIVE_BUDGET_MS = 12_000;
+/** Cold instance holding only the bundled snapshot: try live this long first. */
+const COLD_LIVE_BUDGET_MS = 6_000;
+
+/** One shared in-flight refresh so concurrent requests don't stampede the feeds. */
+let inflight: Promise<WilshirePayload> | null = null;
+function refreshOnce(): Promise<WilshirePayload> {
+  if (!inflight) {
+    inflight = refreshLive().finally(() => {
+      inflight = null;
+    });
+  }
+  return inflight;
+}
+
+function withBudget<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(label)), ms),
+    ),
+  ]);
+}
 
 type WilshirePayload = {
   ok: true;
@@ -386,10 +409,35 @@ export async function GET() {
     });
   }
 
+  // Cold instance seeded only with the bundled snapshot: give the live feeds a
+  // short window first so visitors don't keep seeing the dated snapshot.
+  if (lastGood?.body.snapshot) {
+    const live = refreshOnce();
+    try {
+      const body = await withBudget(live, COLD_LIVE_BUDGET_MS, "cold live budget exceeded");
+      return Response.json(body, {
+        headers: {
+          "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=43200",
+          "X-Wilshire-Cache": "live-cold",
+        },
+      });
+    } catch {
+      // Keep the refresh running after the response (serverless would
+      // otherwise freeze it) and answer with the dated snapshot for now.
+      after(() => live.catch(() => {}));
+    }
+  }
+
   // Stale-while-revalidate: return last-good immediately and refresh in background
   // when we already have usable data (avoids Charts hub tile stuck on Loading).
+  // `after()` keeps the refresh alive past the response on Vercel; a bare
+  // `void refreshLive()` was frozen with the function, so cold instances
+  // served the bundled snapshot indefinitely.
   if (lastGood && now - lastGood.at < STALE_MS) {
-    void refreshLive().catch(() => {});
+    if (!inflight) {
+      const live = refreshOnce();
+      after(() => live.catch(() => {}));
+    }
     return Response.json(
       { ...lastGood.body, stale: true },
       {
@@ -402,12 +450,7 @@ export async function GET() {
   }
 
   try {
-    const body = await Promise.race([
-      refreshLive(),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("live budget exceeded")), LIVE_BUDGET_MS),
-      ),
-    ]);
+    const body = await withBudget(refreshOnce(), LIVE_BUDGET_MS, "live budget exceeded");
     return Response.json(body, {
       headers: {
         "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=43200",

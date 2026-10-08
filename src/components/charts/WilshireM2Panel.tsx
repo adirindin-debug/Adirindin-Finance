@@ -22,6 +22,11 @@ type Payload = {
   note?: string;
   error?: string;
   errors?: string[];
+  /** ISO time the payload was built (fetch time for the dated snapshot). */
+  asOf?: string;
+  /** true = bundled dated snapshot (live FRED/Yahoo not reached yet). */
+  snapshot?: boolean;
+  stale?: boolean;
 };
 
 type TfKey = "1Y" | "3Y" | "5Y" | "10Y" | "ALL";
@@ -294,6 +299,11 @@ export function WilshireM2Panel() {
             <p className="mt-1 font-mono text-[11px] text-muted">
               {fmtDateMonth(headline.t)}
             </p>
+            {data?.snapshot && data.asOf && (
+              <p className="mt-1 text-[11px] text-[#e8b84a]">
+                Dated snapshot · fetched {fmtDate(Date.parse(data.asOf) / 1000)}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -449,6 +459,13 @@ export function WilshireM2Panel() {
         {data?.ratioDefinition && <p>{data.ratioDefinition}</p>}
         {data?.wilshireSource && <p>Wilshire: {data.wilshireSource}</p>}
         {data?.m2Source && <p>M2: {data.m2Source}</p>}
+        {data?.ok && data.asOf && (
+          <p>
+            {data.snapshot
+              ? `Showing a dated snapshot fetched ${fmtDate(Date.parse(data.asOf) / 1000)} while the live feeds load; refresh shortly for the latest.`
+              : `Data fetched ${fmtDate(Date.parse(data.asOf) / 1000)}.`}
+          </p>
+        )}
         <p>
           {data?.fredCredits ??
             "Data via FRED®, Federal Reserve Bank of St. Louis."}{" "}
