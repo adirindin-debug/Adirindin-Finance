@@ -396,12 +396,12 @@ export function GlobalEquitiesPanel() {
   return (
     <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-full flex-1 sm:min-w-0">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-[#22d3ee]">
               World equities drawdown
             </h2>
-            <div className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Timeframe">
+            <div className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Timeframe">
               {TIMEFRAMES.map((t) => (
                 <button
                   key={t.key}
@@ -431,7 +431,7 @@ export function GlobalEquitiesPanel() {
           </p>
         </div>
         {summary && (
-          <div className="w-full max-w-[260px] text-right">
+          <div className="ml-auto w-full max-w-[260px] text-right">
             <p className="font-mono text-4xl font-semibold tabular-nums text-[#22d3ee]">
               {fmtPct(summary.dd)}
             </p>

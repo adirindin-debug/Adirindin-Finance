@@ -341,7 +341,7 @@ export function Btc200wMaPanel() {
   return (
     <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-full flex-1 sm:min-w-0">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
               Bitcoin · 200-week MA
@@ -395,7 +395,7 @@ export function Btc200wMaPanel() {
           </div>
         </div>
         {headline && (
-          <div className="text-right">
+          <div className="ml-auto text-right">
             <p className="font-mono text-3xl font-semibold tabular-nums text-foreground">
               {fmtUsd(headline.price)}
             </p>
