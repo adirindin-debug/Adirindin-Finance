@@ -27,8 +27,6 @@ const MIRROR_TIMEOUT_MS = 6_000;
 const FRESH_MS = 6 * 60 * 60 * 1000;
 const STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const LIVE_BUDGET_MS = 12_000;
-/** Cold instance holding only the bundled snapshot: try live this long first. */
-const COLD_LIVE_BUDGET_MS = 6_000;
 
 /** One shared in-flight refresh so concurrent requests don't stampede the feeds. */
 let inflight: Promise<WilshirePayload> | null = null;
@@ -407,25 +405,6 @@ export async function GET() {
         "X-Wilshire-Cache": "memory-fresh",
       },
     });
-  }
-
-  // Cold instance seeded only with the bundled snapshot: give the live feeds a
-  // short window first so visitors don't keep seeing the dated snapshot.
-  if (lastGood?.body.snapshot) {
-    const live = refreshOnce();
-    try {
-      const body = await withBudget(live, COLD_LIVE_BUDGET_MS, "cold live budget exceeded");
-      return Response.json(body, {
-        headers: {
-          "Cache-Control": "public, s-maxage=21600, stale-while-revalidate=43200",
-          "X-Wilshire-Cache": "live-cold",
-        },
-      });
-    } catch {
-      // Keep the refresh running after the response (serverless would
-      // otherwise freeze it) and answer with the dated snapshot for now.
-      after(() => live.catch(() => {}));
-    }
   }
 
   // Stale-while-revalidate: return last-good immediately and refresh in background
