@@ -14,6 +14,7 @@ import {
   FACTORY_KEY_LINE,
   FACTORY_LEVELS,
   FACTORY_LEVELS_FOOTNOTE,
+  FACTORY_MA_MONTHS,
   FACTORY_NOT_ISM_NOTE,
   FACTORY_PHILLY_URL,
   FACTORY_SOURCE_LINE,
@@ -22,6 +23,7 @@ import {
   fmtMonthKey,
   fmtReading,
   monthIndex,
+  movingAverage,
   type FactoryPayload,
   type FactoryPoint,
 } from "@/lib/factoryMonitor";
@@ -48,13 +50,35 @@ const LEVEL_LINES: Array<{
   label: string;
   dash?: string;
   width: number;
+  /** Optional caption, stacked under the value label in the right gutter. */
+  caption?: string;
 }> = [
+  {
+    v: FACTORY_LEVELS.high,
+    color: "#a7f3d0",
+    label: "+40",
+    caption: "High range",
+    width: 1.25,
+    dash: "6 4",
+  },
   { v: FACTORY_LEVELS.hot, color: "#39e75f", label: "+25", width: 1.25, dash: "6 4" },
   { v: FACTORY_LEVELS.zero, color: "#f5f7fa", label: "0", width: 1.25 },
   { v: FACTORY_LEVELS.weak, color: "#ef4444", label: "−10", width: 1.25, dash: "6 4" },
 ];
 
-type Hover = { x: number; y: number; p: FactoryPoint; inRecession: boolean };
+type Mode = "smoothed" | "raw";
+
+/** Monthly point with its trailing 3-month average (null until 3 months exist). */
+type ChartPoint = FactoryPoint & { ma: number | null };
+
+type Hover = {
+  x: number;
+  y: number;
+  /** Raw reading position (shown as a small secondary dot in Smoothed mode). */
+  yRaw: number;
+  p: ChartPoint;
+  inRecession: boolean;
+};
 
 function inNber(m: string): boolean {
   return NBER_RECESSIONS.some((r) => m >= r.start && m <= r.end);
@@ -64,6 +88,7 @@ export function FactoryMonitorPanel() {
   const [data, setData] = useState<FactoryPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [tf, setTf] = useState<TfKey>("20Y");
+  const [mode, setMode] = useState<Mode>("smoothed");
   const [hover, setHover] = useState<Hover | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
@@ -90,9 +115,14 @@ export function FactoryMonitorPanel() {
     };
   }, []);
 
-  useEffect(() => setHover(null), [tf]);
+  useEffect(() => setHover(null), [tf, mode]);
 
-  const all = useMemo(() => data?.points ?? [], [data]);
+  // Average over the full history so window edges still have values.
+  const all = useMemo<ChartPoint[]>(() => {
+    const raw = data?.points ?? [];
+    const ma = movingAverage(raw);
+    return raw.map((p, i) => ({ ...p, ma: ma[i] ?? null }));
+  }, [data]);
   const last = all.length ? all[all.length - 1]! : null;
   const lastState = last ? factoryState(last.v) : null;
 
@@ -107,7 +137,7 @@ export function FactoryMonitorPanel() {
     const i0 = monthIndex(points[0]!.m);
     const i1 = monthIndex(points[points.length - 1]!.m);
     let lo = Math.min(FACTORY_LEVELS.weak, ...points.map((p) => p.v));
-    let hi = Math.max(FACTORY_LEVELS.hot, ...points.map((p) => p.v));
+    let hi = Math.max(FACTORY_LEVELS.high, ...points.map((p) => p.v));
     lo = Math.floor((lo - 4) / 10) * 10;
     hi = Math.ceil((hi + 4) / 10) * 10;
     const iw = W - PAD.left - PAD.right;
@@ -120,6 +150,12 @@ export function FactoryMonitorPanel() {
           `${i === 0 ? "M" : "L"}${xOf(monthIndex(p.m)).toFixed(1)} ${yOf(p.v).toFixed(1)}`,
       )
       .join(" ");
+    let maPath = "";
+    for (const p of points) {
+      if (p.ma == null) continue;
+      maPath += `${maPath ? "L" : "M"}${xOf(monthIndex(p.m)).toFixed(1)} ${yOf(p.ma).toFixed(1)} `;
+    }
+    maPath = maPath.trim();
     const yTicks: number[] = [];
     const step = hi - lo > 80 ? 20 : 10;
     for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) yTicks.push(v);
@@ -149,7 +185,7 @@ export function FactoryMonitorPanel() {
       if (b < a) return null;
       return { x: xOf(a), w: Math.max(xOf(b) - xOf(a), 2), key: r.start };
     }).filter((b): b is { x: number; w: number; key: string } => b != null);
-    return { i0, i1, lo, hi, xOf, yOf, path, yTicks, xTicks, bands };
+    return { i0, i1, lo, hi, xOf, yOf, path, maPath, yTicks, xTicks, bands };
   }, [points]);
 
   const onMove = useCallback(
@@ -177,14 +213,16 @@ export function FactoryMonitorPanel() {
             : best,
         );
       }
+      const yRaw = chart.yOf(p.v);
       setHover({
         x: chart.xOf(monthIndex(p.m)),
-        y: chart.yOf(p.v),
+        y: mode === "smoothed" && p.ma != null ? chart.yOf(p.ma) : yRaw,
+        yRaw,
         p,
         inRecession: inNber(p.m),
       });
     },
-    [chart, points],
+    [chart, points, mode],
   );
 
   const toggleBtn =
@@ -221,6 +259,28 @@ export function FactoryMonitorPanel() {
                 </button>
               ))}
             </div>
+            <div
+              className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1"
+              role="group"
+              aria-label="Line"
+            >
+              {(
+                [
+                  { key: "smoothed", label: `Smoothed (${FACTORY_MA_MONTHS}-mo avg)` },
+                  { key: "raw", label: "Raw" },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${mode === m.key ? toggleOn : toggleOff}`}
+                  aria-pressed={mode === m.key}
+                  onClick={() => setMode(m.key)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted">
             Current general activity, seasonally adjusted, monthly since May
@@ -250,6 +310,14 @@ export function FactoryMonitorPanel() {
             </span>
             {lastState.note && (
               <p className="mt-1 text-[11px] text-muted">{lastState.note}</p>
+            )}
+            {last.ma != null && (
+              <p className="mt-1 text-[11px] text-muted">
+                {FACTORY_MA_MONTHS}-mo avg{" "}
+                <span className="font-mono font-semibold tabular-nums text-[#22d3ee]">
+                  {fmtReading(last.ma)}
+                </span>
+              </p>
             )}
             <p className="mt-1 font-mono text-[11px] text-muted">
               {fmtMonthKey(last.m)}
@@ -355,6 +423,23 @@ export function FactoryMonitorPanel() {
                   >
                     {l.label}
                   </text>
+                  {l.caption && (
+                    // Right gutter, stacked under the value label so it never
+                    // sits on top of the data line.
+                    <text
+                      x={W - PAD.right + 4}
+                      y={chart.yOf(l.v) + 13}
+                      fill={l.color}
+                      fontSize={8.5}
+                      fontWeight={500}
+                    >
+                      {l.caption.split(" ").map((w, i) => (
+                        <tspan key={w} x={W - PAD.right + 4} dy={i === 0 ? 0 : 9}>
+                          {w}
+                        </tspan>
+                      ))}
+                    </text>
+                  )}
                 </g>
               ))}
               {last && (
@@ -369,13 +454,33 @@ export function FactoryMonitorPanel() {
                   opacity={0.6}
                 />
               )}
-              <path
-                d={chart.path}
-                fill="none"
-                stroke={LINE}
-                strokeWidth={tf === "ALL" ? 1.25 : 1.75}
-                strokeLinejoin="round"
-              />
+              {mode === "smoothed" ? (
+                <>
+                  <path
+                    d={chart.path}
+                    fill="none"
+                    stroke={LINE}
+                    strokeWidth={1}
+                    strokeLinejoin="round"
+                    opacity={0.3}
+                  />
+                  <path
+                    d={chart.maPath}
+                    fill="none"
+                    stroke={LINE}
+                    strokeWidth={tf === "ALL" ? 1.75 : 2.25}
+                    strokeLinejoin="round"
+                  />
+                </>
+              ) : (
+                <path
+                  d={chart.path}
+                  fill="none"
+                  stroke={LINE}
+                  strokeWidth={tf === "ALL" ? 1.25 : 1.75}
+                  strokeLinejoin="round"
+                />
+              )}
               {hover && (
                 <g pointerEvents="none">
                   <line
@@ -388,6 +493,15 @@ export function FactoryMonitorPanel() {
                     strokeDasharray="3 3"
                     opacity={0.8}
                   />
+                  {mode === "smoothed" && hover.p.ma != null && (
+                    <circle
+                      cx={hover.x}
+                      cy={hover.yRaw}
+                      r={2.5}
+                      fill={LINE}
+                      opacity={0.55}
+                    />
+                  )}
                   <circle
                     cx={hover.x}
                     cy={hover.y}
@@ -414,6 +528,12 @@ export function FactoryMonitorPanel() {
                   <span className="text-muted">Reading</span>
                   <span className="font-mono font-semibold tabular-nums text-[#22d3ee]">
                     {fmtReading(hover.p.v)}
+                  </span>
+                </p>
+                <p className="mt-1 flex items-center justify-between gap-3 text-[11px]">
+                  <span className="text-muted">{FACTORY_MA_MONTHS}-mo avg</span>
+                  <span className="font-mono font-semibold tabular-nums text-[#22d3ee]">
+                    {hover.p.ma != null ? fmtReading(hover.p.ma) : "—"}
                   </span>
                 </p>
                 <p className="mt-1 flex items-center justify-between gap-3 text-[11px]">
@@ -445,10 +565,12 @@ export function FactoryMonitorPanel() {
         <p>{FACTORY_LEVELS_FOOTNOTE}</p>
         <p>
           States: ≥+25 Hot market (manufacturing strong · bull-market
-          backdrop) · 0 to &lt;+25 Expansion · −10 to &lt;0 Neutral / sluggish
+          backdrop; ≥+40 marks the high range, a reference line only) · 0 to &lt;+25 Expansion · −10 to &lt;0 Neutral / sluggish
           (manufacturing contracting, not automatically NBER recession) ·
-          &lt;−10 Recessionary / weak. Grey bands: NBER US recessions. Dotted cyan
-          line: latest reading.
+          &lt;−10 Recessionary / weak (states use the raw monthly reading).
+          Grey bands: NBER US recessions. Smoothed view: bold cyan line is the
+          trailing {FACTORY_MA_MONTHS}-month average, faint line is the raw
+          monthly reading. Dotted cyan line: latest raw reading.
         </p>
         <p>
           {asOfLabel ? FACTORY_SOURCE_LINE(asOfLabel) : FACTORY_SOURCE_LINE("—")}{" "}

@@ -13,7 +13,9 @@
  *   60 → +20, 50 → 0, 46 → −8 (rounded to −10).
  * The Hot market line is set at +25 (not +20) to allow for the noisier
  * single-question survey (about 19% of months since 1968 at or above +25).
- * Lines used: +25 / 0 / −10. Research reference lines, not official thresholds.
+ * A lighter green +40 High range line marks the upper end of strong readings
+ * (reference only; it does not add a state or change the zones).
+ * Lines used: +40 / +25 / 0 / −10. Research reference lines, not official thresholds.
  *
  * Educational only — not financial advice (NFA).
  */
@@ -25,13 +27,14 @@ export const FACTORY_PHILLY_URL =
 
 /** Reference levels on the Philly Fed (zero-centred) scale. */
 export const FACTORY_LEVELS = {
+  high: 40,
   hot: 25,
   zero: 0,
   weak: -10,
 } as const;
 
 export const FACTORY_KEY_LINE =
-  "≥+25 hot market · 0 expansion line · −10 to <0 neutral / sluggish · <−10 recessionary / weak";
+  "≥+40 high range · ≥+25 hot market · 0 expansion line · −10 to <0 neutral / sluggish · <−10 recessionary / weak";
 
 export const FACTORY_LEVELS_FOOTNOTE =
   "Levels converted from ISM-style reference lines (60 / 50 / 46) with diffusion-index arithmetic (Philly ≈ 2 × (ISM-style − 50)), rounded: ISM-style 60 converts to about +20, with the Hot market line set at +25 to allow for the noisier single-question survey (about 19% of months since 1968); 46 converts to about −8, rounded to −10. Not official thresholds.";
@@ -95,7 +98,28 @@ export type FactoryPayload = {
 };
 
 export const FACTORY_SOURCE_LINE = (asOfLabel: string) =>
-  `Source: Federal Reserve Bank of Philadelphia, Manufacturing Business Outlook Survey, via FRED (${FACTORY_SERIES_ID}). As of ${asOfLabel}.`;
+  `Source: Federal Reserve Bank of Philadelphia, Manufacturing Business Outlook Survey, via FRED (${FACTORY_SERIES_ID}). As of ${asOfLabel}. Smoothed line: trailing 3-month average of the monthly readings (our calculation).`;
+
+/** Window for the smoothed line (trailing simple moving average, months). */
+export const FACTORY_MA_MONTHS = 3;
+
+/**
+ * Trailing simple moving average aligned to `points`. Entries before a full
+ * window is available are null (no partial averages).
+ */
+export function movingAverage(
+  points: FactoryPoint[],
+  window = FACTORY_MA_MONTHS,
+): Array<number | null> {
+  const out: Array<number | null> = [];
+  let sum = 0;
+  for (let i = 0; i < points.length; i++) {
+    sum += points[i]!.v;
+    if (i >= window) sum -= points[i - window]!.v;
+    out.push(i >= window - 1 ? sum / window : null);
+  }
+  return out;
+}
 
 const MONTHS = [
   "Jan",
