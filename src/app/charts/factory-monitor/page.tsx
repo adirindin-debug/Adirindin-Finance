@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ChartsBackLink } from "@/components/charts/ChartsBackLink";
 import { FactoryMonitorPanel } from "@/components/charts/FactoryMonitorPanel";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Philly Fed Manufacturing",
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
 export default function FactoryMonitorPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <ChartsBackLink category="Macro" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Philly Fed Manufacturing

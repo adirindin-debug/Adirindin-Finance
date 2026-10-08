@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ChartsHub } from "@/components/charts/ChartsHub";
+import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Charts",
@@ -21,6 +22,8 @@ export default function ChartsPage() {
         Tap a tile for the full interactive view. Educational content only —
         not financial advice (NFA).
       </p>
+
+      <MobileTilesCaption />
 
       <ChartsHub />
 

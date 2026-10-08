@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { WilshireM2Panel } from "@/components/charts/WilshireM2Panel";
 import { ChartsBackLink } from "@/components/charts/ChartsBackLink";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Wilshire 5000 / US M2",
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
 export default function WilshireM2ChartPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <ChartsBackLink category="Macro" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Wilshire 5000 / US M2

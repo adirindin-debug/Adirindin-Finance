@@ -9,6 +9,7 @@ import {
   GOLD_RANGE_YEARS,
   GOLD_TROUGH_OFFSET_YEARS,
 } from "@/lib/goldCommodityCycle";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 const DROP_Y = "4–" + GOLD_DECLINE_YEARS;
 const RANGE_Y = Math.round(GOLD_RANGE_YEARS);
@@ -55,6 +56,7 @@ export default function GoldCyclePage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <CyclesBackLink category="Gold" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         46-year gold-led commodity cycle sketch

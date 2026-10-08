@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CyclesHub } from "@/components/cycles/CyclesHub";
+import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Market cycles",
@@ -21,6 +22,8 @@ export default function CyclesPage() {
         loop. Tap a tile for the full desk. Educational content only — not
         financial advice (NFA).
       </p>
+
+      <MobileTilesCaption />
 
       <CyclesHub />
 

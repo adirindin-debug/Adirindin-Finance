@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Tools",
@@ -66,6 +67,7 @@ export default function ToolsHubPage() {
         . Educational framing only — not personal financial advice, not a recommendation, and not a
         promise of returns. Anthony / Adirindin (@Dirindin533).
       </p>
+      <MobileTilesCaption />
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {tools.map((t) => (

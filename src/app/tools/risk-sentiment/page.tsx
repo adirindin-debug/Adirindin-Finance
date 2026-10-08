@@ -11,6 +11,7 @@ import {
   ZONES,
   type ComponentMeta,
 } from "@/lib/riskSentiment";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Market risk & sentiment gauge",
@@ -77,6 +78,7 @@ const SKIPPED: { what: string; why: string }[] = [
 export default function RiskSentimentPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <ToolsBackLink category="Sentiment" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market risk &amp; sentiment gauge</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChartsBackLink } from "@/components/charts/ChartsBackLink";
 import { CommodityChartsPanel } from "@/components/charts/CommodityChartsPanel";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Commodity charts",
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export default function CommodityChartsPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <ChartsBackLink category="Macro" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">Commodity charts</h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">

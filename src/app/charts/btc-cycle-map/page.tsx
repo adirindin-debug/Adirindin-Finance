@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { BtcCycleFrame } from "@/components/BtcCycleFrame";
 import { ChartsBackLink } from "@/components/charts/ChartsBackLink";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "BTC cycle map",
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 export default function BtcCycleMapChartPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <ChartsBackLink category="Crypto markets" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         BTC cycle map

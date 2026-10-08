@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CyclesBackLink } from "@/components/cycles/CyclesBackLink";
 import BtcFourYearCycleChart from "@/components/BtcFourYearCycleChart";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "BTC 4 year cycle theory",
@@ -58,6 +59,7 @@ const SEGMENTS = PHASES.map(({ name, years, color, summary }) => ({
 export default function BtcCyclePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <CyclesBackLink category="Bitcoin" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         BTC 4 year cycle theory

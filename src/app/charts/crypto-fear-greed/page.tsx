@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { FearGreedPanel } from "@/components/charts/FearGreedPanel";
 import { ChartsBackLink } from "@/components/charts/ChartsBackLink";
+import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Crypto Fear & Greed Index",
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
 export default function CryptoFearGreedChartPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
+      <MobileViewHint />
       <ChartsBackLink category="Sentiment" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
         Crypto Fear &amp; Greed Index
