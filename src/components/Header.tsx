@@ -7,7 +7,6 @@ const nav = [
   { href: "/charts", label: "Charts" },
   { href: "/cycles", label: "Market cycles", shortLabel: "Cycles" },
   { href: "/tools", label: "Tools" },
-  { href: "/contact", label: "Contact" },
 ];
 
 /** Cycle desks that live under /tools/ but belong to Market cycles in the nav. */
