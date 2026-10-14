@@ -83,12 +83,14 @@ function CycleSilhouette({
   viewBox,
   color,
   marker,
+  markerScale = 1,
   className = "h-[180px] w-full overflow-visible sm:h-[220px] lg:h-[240px]",
 }: {
   path: string;
   viewBox: string;
   color: string;
   marker: { x: number; y: number } | null;
+  markerScale?: number;
   className?: string;
 }) {
   /* Soft fill under the theory curve — same visual language as Charts hub sparklines. */
@@ -113,7 +115,7 @@ function CycleSilhouette({
         vectorEffect="non-scaling-stroke"
       />
       {marker ? (
-        <g data-live-dot="" transform={`translate(${marker.x} ${marker.y})`}>
+        <g data-live-dot="" transform={`translate(${marker.x} ${marker.y}) scale(${markerScale})`}>
           {/*
             Live marker: cream fill + dark rim so it stays high-contrast on every
             tile stroke (RE green, BTC blue, Bond gold, Gold amber) — never match
@@ -274,6 +276,7 @@ function CycleStripCard({ tile, halvingAnchor }: { tile: CycleTile; halvingAncho
           viewBox={tile.viewBox}
           color={tile.color}
           marker={live?.pt ?? null}
+          markerScale={2.4}
           className="h-[72px] w-full overflow-visible"
         />
       </div>
