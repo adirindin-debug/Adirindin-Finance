@@ -89,10 +89,12 @@ const ALL_SERIES_IDS: SeriesId[] = [
 
 const DEFAULT_SELECTED: SeriesId[] = [...ALL_SERIES_IDS];
 
-const W = 920;
-const H = 420;
+type Dims = { W: number; H: number; PAD: { top: number; right: number; bottom: number; left: number }; gap: number };
 /* right pad leaves room for the current-value labels at the line ends */
-const PAD = { top: 40, right: 76, bottom: 36, left: 58 };
+const DESKTOP: Dims = { W: 920, H: 420, PAD: { top: 40, right: 76, bottom: 36, left: 58 }, gap: 28 };
+/* Phones (<640px): a near-square viewBox so the plot is ~340px tall at 390px
+   wide and text renders close to its nominal size (no heavy downscale). */
+const MOBILE: Dims = { W: 420, H: 440, PAD: { top: 36, right: 50, bottom: 30, left: 12 }, gap: 10 };
 
 function fmtPct(n: number, digits = 1) {
   const sign = n > 0 ? "+" : "";
@@ -258,7 +260,9 @@ function buildSharedAxis(
   series: SeriesPayload[],
   payload: ApiPayload,
   windowKey: WindowKey,
+  dims: Dims = DESKTOP,
 ) {
+  const { W, H, PAD } = dims;
   const domain = resolveXDomain(series, payload, windowKey);
   if (!domain) return null;
   const { minT, maxT } = domain;
@@ -339,7 +343,8 @@ function buildSharedAxis(
   };
 }
 
-function buildBarLayout(series: SeriesPayload[]) {
+function buildBarLayout(series: SeriesPayload[], dims: Dims = DESKTOP) {
+  const { W, H, PAD } = dims;
   const values = series
     .map((s) => ({
       id: s.id,
@@ -372,7 +377,7 @@ function buildBarLayout(series: SeriesPayload[]) {
     PAD.top +
     (1 - (pct - yRange.min) / (yRange.max - yRange.min || 1)) * ih;
 
-  const groupGap = 28;
+  const groupGap = dims.gap;
   const barW = Math.min(72, (iw - groupGap * (values.length - 1)) / values.length);
   const totalW = values.length * barW + (values.length - 1) * groupGap;
   const startX = PAD.left + (iw - totalW) / 2;
@@ -470,7 +475,9 @@ export function BtcFourYearChart() {
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
-  const axisFont = narrow ? 24 : 10;
+  const axisFont = narrow ? 11 : 10;
+  const dims = narrow ? MOBILE : DESKTOP;
+  const { W, H, PAD } = dims;
   const lineWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Read the homepage preference, preserving legacy shared-key choices.
@@ -548,16 +555,16 @@ export function BtcFourYearChart() {
   const chart = useMemo(() => {
     if (!selectedSeries.length || chartMode !== "line") return null;
     return selectedSeries.length
-      ? buildSharedAxis(selectedSeries, payload!, windowKey)
+      ? buildSharedAxis(selectedSeries, payload!, windowKey, dims)
       : null;
-  }, [selectedSeries, payload, chartMode, windowKey]);
+  }, [selectedSeries, payload, chartMode, windowKey, dims]);
 
   const barLayout = useMemo(
     () =>
       selectedSeries.length && chartMode === "bar"
-        ? buildBarLayout(selectedSeries)
+        ? buildBarLayout(selectedSeries, dims)
         : null,
-    [selectedSeries, chartMode],
+    [selectedSeries, chartMode, dims],
   );
 
   const activeYRange = chart?.yRange ?? barLayout?.yRange ?? null;
@@ -568,7 +575,7 @@ export function BtcFourYearChart() {
     if (chartMode === "line" && chart?.yTicks?.length) out = chart.yTicks;
     else if (activeYRange) out = ticks(activeYRange.min, activeYRange.max);
     // Narrow screens: keep every other tick (always keeping 0% when present).
-    if (narrow && out.length > 4) out = out.filter((v, i) => i % 2 === 0 || v === 0);
+    if (narrow && out.length > 6) out = out.filter((v, i) => i % 2 === 0 || v === 0);
     return out;
   }, [chart, chartMode, activeYRange, narrow]);
 
@@ -578,7 +585,7 @@ export function BtcFourYearChart() {
     const { minT, maxT } = chart;
     const mid1 = minT + (maxT - minT) / 3;
     const mid2 = minT + (2 * (maxT - minT)) / 3;
-    if (narrow) return [{ t: minT, pct: 0 }, { t: maxT, pct: 0 }];
+    if (narrow) return [{ t: minT, pct: 0 }, { t: (minT + maxT) / 2, pct: 0 }, { t: maxT, pct: 0 }];
     return [
       { t: minT, pct: 0 },
       { t: mid1, pct: 0 },
@@ -604,7 +611,7 @@ export function BtcFourYearChart() {
       .sort((a, b) => a.y - b.y);
     if (marks[0]) marks[0].lead = true;
     // De-overlap labels: keep a minimum vertical gap, then shift up if we ran past the bottom.
-    const gap = narrow ? 22 : 13;
+    const gap = narrow ? 14 : 13;
     let prev = -Infinity;
     for (const m of marks) {
       m.labelY = Math.max(m.y, prev + gap);
@@ -675,7 +682,7 @@ export function BtcFourYearChart() {
         values,
       });
     },
-    [chart],
+    [chart, W, PAD],
   );
 
   const onLineMouseLeave = useCallback(() => {
@@ -899,7 +906,7 @@ export function BtcFourYearChart() {
                   fill="#8b9bb4"
                   fontSize={axisFont}
                   fontFamily="system-ui, sans-serif"
-                  textAnchor={narrow ? (i === 0 ? "start" : "end") : "middle"}
+                  textAnchor={narrow ? (i === 0 ? "start" : i === xTicks.length - 1 ? "end" : "middle") : "middle"}
                 >
                   {fmtDate(p.t)}
                 </text>
@@ -940,15 +947,15 @@ export function BtcFourYearChart() {
             {endMarks.map((m) => (
               <g key={`end-${m.id}`} pointerEvents="none">
                 {m.id === "btc" || m.lead ? (
-                  <circle className="cycle-live-ring" cx={m.x} cy={m.y} r={narrow ? 7 : 5} fill="none" stroke={m.color} strokeWidth="1.5" />
+                  <circle className="cycle-live-ring" cx={m.x} cy={m.y} r={5} fill="none" stroke={m.color} strokeWidth="1.5" />
                 ) : null}
-                <circle cx={m.x} cy={m.y} r={narrow ? 6 : 4} fill={m.color} stroke="#000" strokeWidth="1.5" />
+                <circle cx={m.x} cy={m.y} r={4} fill={m.color} stroke="#000" strokeWidth="1.5" />
                 <text
                   x={W - PAD.right + 8}
                   y={m.labelY}
                   dominantBaseline="middle"
                   fill={m.color}
-                  fontSize={narrow ? 20 : 11}
+                  fontSize={narrow ? 12 : 11}
                   fontWeight="600"
                   fontFamily="system-ui, sans-serif"
                 >
@@ -1062,6 +1069,7 @@ export function BtcFourYearChart() {
                 : `${windowKey.toUpperCase()} %`}{" "}
               by asset
             </text>
+{!narrow && (
             <text
               x={W - PAD.right}
               y={16}
@@ -1072,8 +1080,9 @@ export function BtcFourYearChart() {
             >
               Grouped bars · current window only · shared % scale
             </text>
+            )}
 
-            <text
+            {!narrow && <text
               x={PAD.left}
               y={34}
               fill="#8b9bb4"
@@ -1082,7 +1091,7 @@ export function BtcFourYearChart() {
               fontWeight="600"
             >
               % gain (shared)
-            </text>
+            </text>}
 
             {yTicks.map((v) => {
               const y = activeYScale(v);
@@ -1096,7 +1105,7 @@ export function BtcFourYearChart() {
                     stroke="#1a1a1a"
                     strokeWidth="1"
                   />
-                  <text
+                  {!narrow && <text
                     x={narrow ? PAD.left + 4 : PAD.left - 8}
                     y={narrow ? y - 6 : y + 3}
                     fill="#9eb0c8"
@@ -1106,7 +1115,7 @@ export function BtcFourYearChart() {
                     opacity="0.9"
                   >
                     {fmtPct(v, 0)}
-                  </text>
+                  </text>}
                 </g>
               );
             })}
@@ -1147,7 +1156,7 @@ export function BtcFourYearChart() {
                 </text>
                 <text
                   x={b.x + b.barW / 2}
-                  y={H - 28}
+                  y={narrow ? H - 12 : H - 28}
                   fill="#c8d0dc"
                   fontSize="11"
                   fontFamily="system-ui, sans-serif"
@@ -1156,7 +1165,7 @@ export function BtcFourYearChart() {
                 >
                   {b.label}
                 </text>
-                <text
+                {!narrow && <text
                   x={b.x + b.barW / 2}
                   y={H - 14}
                   fill="#8b9bb4"
@@ -1165,7 +1174,7 @@ export function BtcFourYearChart() {
                   textAnchor="middle"
                 >
                   {b.ticker}
-                </text>
+                </text>}
               </g>
             ))}
           </svg>
