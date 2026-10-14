@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Research",
-  description: "Adirindin Finance markets research — cycle framing and process-over-noise notes.",
+  description: "Adirindin Finance markets research — cycle framing notes.",
 };
 
 export default function ResearchPage() {
@@ -13,7 +13,7 @@ export default function ResearchPage() {
       </p>
       <h1 className="mt-3 text-3xl font-semibold text-foreground">Research</h1>
       <p className="mt-4 text-muted">
-        Markets research with a cycle-framing lens — process over noise. Notes land here when
+        Markets research with a cycle-framing lens. Notes land here when
         they are ready; the library is still light, and nothing here invents track records or
         fabricated posts.
       </p>
