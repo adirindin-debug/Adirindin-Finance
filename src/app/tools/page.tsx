@@ -61,7 +61,7 @@ export default function ToolsHubPage() {
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Research tools</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
         Desk for trackers, Australian property tools, a market risk &amp; sentiment gauge, a compound interest calculator and a just-for-fun Power Level scouter. Cycle theories live under{" "}
-        <Link href="/cycles" className="text-accent hover:underline">
+        <Link href="/#cycles" className="text-accent hover:underline">
           Market cycles
         </Link>
         . Educational framing only — not personal financial advice, not a recommendation, and not a
