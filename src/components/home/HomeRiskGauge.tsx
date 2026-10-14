@@ -31,9 +31,8 @@ export function HomeRiskGauge() {
   const score = data?.score ?? null;
 
   return (
-    <Link
-      href="/tools/risk-sentiment"
-      className="group mt-8 flex flex-col items-center gap-6 rounded-xl border border-border bg-card p-6 transition hover:border-accent hover:bg-accent/5 sm:flex-row sm:gap-10 sm:p-8"
+    <div
+      className="group relative mt-8 flex flex-col items-center gap-6 rounded-xl border border-border bg-card p-6 transition hover:border-accent hover:bg-accent/5 sm:flex-row sm:gap-10 sm:p-8"
     >
       <SentimentDial score={score} />
       <div className="min-w-0 text-center sm:text-left">
@@ -60,15 +59,27 @@ export function HomeRiskGauge() {
             <p className="mt-2 text-xs text-muted/80">
               <span className="font-medium text-foreground/80">How it’s drawn:</span> 0–100 blend of public
               stress and conditions data — OFR Financial Stress Index (overall, volatility, equity valuation, credit),
-              Chicago Fed NFCI, St. Louis Fed stress index (via FRED), Crypto Fear &amp; Greed (Alternative.me) and
+              Chicago Fed NFCI, St. Louis Fed stress index (via FRED), Crypto Fear &amp; Greed (Alternative.me) and S&amp;P 500 monthly
               seasonality · ~2-month average · as of {fmtAsOf(data.asOf!)}
             </p>
           </>
         ) : (
           <p className="mt-2 text-sm text-muted">{failed ? "Live reading unavailable right now." : "Loading the latest reading…"}</p>
         )}
-        <span className="mt-3 inline-flex text-sm font-medium text-accent group-hover:underline">See the full gauge →</span>
+        <p className="relative z-10 mt-2 text-xs text-muted/80">
+          <span className="font-medium text-foreground/80">Sources:</span> OFR · Chicago Fed · St. Louis Fed (FRED) ·
+          Alternative.me · Yahoo Finance (S&amp;P 500 monthly, seasonality) ·{" "}
+          <Link href="/tools/risk-sentiment#sources" className="text-accent hover:underline">
+            full citations
+          </Link>
+        </p>
+        <Link
+          href="/tools/risk-sentiment"
+          className="mt-3 inline-flex text-sm font-medium text-accent after:absolute after:inset-0 after:rounded-xl after:content-[''] group-hover:underline"
+        >
+          See the full gauge →
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }
