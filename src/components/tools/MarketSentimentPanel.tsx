@@ -75,7 +75,7 @@ export function MarketSentimentPanel() {
   const [failed, setFailed] = useState<string | null>(null);
   const [smooth, setSmooth] = useState<SmoothKey>(DEFAULT_SMOOTH);
   const [tf, setTf] = useState<TfKey>("3y");
-  const [base, setBase] = useState<BaseKey>("spx");
+  const [base, setBase] = useState<BaseKey>("off");
   const [hover, setHover] = useState<number | null>(null);
   const [narrow, setNarrow] = useState(false);
   const svgRef = useRef<SVGSVGElement | null>(null);

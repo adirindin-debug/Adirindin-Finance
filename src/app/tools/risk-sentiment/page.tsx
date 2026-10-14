@@ -131,7 +131,7 @@ export default function RiskSentimentPage() {
         <p className="mt-3 text-xs leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Base chart (context only).</strong> The faint S&amp;P 500,
           Nasdaq Composite or URTH line under the score is delayed third-party daily price data from Yahoo Finance’s chart
-          feed. It is not part of the score and can be switched off.
+          feed. It is not part of the score and is off by default; turn it on with the base-chart toggle.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-muted">
           FRED® series are retrieved from FRED, Federal Reserve Bank of St. Louis. This site is not endorsed by the Federal
