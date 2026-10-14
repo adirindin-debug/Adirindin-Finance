@@ -7,22 +7,23 @@
  *  - Chicago Fed NFCI and St. Louis Fed STLFSI4 — weekly, FRED CSV (API if FRED_API_KEY)
  *  - Crypto Fear & Greed — Alternative.me public API (attribution beside the data)
  *  - Seasonality — derived from the stored S&P 500 month-end dataset
+ *  - Global breadth — 17 OECD country share-price indices via FRED (monthly),
+ *    with a bundled stored copy if fewer than 10 countries load
  * Base chart overlay only (never feeds the score): S&P 500 / Nasdaq / URTH daily
  * closes from Yahoo Finance's chart API — see the page note on display terms.
- * A failed source is reported and dropped, never invented. Educational only · NFA.
+ * A failed source is reported and dropped, never invented. Educational only.
  */
 
 import seasonSnapshot from "@/data/seasonality-snapshot.json";
 import type { MonthClose } from "@/lib/seasonality";
-import { baseMonthlyReturns, buildSeasonality } from "@/lib/riskSentiment";
+import breadthSnapshot from "@/data/breadth-oecd-snapshot.json";
+import { computeMs, type OfrCols } from "@/lib/marketSentimentCompute";
 import {
+  BREADTH_COUNTRIES,
+  BREADTH_MIN_COUNTRIES,
   INPUTS,
-  SMOOTH,
   alignStep,
-  blendRow,
-  ema,
-  rollingPercentile,
-  shiftDays,
+  breadthMonths,
   summarize,
   type MsPayload,
   type MsRow,
@@ -46,8 +47,6 @@ const URTH_FROM = 1325376000;
 const DISPLAY_FROM = "2005-01-03";
 /** Daily rows for the last ~10 years; weekly (Fridays) before that to keep the payload small. */
 const DAILY_YEARS = 10;
-/** Weekly Fed indices are dated Friday and published the following Wednesday/Thursday. */
-const WEEKLY_LAG_DAYS = 6;
 
 const SPX_MONTHS = ((seasonSnapshot as unknown as { spx?: { months?: MonthClose[] } }).spx?.months ?? null) as
   | MonthClose[]
@@ -142,7 +141,6 @@ async function fetchUrth(): Promise<Series> {
 const fetchSpx = () => fetchYahooDaily("^GSPC");
 /** Nasdaq Composite — base chart overlay only (never feeds the score). */
 const fetchIxic = () => fetchYahooDaily("^IXIC");
-type OfrCols = { ofr: Series; ofrVol: Series; ofrEq: Series; ofrCredit: Series };
 
 /** OFR FSI daily CSV: Date, OFR FSI, Credit, Equity valuation, Safe assets, Funding, Volatility, … */
 async function fetchOfr(): Promise<OfrCols> {
@@ -232,6 +230,21 @@ async function fetchCryptoFng(): Promise<Series> {
   return out;
 }
 
+type BreadthResult = { months: Array<[string, number, number]>; stored: boolean; countries: number };
+const BREADTH_SNAP = breadthSnapshot as unknown as { asOf: string; months: Array<[string, number, number]> };
+
+/** Breadth from the 17 OECD country indices on FRED; the stored copy if too few load. */
+async function fetchBreadth(): Promise<BreadthResult> {
+  const got = await Promise.all(
+    BREADTH_COUNTRIES.map((c) => fetchFred(`SPASTT01${c.code}M661N`, 300).then((s) => [c.code, s] as const).catch(() => null)),
+  );
+  const ok = got.filter((g): g is readonly [string, Series] => g != null);
+  if (ok.length >= BREADTH_MIN_COUNTRIES) {
+    const months = breadthMonths(Object.fromEntries(ok));
+    if (months.length > 100) return { months, stored: false, countries: ok.length };
+  }
+  return { months: BREADTH_SNAP.months, stored: true, countries: 0 };
+}
 
 async function attempt<T>(label: string, key: string, fn: () => Promise<T>, warnings: string[]) {
   try {
@@ -256,39 +269,27 @@ export async function GET(req: Request) {
   if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800, summary);
 
   const warnings: string[] = [];
-  const [ofr, nfci, stl, cfg, spx, ixic, urth] = await Promise.all([
+  const [ofr, nfci, stl, cfg, br, spx, ixic, urth] = await Promise.all([
     attempt("OFR Financial Stress Index", "ofr", fetchOfr, warnings),
     attempt("Chicago Fed NFCI (FRED)", "nfci", () => fetchFred("NFCI", 1500), warnings),
     attempt("St. Louis Fed STLFSI4 (FRED)", "stlfsi", () => fetchFred("STLFSI4", 1000), warnings),
     attempt("Crypto Fear & Greed (Alternative.me)", "cryptoFng", fetchCryptoFng, warnings),
+    attempt("Global breadth (OECD via FRED)", "breadth", fetchBreadth, warnings),
     // Base chart only — not part of the score.
     summary ? Promise.resolve({ value: null, ok: false as const, key: "spx", label: "S&P 500" }) : attempt("S&P 500 base chart (Yahoo Finance)", "spx", fetchSpx, warnings),
     summary ? Promise.resolve({ value: null, ok: false as const, key: "ixic", label: "Nasdaq" }) : attempt("Nasdaq Composite base chart (Yahoo Finance)", "ixic", fetchIxic, warnings),
     summary ? Promise.resolve({ value: null, ok: false as const, key: "urth", label: "URTH" }) : attempt("URTH base chart (Yahoo Finance)", "urth", fetchUrth, warnings),
   ]);
 
-  // Row dates: OFR trading days (fall back to weekdays if OFR is unavailable).
-  let dates: string[] = ofr.value ? ofr.value.ofr.map(([d]) => d).filter((d) => d >= "2000-01-01") : [];
-  if (!dates.length) {
-    for (let t = Date.parse("2005-01-03"); t <= Date.now(); t += 86_400_000) {
-      const d = new Date(t);
-      if (d.getUTCDay() % 6 !== 0) dates.push(d.toISOString().slice(0, 10));
-    }
-  }
-  const subs: Array<Array<number | null>> = [];
-  const ofrSub = (s?: Series) => (s ? alignStep(dates, flip(rollingPercentile(s, 5, 250)), 7) : dates.map(() => null));
-  subs.push(ofrSub(ofr.value?.ofr), ofrSub(ofr.value?.ofrVol), ofrSub(ofr.value?.ofrEq), ofrSub(ofr.value?.ofrCredit));
-  const weekly = (s: Series | null) =>
-    s ? alignStep(dates, shiftDays(flip(rollingPercentile(s, 10, 260)), WEEKLY_LAG_DAYS), 21) : dates.map(() => null);
-  subs.push(weekly(nfci.value), weekly(stl.value));
-  subs.push(alignStep(dates, cfg.value, 4));
-  const monthKeys = [...new Set(dates.map((d) => d.slice(0, 7)))];
-  const season = buildSeasonality(baseMonthlyReturns({ spx: null, world: null, spxMonths: SPX_MONTHS }), monthKeys);
-  subs.push(dates.map((d) => season.get(d.slice(0, 7))?.score ?? null));
-
-  const raw = dates.map((_, i) => blendRow(INPUTS.map((_, k) => subs[k]![i]!)));
-  const e10 = ema(raw, SMOOTH.ema10);
-  const e42 = ema(raw, SMOOTH.ema42);
+  const c = computeMs({
+    ofr: ofr.value,
+    nfci: nfci.value,
+    stlfsi: stl.value,
+    cryptoFng: cfg.value,
+    breadth: br.value?.months ?? null,
+    spxMonths: SPX_MONTHS,
+  });
+  const { dates, subs, raw, e10, e42, flags, watch, season } = c;
 
   if (!raw.some((v) => v != null)) {
     return respond(
@@ -308,7 +309,7 @@ export async function GET(req: Request) {
   const rows: MsRow[] = keep.map((i) => [dates[i]!, raw[i]!, e10[i]!, e42[i]!, ...INPUTS.map((_, k) => {
     const v = subs[k]![i];
     return v == null ? null : Math.round(v * 10) / 10;
-  })]);
+  }), flags[i]!, watch[i]!]);
   const keptDates = keep.map((i) => dates[i]!);
   const overlay = summary
     ? undefined
@@ -325,6 +326,13 @@ export async function GET(req: Request) {
     { key: "nfci", label: nfci.label, ok: nfci.ok, asOf: lastDate(nfci.value) },
     { key: "stlfsi", label: stl.label, ok: stl.ok, asOf: lastDate(stl.value) },
     { key: "cryptoFng", label: cfg.label, ok: cfg.ok, asOf: lastDate(cfg.value) },
+    {
+      key: "breadth",
+      label: br.value?.stored ? "Global breadth (OECD via FRED) · stored copy" : "Global breadth (OECD via FRED)",
+      ok: !!br.value && !br.value.stored,
+      asOf: br.value?.months.length ? br.value.months[br.value.months.length - 1]![0] : null,
+      note: br.value?.stored ? `Stored copy to ${BREADTH_SNAP.asOf}` : br.value ? `${br.value.countries} countries` : undefined,
+    },
     { key: "season", label: "Seasonality (stored S&P 500 month-ends)", ok: !!SPX_MONTHS?.length, asOf: SPX_MONTHS?.[SPX_MONTHS.length - 1]?.[0] ?? null },
   ];
   const body: MsPayload = {

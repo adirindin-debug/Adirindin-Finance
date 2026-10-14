@@ -55,11 +55,16 @@ export function HomeRiskGauge() {
                   {data.season.label}
                 </span>
               ) : null}
+              {data.watch ? (
+                <span className="ml-2 inline-block rounded-full border border-[#3a4558] bg-[#141b24] px-2 py-0.5 text-[11px] font-medium text-[#c8d0dc]">
+                  Complacency watch
+                </span>
+              ) : null}
             </p>
             <p className="mt-2 text-xs text-muted/80">
               <span className="font-medium text-foreground/80">How it’s drawn:</span> 0–100 blend of public
               stress and conditions data — OFR Financial Stress Index (overall, volatility, equity valuation, credit),
-              Chicago Fed NFCI, St. Louis Fed stress index (via FRED), Crypto Fear &amp; Greed (Alternative.me) and S&amp;P 500 monthly
+              Chicago Fed NFCI, St. Louis Fed stress index (via FRED), Crypto Fear &amp; Greed (Alternative.me), OECD global breadth and S&amp;P 500 monthly
               seasonality · ~2-month average · as of {fmtAsOf(data.asOf!)}
             </p>
           </>
@@ -67,7 +72,7 @@ export function HomeRiskGauge() {
           <p className="mt-2 text-sm text-muted">{failed ? "Live reading unavailable right now." : "Loading the latest reading…"}</p>
         )}
         <p className="relative z-10 mt-2 text-xs text-muted/80">
-          <span className="font-medium text-foreground/80">Sources:</span> OFR · Chicago Fed · St. Louis Fed (FRED) ·
+          <span className="font-medium text-foreground/80">Sources:</span> OFR · Chicago Fed · St. Louis Fed (FRED) · OECD ·
           Alternative.me · Yahoo Finance (S&amp;P 500 monthly, seasonality) ·{" "}
           <Link href="/tools/market-sentiment#sources" className="text-accent hover:underline">
             full citations

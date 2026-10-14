@@ -1,14 +1,14 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { MarketSentimentPanel } from "@/components/tools/MarketSentimentPanel";
-import { HYSTERESIS_PTS, INPUTS, MIN_WEIGHT, ZONES, zoneLine } from "@/lib/marketSentiment";
+import { HYSTERESIS_PTS, INPUTS, MIN_WEIGHT, STRETCH_AT, STRETCH_NEEDED, VALUATION_CAP, WATCH_CONDITIONS, WATCH_NEEDED, WATCH_SCORE, ZONES, zoneLine } from "@/lib/marketSentiment";
 import { SEASON_HEADWIND_AT, SEASON_TAILWIND_AT } from "@/lib/riskSentiment";
 import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
   title: "Market sentiment gauge",
   description:
-    "A calm 0–100 overview of market sentiment built only from public sources — OFR Financial Stress Index, Chicago Fed NFCI, St. Louis Fed financial stress, Alternative.me Crypto Fear & Greed and seasonality. Rough backdrop reading, not a signal. ",
+    "A calm 0–100 overview of market sentiment built only from public sources — OFR Financial Stress Index, Chicago Fed NFCI, St. Louis Fed financial stress, Alternative.me Crypto Fear & Greed, OECD global breadth and seasonality. Rough backdrop reading, not a signal. ",
 };
 
 export default function RiskSentimentPage() {
@@ -58,6 +58,16 @@ export default function RiskSentimentPage() {
           return and green-month odds versus an average month, in standard errors, using only months completed before the
           date. The tag reads Seasonal tailwind at {SEASON_TAILWIND_AT}+ and Seasonal headwind at {SEASON_HEADWIND_AT} or
           below.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          <strong className="font-medium text-foreground">Valuation cap.</strong> Rich equity valuations on their own
+          should not push the score toward Euphoria-leaning. The equity-valuation sub-score is capped at {VALUATION_CAP} unless
+          at least {STRETCH_NEEDED} of volatility, credit, NFCI and breadth also read {STRETCH_AT} or more.
+        </p>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          <strong className="font-medium text-foreground">Complacency watch.</strong> A small grey note shown when the
+          score is {WATCH_SCORE} or more and at least {WATCH_NEEDED} of these hold: {WATCH_CONDITIONS.map((c) => c.label.charAt(0).toLowerCase() + c.label.slice(1)).join("; ")}.
+          It describes a calm, stretched backdrop — in testing it was not a reliable warning of falls.
         </p>
         <p className="mt-2 font-mono text-xs text-[#c8d0dc]">score = Σ (weightᵢ × subᵢ) ÷ Σ weightᵢ &nbsp;(over inputs with data)</p>
         <div className="mt-4 overflow-x-auto rounded-lg border border-[#1d2633]">
@@ -138,7 +148,7 @@ export default function RiskSentimentPage() {
         </p>
         <p className="mt-2 text-xs leading-relaxed text-muted">
           FRED® series are retrieved from FRED, Federal Reserve Bank of St. Louis. This site is not endorsed by the Federal
-          Reserve Bank of St. Louis, the Federal Reserve Bank of Chicago, the Office of Financial Research or Alternative.me.
+          Reserve Bank of St. Louis, the Federal Reserve Bank of Chicago, the Office of Financial Research, the OECD or Alternative.me.
           Not used any more: VIX (Cboe licence), Moody’s BAA spreads (Moody’s licence), US stocks Fear &amp; Greed, Google
           Trends and the cycle-calendar inputs (theory, kept on the cycle pages).
         </p>

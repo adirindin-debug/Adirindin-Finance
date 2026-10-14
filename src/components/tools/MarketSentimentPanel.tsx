@@ -3,8 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
   DEFAULT_SMOOTH,
+  CAP_BIT,
+  FLAGS_COL,
   INPUTS,
   SMOOTH_OPTIONS,
+  VALUATION_CAP,
+  WATCH_COL,
+  WATCH_CONDITIONS,
   SUB_OFFSET,
   ZONES,
   cell,
@@ -218,6 +223,9 @@ export function MarketSentimentPanel() {
   const prev = j >= 0 ? scores[j] : null;
   const seasonSub = cell(row, SUB_OFFSET + 7);
   const tag = seasonSub != null ? seasonTag(seasonSub) : null;
+  const flags = cell(row, FLAGS_COL) ?? 0;
+  const watchOn = cell(row, WATCH_COL) === 1;
+  const watchWhy = WATCH_CONDITIONS.filter((c) => flags & c.bit).map((c) => c.label);
   const smoothName = SMOOTH_OPTIONS.find((o) => o.key === smooth)!.name;
 
   const seg = "min-h-9 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors";
@@ -253,6 +261,14 @@ export function MarketSentimentPanel() {
             {tag ? (
               <span className="rounded-full border px-2 py-0.5 font-medium" style={{ borderColor: `${tag.color}55`, background: `${tag.color}14`, color: tag.color }}>
                 {tag.label}
+              </span>
+            ) : null}
+            {watchOn ? (
+              <span
+                className="rounded-full border border-[#3a4558] bg-[#141b24] px-2 py-0.5 font-medium text-[#c8d0dc]"
+                title={`Complacency watch: ${watchWhy.join("; ")}`}
+              >
+                Complacency watch
               </span>
             ) : null}
             {smooth !== "raw" && row[1] != null ? <span>· raw day {cell(row, 1)!.toFixed(1)}</span> : null}
@@ -424,6 +440,7 @@ export function MarketSentimentPanel() {
                         {v != null ? <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${v}%`, background: zoneFor(v).color }} /> : null}
                       </span>
                       <span className="font-mono" style={{ color: v == null ? "#6b7a8f" : zoneFor(v).color }}>{v == null ? "no data" : v.toFixed(0)}</span>
+                      {m.key === "ofrEq" && v != null && flags & CAP_BIT ? <span className="text-[10px] text-muted">counted as {VALUATION_CAP} (cap)</span> : null}
                     </span>
                   </td>
                   <td className="px-3 py-2 text-muted">
@@ -437,6 +454,9 @@ export function MarketSentimentPanel() {
           </tbody>
         </table>
       </div>
+      {watchOn ? (
+        <p className="mt-2 text-[11px] text-muted">Complacency watch: {watchWhy.join("; ")}.</p>
+      ) : null}
       <div className="mt-3 flex flex-wrap gap-1.5">
         {data.sources.map((s) => (
           <span
@@ -448,6 +468,7 @@ export function MarketSentimentPanel() {
             <span className={`h-1.5 w-1.5 rounded-full ${s.ok ? "bg-[#3dcc9a]" : "bg-[#3a4558]"}`} aria-hidden />
             {s.label}
             {s.asOf ? ` · to ${s.asOf}` : s.ok ? "" : " · unavailable"}
+            {s.note ? ` · ${s.note}` : ""}
           </span>
         ))}
       </div>

@@ -7,15 +7,17 @@
  *  - St. Louis Fed Financial Stress Index (STLFSI4), weekly
  *  - Alternative.me Crypto Fear & Greed (attribution shown beside it)
  *  - Seasonality of the calendar month (derived monthly statistic)
+ *  - Global breadth: share of 17 country share-price indices (OECD, via FRED)
+ *    above their 10-month average (v3)
  * Stress readings are ranked against their own prior history (no look-ahead) and
  * flipped so that low stress = hotter. Missing inputs drop out and the rest
- * re-scale; nothing is filled in. Educational only
+ * re-scale; nothing is filled in. Educational only.
  */
 import { ZONES, zoneFor, seasonTag, type Zone } from "@/lib/riskSentiment";
 
 export { ZONES, zoneFor, seasonTag };
 
-export type InputKey = "ofr" | "ofrVol" | "ofrEq" | "ofrCredit" | "nfci" | "stlfsi" | "cryptoFng" | "season";
+export type InputKey = "ofr" | "ofrVol" | "ofrEq" | "ofrCredit" | "nfci" | "stlfsi" | "cryptoFng" | "season" | "breadth";
 
 export type InputMeta = {
   key: InputKey;
@@ -35,7 +37,7 @@ export const INPUTS: InputMeta[] = [
     key: "ofr",
     label: "Financial stress (OFR FSI, overall)",
     short: "OFR stress",
-    weight: 22,
+    weight: 19.8,
     color: "#4ade80",
     how: "Daily OFR Financial Stress Index, ranked against the prior 5 years. Score = 100 − percentile, so low stress reads hotter.",
     source: "Office of Financial Research (US Treasury) — OFR Financial Stress Index (overall)",
@@ -47,7 +49,7 @@ export const INPUTS: InputMeta[] = [
     key: "ofrVol",
     label: "Market volatility (OFR FSI volatility category)",
     short: "Volatility",
-    weight: 14,
+    weight: 12.6,
     color: "#a78bfa",
     how: "The volatility category of the OFR index (implied and realised volatility across markets), ranked against the prior 5 years and flipped.",
     source: "Office of Financial Research — OFR Financial Stress Index, volatility category",
@@ -59,7 +61,7 @@ export const INPUTS: InputMeta[] = [
     key: "ofrEq",
     label: "Equity valuation (OFR FSI equity category)",
     short: "Equity valuation",
-    weight: 14,
+    weight: 12.6,
     color: "#38bdf8",
     how: "The equity-valuation category of the OFR index (stock valuations across regions), ranked against the prior 5 years and flipped — rich valuations read hotter.",
     source: "Office of Financial Research — OFR Financial Stress Index, equity valuation category",
@@ -71,7 +73,7 @@ export const INPUTS: InputMeta[] = [
     key: "ofrCredit",
     label: "Credit conditions (OFR FSI credit category)",
     short: "Credit",
-    weight: 10,
+    weight: 9,
     color: "#fb923c",
     how: "The credit category of the OFR index (corporate bond spreads), ranked against the prior 5 years and flipped — tight spreads read hotter.",
     source: "Office of Financial Research — OFR Financial Stress Index, credit category",
@@ -83,7 +85,7 @@ export const INPUTS: InputMeta[] = [
     key: "nfci",
     label: "US financial conditions (Chicago Fed NFCI)",
     short: "Chicago Fed NFCI",
-    weight: 12,
+    weight: 10.8,
     color: "#2dd4bf",
     how: "Weekly NFCI, ranked against the prior 10 years and flipped — looser conditions read hotter. Each week is used from about 6 days after its date (when it is published).",
     source: "Federal Reserve Bank of Chicago — National Financial Conditions Index, via FRED",
@@ -95,7 +97,7 @@ export const INPUTS: InputMeta[] = [
     key: "stlfsi",
     label: "Financial stress (St. Louis Fed STLFSI4)",
     short: "St. Louis Fed stress",
-    weight: 8,
+    weight: 7.2,
     color: "#94a3b8",
     how: "Weekly St. Louis Fed Financial Stress Index, ranked against the prior 10 years and flipped. Used from about 6 days after its date.",
     source: "Federal Reserve Bank of St. Louis — STLFSI4, via FRED",
@@ -107,7 +109,7 @@ export const INPUTS: InputMeta[] = [
     key: "cryptoFng",
     label: "Crypto Fear & Greed (Alternative.me)",
     short: "Crypto F&G",
-    weight: 12,
+    weight: 10.8,
     color: "#f7931a",
     how: "Alternative.me daily Crypto Fear & Greed score, used as-is (0–100).",
     source: "Alternative.me — Crypto Fear & Greed Index API",
@@ -119,7 +121,7 @@ export const INPUTS: InputMeta[] = [
     key: "season",
     label: "Seasonality (calendar month)",
     short: "Seasonality",
-    weight: 8,
+    weight: 7.2,
     color: "#e879f9",
     how: "This calendar month's average S&P 500 return and green-month odds vs an average month (in standard errors), using only months completed before the date. 50 = an average month.",
     source: "Adirindin calculation from monthly S&P 500 index returns (month-end closes originally sourced from Yahoo Finance)",
@@ -127,7 +129,100 @@ export const INPUTS: InputMeta[] = [
     licence: "Derived monthly statistic only — no prices are shown.",
     credit: "Seasonality: Adirindin calculation from monthly S&P 500 returns; underlying price data: Yahoo Finance.",
   },
+  {
+    key: "breadth",
+    label: "Global breadth (share of 17 country markets above their 10-month average)",
+    short: "Global breadth",
+    weight: 10,
+    color: "#fde047",
+    how: "Share of 17 country share-price indices (OECD Main Economic Indicators) whose monthly level is above its own 10-month average — the monthly stand-in for a 200-day average. Used as-is (0–100). Each month is used from about 6 weeks after it ends, when it is published, so this input runs behind daily markets.",
+    source: "OECD Main Economic Indicators — share prices (SPASTT01…M661N), via FRED",
+    sourceUrl: "https://fred.stlouisfed.org/series/SPASTT01USM661N",
+    licence: "OECD data, CC BY 4.0; retrieved via FRED.",
+    credit: "Source: OECD, Main Economic Indicators — share prices (17 countries), retrieved from FRED; breadth is an Adirindin calculation.",
+  },
 ];
+
+/** v2 weights (before breadth) — kept for comparison and the backtest. */
+export const V2_WEIGHTS: Record<InputKey, number> = {
+  ofr: 22, ofrVol: 14, ofrEq: 14, ofrCredit: 10, nfci: 12, stlfsi: 8, cryptoFng: 12, season: 8, breadth: 0,
+};
+
+/** Countries in the breadth input (FRED SPASTT01{code}M661N). BR and MX start later — high-inflation years make a nominal index sit above any average. */
+export const BREADTH_COUNTRIES: Array<{ code: string; name: string; from?: string }> = [
+  { code: "US", name: "United States" }, { code: "GB", name: "United Kingdom" }, { code: "DE", name: "Germany" },
+  { code: "JP", name: "Japan" }, { code: "FR", name: "France" }, { code: "CA", name: "Canada" },
+  { code: "AU", name: "Australia" }, { code: "KR", name: "Korea" }, { code: "IT", name: "Italy" },
+  { code: "ES", name: "Spain" }, { code: "NL", name: "Netherlands" }, { code: "CH", name: "Switzerland" },
+  { code: "SE", name: "Sweden" }, { code: "IN", name: "India" }, { code: "BR", name: "Brazil", from: "1995-01" },
+  { code: "MX", name: "Mexico", from: "1990-01" }, { code: "ZA", name: "South Africa" },
+];
+export const BREADTH_MA_MONTHS = 10;
+export const BREADTH_MIN_COUNTRIES = 10;
+
+/** Monthly breadth [YYYY-MM, share %, countries] from monthly country index series (YYYY-MM-DD dated). */
+export function breadthMonths(byCountry: Record<string, Series>): Array<[string, number, number]> {
+  const above = new Map<string, { up: number; n: number }>();
+  for (const c of BREADTH_COUNTRIES) {
+    const s = (byCountry[c.code] ?? []).filter(([d, v]) => v > 0 && (!c.from || d.slice(0, 7) >= c.from));
+    for (let i = BREADTH_MA_MONTHS - 1; i < s.length; i++) {
+      let sum = 0;
+      for (let k = i - BREADTH_MA_MONTHS + 1; k <= i; k++) sum += s[k]![1];
+      const m = s[i]![0].slice(0, 7);
+      const a = above.get(m) ?? { up: 0, n: 0 };
+      a.n++;
+      if (s[i]![1] > sum / BREADTH_MA_MONTHS) a.up++;
+      above.set(m, a);
+    }
+  }
+  return [...above.entries()]
+    .filter(([, a]) => a.n >= BREADTH_MIN_COUNTRIES)
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([m, a]) => [m, Math.round((1000 * a.up) / a.n) / 10, a.n]);
+}
+
+/** Date a month's OECD value is treated as public: the 15th of the second month after it (~6 weeks after month end). */
+export function breadthAvailable(month: string): string {
+  let y = Number(month.slice(0, 4));
+  let m = Number(month.slice(5, 7)) + 2;
+  if (m > 12) {
+    m -= 12;
+    y++;
+  }
+  return `${y}-${String(m).padStart(2, "0")}-15`;
+}
+
+/* ---- Valuation cap (v3) ---- */
+/** The equity-valuation sub-score is capped here unless other inputs are stretched too. */
+export const VALUATION_CAP = 65;
+/** A "stretched" reading for the cap check. */
+export const STRETCH_AT = 70;
+/** How many of volatility, credit, NFCI and breadth must also be stretched to lift the cap. */
+export const STRETCH_NEEDED = 2;
+
+/** Index of each input in the row's sub-score block. */
+export const IDX = Object.fromEntries(INPUTS.map((m, i) => [m.key, i])) as Record<InputKey, number>;
+
+/** True when the valuation cap applies to these sub-scores. */
+export function capApplies(subs: Array<number | null>): boolean {
+  const eq = subs[IDX.ofrEq];
+  if (eq == null || eq <= VALUATION_CAP) return false;
+  const others = [subs[IDX.ofrVol], subs[IDX.ofrCredit], subs[IDX.nfci], subs[IDX.breadth]];
+  return others.filter((v) => v != null && v >= STRETCH_AT).length < STRETCH_NEEDED;
+}
+
+/* ---- Complacency watch (v3) ---- */
+export const WATCH_SCORE = 65;
+export const WATCH_NEEDED = 2;
+export const WATCH_CONDITIONS = [
+  { bit: 1, label: "Volatility in the bottom 10% of its 5-year range (OFR volatility category)" },
+  { bit: 2, label: "Credit stress up on three months ago while valuation stress is low (OFR credit and equity categories)" },
+  { bit: 4, label: "Breadth down 15+ points on three months ago while valuations are rich (OECD breadth, OFR equity category)" },
+  { bit: 8, label: "Chicago Fed NFCI rising from below −0.4 (conditions tightening from very loose)" },
+] as const;
+/** Flag bit set when the valuation cap was applied that day. */
+export const CAP_BIT = 16;
+export const bitCount = (f: number) => [1, 2, 4, 8].filter((b) => f & b).length;
 
 export const INPUT_KEYS = INPUTS.map((i) => i.key);
 export const MIN_WEIGHT = 40;
@@ -146,13 +241,16 @@ export const HYSTERESIS_PTS = 5;
 export type Series = Array<[string, number]>;
 
 /**
- * Row: [date, raw, ema10, ema42, ofr, ofrVol, ofrEq, ofrCredit, nfci, stlfsi, cryptoFng, season]
+ * Row: [date, raw, ema10, ema42, ofr, ofrVol, ofrEq, ofrCredit, nfci, stlfsi, cryptoFng, season, breadth, flags, watch]
  * Sub-scores are 0–100 (higher = hotter); null when that input has no data.
+ * flags = bitmask of complacency conditions (1,2,4,8) plus CAP_BIT; watch = 1 when the badge is on.
  */
 export type MsRow = [string, ...Array<number | null>];
 /** Numeric cell of a row (index ≥ 1). */
 export const cell = (r: MsRow, k: number) => r[k] as number | null;
 export const SUB_OFFSET = 4;
+export const FLAGS_COL = SUB_OFFSET + 9;
+export const WATCH_COL = SUB_OFFSET + 10;
 
 export type SourceStatus = { key: string; label: string; ok: boolean; asOf: string | null; note?: string };
 
@@ -224,14 +322,26 @@ export function ema(values: Array<number | null>, span: number): Array<number | 
   });
 }
 
-export function blendRow(subs: Array<number | null>): number | null {
+/**
+ * Weighted blend over inputs with data (weights re-scale). v3 applies the
+ * valuation cap; pass `weights` = V2_WEIGHTS and cap=false to reproduce v2.
+ */
+export function blendRow(
+  subs: Array<number | null>,
+  weights: Record<InputKey, number> | null = null,
+  cap = true,
+): number | null {
   let w = 0;
   let acc = 0;
+  const capped = cap && capApplies(subs);
   INPUTS.forEach((m, i) => {
-    const v = subs[i];
+    let v = subs[i];
     if (v == null || !Number.isFinite(v)) return;
-    w += m.weight;
-    acc += m.weight * v;
+    const wt = weights ? weights[m.key] : m.weight;
+    if (!wt) return;
+    if (capped && m.key === "ofrEq") v = Math.min(v, VALUATION_CAP);
+    w += wt;
+    acc += wt * v;
   });
   return w >= MIN_WEIGHT ? r1(acc / w) : null;
 }
@@ -282,6 +392,8 @@ export type MsSummary = {
   zone: { key: string; label: string; color: string; blurb: string } | null;
   change3m: number | null;
   season: { label: string; color: string } | null;
+  /** Complacency watch on for the latest day. */
+  watch?: boolean;
   generated: string;
   error?: string;
 };
@@ -310,6 +422,7 @@ export function summarize(p: MsPayload): MsSummary {
     zone: { key: z.key, label: z.label, color: z.color, blurb: zoneLine(z) },
     change3m: prev != null ? r1(sc[i]! - prev) : null,
     season: tag ? { label: tag.label, color: tag.color } : null,
+    watch: cell(rows[i]!, WATCH_COL) === 1,
   };
 }
 
