@@ -9,11 +9,13 @@ import {
   ZONES,
   cell,
   seasonTag,
+  zoneFor,
   zoneLine,
   zonesWithHysteresis,
   type MsPayload,
   type SmoothKey,
 } from "@/lib/marketSentiment";
+import { SentimentDial } from "@/components/tools/SentimentDial";
 
 const SMOOTH_KEY = "adirindin.marketSentiment.smoothing";
 const BASE_KEY = "adirindin.marketSentiment.baseChart";
@@ -39,8 +41,8 @@ const fmtDay = (d: string) =>
 const fmtMonthYear = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { month: "short", year: "numeric", timeZone: "UTC" });
 
-const DESK = { W: 920, H: 360, PAD: { top: 16, right: 16, bottom: 30, left: 40 } };
-const PHONE = { W: 420, H: 340, PAD: { top: 14, right: 10, bottom: 28, left: 30 } };
+const DESK = { W: 920, H: 360, PAD: { top: 16, right: 96, bottom: 30, left: 40 } };
+const PHONE = { W: 420, H: 340, PAD: { top: 14, right: 54, bottom: 28, left: 30 } };
 
 /** Smooth path through points (Catmull-Rom → cubic Bézier), for display only. */
 function smoothPath(pts: Array<[number, number] | null>): string {
@@ -231,6 +233,8 @@ export function MarketSentimentPanel() {
     <section className="rounded-xl border border-border bg-[#0f1419] p-4 sm:p-6">
       {/* Headline */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex items-center gap-4 sm:gap-6">
+        <SentimentDial score={score ?? null} className="hidden h-[112px] w-[190px] sm:block" />
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
             {hover != null ? fmtDay(row[0]) : `Latest · ${fmtDay(row[0])}`}
@@ -247,12 +251,13 @@ export function MarketSentimentPanel() {
           <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted">
             <span>{smoothName}</span>
             {tag ? (
-              <span className="rounded-full border px-2 py-0.5 font-medium" style={{ borderColor: `${tag.color}66`, color: tag.color }}>
+              <span className="rounded-full border px-2 py-0.5 font-medium" style={{ borderColor: `${tag.color}55`, background: `${tag.color}14`, color: tag.color }}>
                 {tag.label}
               </span>
             ) : null}
             {smooth !== "raw" && row[1] != null ? <span>· raw day {cell(row, 1)!.toFixed(1)}</span> : null}
           </p>
+        </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <div className="flex gap-0.5 rounded-lg border border-border/90 bg-[#141b24] p-0.5" role="group" aria-label="Smoothing">
@@ -316,23 +321,43 @@ export function MarketSentimentPanel() {
           onMouseMove={onMove}
           onMouseLeave={() => setHover(null)}
         >
+          <defs>
+            <linearGradient id="ms-zone-grad" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={view.yOf(100)} y2={view.yOf(0)}>
+              {ZONES.slice()
+                .reverse()
+                .flatMap((z) => [
+                  <stop key={`${z.key}-a`} offset={`${100 - z.max + (z.max === 100 ? 0 : 1)}%`} stopColor={z.color} />,
+                  <stop key={`${z.key}-b`} offset={`${100 - z.min - (z.min === 0 ? 0 : 1)}%`} stopColor={z.color} />,
+                ])}
+            </linearGradient>
+            <filter id="ms-line-glow" x="-5%" y="-20%" width="110%" height="140%">
+              <feGaussianBlur stdDeviation="2.5" />
+            </filter>
+          </defs>
           {ZONES.map((z) => (
             <g key={z.key}>
-              <rect x={PAD.left} width={view.iw} y={view.yOf(z.max)} height={view.yOf(z.min) - view.yOf(z.max)} fill={z.color} opacity={0.06} />
+              <rect x={PAD.left} width={view.iw} y={view.yOf(z.max)} height={view.yOf(z.min) - view.yOf(z.max)} fill={z.color} opacity={0.055} />
+              {z.min > 0 ? (
+                <line x1={PAD.left} x2={PAD.left + view.iw} y1={view.yOf(z.min)} y2={view.yOf(z.min)} stroke={z.color} strokeOpacity={0.14} strokeWidth={1} />
+              ) : null}
               <text x={PAD.left - 6} y={view.yOf(z.max) + 4} fill="#6b7a8f" fontSize={10} textAnchor="end">
                 {z.max}
               </text>
+              <text
+                x={PAD.left + view.iw + 6}
+                y={view.yOf((z.min + z.max) / 2) + 3.5}
+                fill={z.color}
+                fontSize={narrow ? 9 : 10}
+                fontWeight={600}
+                opacity={0.8}
+              >
+                {narrow ? z.label.split(/[ -]/)[0] : z.label}
+              </text>
             </g>
           ))}
-          {ZONES.map((z) =>
-            narrow ? null : (
-              <text key={`l-${z.key}`} x={PAD.left + 8} y={view.yOf((z.min + z.max) / 2) + 4} fill={z.color} fontSize={10} opacity={0.6}>
-                {z.label}
-              </text>
-            ),
-          )}
           {view.basePath ? <path d={view.basePath} fill="none" stroke="#c8d0dc" strokeOpacity={0.28} strokeWidth={1.2} vectorEffect="non-scaling-stroke" /> : null}
-          <path d={view.scorePath} fill="none" stroke="#e8eef7" strokeWidth={2.2} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeOpacity={0.35} strokeWidth={5} filter="url(#ms-line-glow)" />
+          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           {view.ticks.map((t, i) => (
             <text
               key={i}
@@ -390,9 +415,9 @@ export function MarketSentimentPanel() {
                   <td className="px-3 py-2">
                     <span className="flex items-center gap-2">
                       <span className="relative h-1.5 w-28 overflow-hidden rounded-full bg-[#141c27]">
-                        {v != null ? <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${v}%`, background: m.color }} /> : null}
+                        {v != null ? <span className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${v}%`, background: zoneFor(v).color }} /> : null}
                       </span>
-                      <span className="font-mono text-[#c8d0dc]">{v == null ? "no data" : v.toFixed(0)}</span>
+                      <span className="font-mono" style={{ color: v == null ? "#6b7a8f" : zoneFor(v).color }}>{v == null ? "no data" : v.toFixed(0)}</span>
                     </span>
                   </td>
                   <td className="px-3 py-2 text-muted">

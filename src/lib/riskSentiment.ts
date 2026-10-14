@@ -297,7 +297,7 @@ export const ZONES: Zone[] = [
     label: "Euphoria-leaning",
     min: 80,
     max: 100,
-    color: "#22c55e",
+    color: "#16a34a",
     blurb: "Most inputs stretched hot at once. Historically uncommon.",
   },
 ];
@@ -886,8 +886,8 @@ export type SeasonStat = {
 export type SeasonTag = { key: "tailwind" | "headwind" | "neutral"; label: string; color: string };
 
 export function seasonTag(score: number): SeasonTag {
-  if (score >= SEASON_TAILWIND_AT) return { key: "tailwind", label: "Seasonal tailwind", color: "#3dcc9a" };
-  if (score <= SEASON_HEADWIND_AT) return { key: "headwind", label: "Seasonal headwind", color: "#f0883e" };
+  if (score >= SEASON_TAILWIND_AT) return { key: "tailwind", label: "Seasonal tailwind", color: "#4ade80" };
+  if (score <= SEASON_HEADWIND_AT) return { key: "headwind", label: "Seasonal headwind", color: "#d4a24c" };
   return { key: "neutral", label: "Seasonally neutral", color: "#94a3b8" };
 }
 
