@@ -2,7 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { StoredCopyTag } from "@/components/ui/StoredCopyTag";
 import {
+  storedCopyTo,
+  isPartialBucket,
+  PARTIAL_LABEL,
   ETF_AGGS,
   ETF_ASSET_META,
   ETF_VIEWS,
@@ -227,12 +231,15 @@ export function EtfFlowsPanel() {
   );
 
   const latestBucket = buckets[buckets.length - 1];
+  const partial = isPartialBucket(agg, latestBucket, series?.lastDate);
+  const storedTo = data ? (asset === "total" ? storedCopyTo(data.assets) : series?.snapshot ? series.lastDate : null) : null;
   const totalCum = buckets.length ? buckets[buckets.length - 1]!.cumulativeUsd : null;
   const meta = ETF_ASSET_META[asset];
 
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-2">
+        {storedTo ? <StoredCopyTag to={storedTo} /> : null}
         <label className="sr-only" htmlFor="etf-asset">
           Asset
         </label>
@@ -297,7 +304,7 @@ export function EtfFlowsPanel() {
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-border bg-card p-4">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Latest {agg} net
+                Latest {agg} net{partial ? ` (${PARTIAL_LABEL[agg]})` : ""}
               </p>
               <p
                 className="mt-1 font-mono text-2xl font-bold"
@@ -339,7 +346,7 @@ export function EtfFlowsPanel() {
               </p>
               <p className="mt-1 text-xs text-muted">
                 {series?.days.length ?? 0} daily prints
-                {series?.snapshot ? " · snapshot fallback" : ""}
+                {series?.snapshot ? " · stored copy" : ""}
               </p>
             </div>
           </div>
@@ -372,12 +379,11 @@ export function EtfFlowsPanel() {
         <p>
           Aggregation sums the same daily series into{" "}
           {ETF_AGGS.map((a) => a.label.toLowerCase()).join(" / ")} buckets.
-          Australian English labels · educational only — not financial advice
-          (NFA).
+          The latest bucket is marked month-to-date (or week/quarter/year-to-date) until that period ends.
         </p>
         {data?.errors?.length ? (
           <p className="text-amber-400/90">
-            Live fetch notes: {data.errors.join("; ")}
+            Some live sources were unavailable ({data.errors.map((e) => e.split(":")[0]!.toUpperCase()).join(", ")}), so a stored copy is shown for those.
           </p>
         ) : null}
       </div>

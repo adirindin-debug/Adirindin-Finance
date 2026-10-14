@@ -13,7 +13,7 @@
  *    stepped version as first built.
  * Yellow labels mark the peak / trough zones and the 15 Aug 1971 Nixon Shock.
  * Green Live marker is calendar-dated (computed client-side after mount, re-ticks
- * hourly / on tab focus). No price data on this chart — shape only · NFA.
+ * hourly / on tab focus). No price data on this chart — shape only
  */
 
 "use client";
@@ -231,7 +231,7 @@ function UptrendView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean 
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — the hub tile's lap shape (flat start, steep run-up, sharp correction, spike to the peak, sharp drop, down-sideways drift) repeated across laps. Yellow labels: peak zones Jan ${GOLD_PEAK_ANCHORS.join(", ")} (2072 theoretical); trough zones about ${TROUGHS.map((t) => t.year).join(", ")} (2046 theoretical); 15 Aug 1971 Nixon Shock. Live marker positioned by today's date. Shape only — no price data, not a predictive model or financial advice`}
+      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — the hub tile's lap shape (flat start, steep run-up, sharp correction, spike to the peak, sharp drop, down-sideways drift) repeated across laps. Yellow labels: peak zones Jan ${GOLD_PEAK_ANCHORS.join(", ")} (2072 theoretical); trough zones about ${TROUGHS.map((t) => t.year).join(", ")} (2046 theoretical); 15 Aug 1971 Nixon Shock. Live marker positioned by today's date. Shape only — no price data, not a predictive model`}
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -292,8 +292,8 @@ function UptrendView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean 
         fontFamily="system-ui, sans-serif"
       >
         {narrow
-          ? "Repeating lap shape · yellow = key dates · * = theoretical · NFA"
-          : "Stylised sketch · one lap shape repeating every ~46y · yellow = key dates · * = theoretical · no price data · NFA"}
+          ? "Repeating lap shape · yellow = key dates · * = theoretical"
+          : "Stylised sketch · one lap shape repeating every ~46y · yellow = key dates · * = theoretical · no price data"}
       </text>
 
       {/* Faint horizontal guides */}
@@ -532,13 +532,13 @@ function UptrendView({ nowMs, narrow }: { nowMs: number | null; narrow: boolean 
         fontSize={9 * (narrow ? 1.2 : 1)}
         fontFamily="system-ui, sans-serif"
       >
-        Observational sketch · not a model, not a signal · research / educational only · not financial advice (NFA).
+        Observational sketch · not a model, not a signal.
       </text>
 
       {/* Live pulse — client-computed from today's date (hidden until mounted) */}
       {live ? (
         <g filter="url(#gold-cycle-live-glow)" aria-label="Live position on cycle path" data-live-dot="">
-          <title>{`Live · ${liveDayLabel.format(new Date(nowMs as number))} · ${live.phaseLine} · theoretical, NFA`}</title>
+          <title>{`Live · ${liveDayLabel.format(new Date(nowMs as number))} · ${live.phaseLine} · theoretical`}</title>
           <circle
             className="gold-cycle-live-ring"
             cx={live.x}
@@ -815,7 +815,7 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
       viewBox={`0 0 ${SVG_W} ${S_SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — one lap of the hub tile silhouette: trough zone, ~${RUN_UP_YEARS}-year run-up to the peak zone, ~4–8-year post-peak decline, ~${RANGE_BOUND_YEARS}-year range-bound zone to the next trough zone, then the next lap resets onto the same loop. Stacked marker years at each point (future above older), bold yellow for the active lap. 15 Aug 1971 Nixon Shock placed at its phase in the 1954–2000 lap. Live marker positioned by today's date. Educational sketch only — no price targets, not a model or financial advice`}
+      aria-label={`Gold-led ~${GOLD_CYCLE_YEARS}-year commodity cycle theory schematic — one lap of the hub tile silhouette: trough zone, ~${RUN_UP_YEARS}-year run-up to the peak zone, ~4–8-year post-peak decline, ~${RANGE_BOUND_YEARS}-year range-bound zone to the next trough zone, then the next lap resets onto the same loop. Stacked marker years at each point (future above older), bold yellow for the active lap. 15 Aug 1971 Nixon Shock placed at its phase in the 1954–2000 lap. Live marker positioned by today's date. Educational sketch only — no price targets, not a model`}
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -876,8 +876,8 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
         fontFamily="system-ui, sans-serif"
       >
         {narrow
-          ? "One lap · bold yellow = active lap · * = theoretical · NFA"
-          : `Stylised sketch · ~${RUN_UP_YEARS}y up · ${DECLINE_LABEL}y decline + ~${RANGE_BOUND_YEARS}y range-bound · bold yellow = active lap · * = theoretical · yellow dot = historical marker · NFA`}
+          ? "One lap · bold yellow = active lap · * = theoretical"
+          : `Stylised sketch · ~${RUN_UP_YEARS}y up · ${DECLINE_LABEL}y decline + ~${RANGE_BOUND_YEARS}y range-bound · bold yellow = active lap · * = theoretical · yellow dot = historical marker`}
       </text>
 
       <g transform={`translate(0, ${S_TOP_PAD})`}>
@@ -1149,13 +1149,13 @@ function SingleLapView({ nowMs, narrow }: { nowMs: number | null; narrow: boolea
           fontSize="9"
           fontFamily="system-ui, sans-serif"
         >
-          Observational sketch · not a model, not a signal · research / educational only · not financial advice (NFA).
+          Observational sketch · not a model, not a signal.
         </text>
 
         {/* Live pulse — client-computed from today's date (hidden until mounted) */}
         {live && nowMs != null ? (
           <g filter="url(#gold-single-live-glow)" aria-label="Live position on cycle path" data-live-dot="">
-            <title>{`Live · ${liveDayLabel.format(new Date(nowMs))} · ${goldLivePhaseLine(nowMs)} · theoretical, NFA`}</title>
+            <title>{`Live · ${liveDayLabel.format(new Date(nowMs))} · ${goldLivePhaseLine(nowMs)} · theoretical`}</title>
             <circle className="gold-single-live-ring" cx={live.x} cy={live.y} r={7} fill="none" stroke={LIVE_GREEN} strokeWidth="2" />
             <circle cx={live.x} cy={live.y} r={5.5} fill={LIVE_GREEN} />
             <circle cx={live.x} cy={live.y} r={2.2} fill="#e8fff4" />

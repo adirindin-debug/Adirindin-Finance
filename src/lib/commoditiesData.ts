@@ -2,15 +2,15 @@
  * Commodity charts — server-side loaders (used by /api/commodities).
  *
  * Sources (all public, attributable — never invented):
- *  - Gold:     long-run monthly USD gold (datasets/gold-prices + Yahoo GC=F tail) via src/lib/goldHistory.ts
- *  - Silver:   Yahoo Finance SI=F (COMEX front-month futures) daily closes
- *  - Copper:   Yahoo Finance HG=F (COMEX front-month futures) daily closes
+ *  - Gold:     long-run monthly USD gold (datasets/gold-prices + IMF PCPS PGOLD tail) via src/lib/goldHistory.ts
+ *  - Silver:   IMF PCPS PSILVER monthly
+ *  - Copper:   IMF PCPS PCOPP monthly → FRED PCOPPUSDM fallback
  *  - Nickel:   IMF Primary Commodity Prices (PCPS) PNICK monthly → FRED PNICKUSDM fallback
  *  - Iron ore: IMF PCPS PIORECR monthly → FRED PIORECRUSDM fallback
  *  - Lithium:  IMF PCPS PLITH monthly (lithium metal ≥99%, battery grade)
  *
  * Each series soft-fails independently: live → in-memory last-good → dated
- * bundled snapshot (src/data/commodities-snapshot.json). Educational · NFA.
+ * bundled snapshot (src/data/commodities-snapshot.json). Educational
  */
 
 import snapshotJson from "@/data/commodities-snapshot.json";
@@ -34,19 +34,19 @@ const META: Record<Exclude<CommodityId, "gold">, SeriesMeta> = {
     id: "silver",
     label: "Silver",
     unit: "USD/oz",
-    frequency: "daily",
-    source: "Yahoo Finance · SI=F (COMEX silver futures, front month)",
-    sourceUrl: "https://finance.yahoo.com/quote/SI%3DF/",
-    benchmark: "COMEX silver futures, continuous front month, daily close",
+    frequency: "monthly",
+    source: "IMF Primary Commodity Prices (PCPS) · PSILVER",
+    sourceUrl: IMF_URL,
+    benchmark: "Silver, Handy & Harman 99.9% grade, New York · monthly average",
   },
   copper: {
     id: "copper",
     label: "Copper",
-    unit: "USD/lb",
-    frequency: "daily",
-    source: "Yahoo Finance · HG=F (COMEX copper futures, front month)",
-    sourceUrl: "https://finance.yahoo.com/quote/HG%3DF/",
-    benchmark: "COMEX high-grade copper futures, continuous front month, daily close",
+    unit: "USD/t",
+    frequency: "monthly",
+    source: "IMF Primary Commodity Prices (PCPS) · PCOPP",
+    sourceUrl: IMF_URL,
+    benchmark: "Copper, grade A cathode, LME spot, CIF European ports · monthly average",
   },
   nickel: {
     id: "nickel",
@@ -80,18 +80,19 @@ const META: Record<Exclude<CommodityId, "gold">, SeriesMeta> = {
 const FRED_FALLBACK: Partial<Record<CommodityId, string>> = {
   nickel: "PNICKUSDM",
   ironOre: "PIORECRUSDM",
+  copper: "PCOPPUSDM",
 };
 
 const IMF_CODES: Partial<Record<CommodityId, string>> = {
+  silver: "PSILVER",
+  copper: "PCOPP",
   nickel: "PNICK",
   ironOre: "PIORECR",
   lithium: "PLITH",
 };
 
-const YAHOO_SYMBOLS: Partial<Record<CommodityId, string>> = {
-  silver: "SI=F",
-  copper: "HG=F",
-};
+/** Silver and copper moved to IMF PCPS (public); no Yahoo symbols remain here. */
+const YAHOO_SYMBOLS: Partial<Record<CommodityId, string>> = {};
 
 async function fetchText(url: string, accept: string): Promise<string> {
   const res = await fetch(url, {
@@ -284,7 +285,7 @@ async function getGoldSeries(): Promise<{ s: CommoditySeries | null; err?: strin
       source: b.source,
       sourceUrl: b.sourceUrl ?? "https://github.com/datasets/gold-prices",
       benchmark:
-        "Long-run USD gold · datasets/gold-prices monthly (official / historical prints in the peg era) with Yahoo Finance GC=F (COMEX gold futures) monthly closes on the tail",
+        "Long-run USD gold · datasets/gold-prices monthly (official / historical prints in the peg era) with IMF Primary Commodity Prices (PGOLD, London fix monthly average) on the tail",
       points: b.points,
       live: !b.snapshot && !b.stale,
       snapshot: b.snapshot,

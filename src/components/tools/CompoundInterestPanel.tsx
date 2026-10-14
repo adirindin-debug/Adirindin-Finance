@@ -746,7 +746,7 @@ export function CompoundInterestPanel() {
             {mode === "ticker"
               ? "Asset projections assume the ticker's historical growth rate simply repeats every year — that CAGR is history, not a forecast. Real markets are lumpy, past performance is not a reliable indicator of future returns, and the result ignores fees, taxes and currency moves. "
               : "Assumes a steady rate every year with no fees or taxes. "}
-            A rough gauge for study — not a forecast, a recommendation or financial advice (NFA).
+            A rough gauge for study — not a forecast or a recommendation.
           </p>
         </div>
       </div>

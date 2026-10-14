@@ -4,7 +4,7 @@
  * 1Y / 3Y / 4Y / 5Y / 10Y / 20Y (calendar lookbacks ~N*365d),
  * ALL = asset all-time (earliest available daily close → latest).
  * Personal vs-cost gains remain client-side (Vs cost toggle) — not served here.
- * Educational — NFA.
+ *
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -325,7 +325,7 @@ export async function GET(req: NextRequest) {
       asOf: new Date().toISOString(),
       returns,
       errors: Object.keys(errors).length ? errors : undefined,
-      note: "AUD unit prices from Yahoo daily history. Period return = end/start − 1. NFA.",
+      note: "AUD unit prices from Yahoo daily history. Period return = end/start − 1.",
     });
   } catch (e) {
     return NextResponse.json(

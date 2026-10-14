@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Equities seasonality · monthly & quarterly returns",
   description:
-    "Year-by-month heatmap of MSCI World (URTH) and S&P 500 returns with the share of past years each month or quarter closed green. History, not a forecast. Not financial advice.",
+    "Year-by-month heatmap of MSCI World (URTH) and S&P 500 returns with the share of past years each month or quarter closed green. History, not a forecast. ",
 };
 
 export default function EquitiesSeasonalityPage() {
@@ -18,7 +18,7 @@ export default function EquitiesSeasonalityPage() {
       <p className="mt-3 max-w-2xl text-sm text-muted">
         Every month (or quarter) of global equities, tracked by MSCI World, as a green or red tile, with how often each
         one has closed higher in past years. Switch to the S&amp;P 500 above the grid. A record of what happened, not a
-        forecast. Research tool only — not financial advice (NFA).
+        forecast. 
       </p>
 
       <div className="mt-8">

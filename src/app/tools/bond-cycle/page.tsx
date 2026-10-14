@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "US 10 Year Bond Yield Cycle theory",
   description:
-    "Educational sketch of the US 10-year Treasury yield secular regimes: decades of rising long rates into 1981, decades of falling long rates into 2020, drawn as a stylised ~40-year up / ~40-year down mountain with a theoretical ~2060 peak-zone marker. Regime direction only — no yield targets. Not a model or financial advice.",
+    "Educational sketch of the US 10-year Treasury yield secular regimes: decades of rising long rates into 1981, decades of falling long rates into 2020, drawn as a stylised ~40-year up / ~40-year down mountain with a theoretical ~2060 peak-zone marker. Regime direction only — no yield targets. Not a model.",
 };
 
 /**
@@ -76,7 +76,7 @@ export default function BondCyclePage() {
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
             Secular regime diagram
           </h2>
-          <span className="font-mono text-xs text-muted">≈ 40y up · 40y down · sketch · NFA</span>
+          <span className="font-mono text-xs text-muted">≈ 40y up · 40y down · sketch</span>
         </div>
 
         <div className="mt-5 flex h-14 w-full overflow-hidden rounded-lg border border-[#222]">
@@ -128,7 +128,7 @@ export default function BondCyclePage() {
             separate from the BTC and real estate cycles — they are not merged into one super-cycle. This is{" "}
             <strong className="font-medium text-[#d0d8e4]">not a model</strong>,{" "}
             <strong className="font-medium text-[#d0d8e4]">not a signal</strong> and not for market timing;
-            research / educational purposes only. Not financial advice (NFA).
+            research / educational purposes only. 
           </p>
         </aside>
       </div>
@@ -182,13 +182,12 @@ export default function BondCyclePage() {
         <p className="mt-3 text-sm leading-relaxed text-muted">
           Series: US 10-year Treasury constant-maturity yield, FRED DGS10 / Federal Reserve H.15. The only
           yield figures on this page are the two historical prints in the hover cards (Sep 1981 high, Aug
-          2020 low). US-only by design — no global averages. Educational study aid only · not financial
-          advice.
+          2020 low). US-only by design — no global averages. 
         </p>
       </section>
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
-        Educational content only · not financial advice (NFA) · no yield targets or forecasts · @Dirindin533 /
+        No yield targets or forecasts · @Dirindin533 /
         Adirindin Finance. Past patterns do not guarantee future results.
       </p>
     </div>

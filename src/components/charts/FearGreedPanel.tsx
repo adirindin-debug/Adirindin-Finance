@@ -135,7 +135,7 @@ type FearGreedPanelProps = {
 export function FearGreedPanel({
   endpoint = "/api/fear-greed",
   title = "Fear & Greed Index",
-  subtitle = "Independent US stock market sentiment (FearGreedChart.com) — educational only (NFA).",
+  subtitle = "Independent US stock market sentiment (FearGreedChart.com) — educational only.",
   chartAriaLabel = "Fear and Greed Index history. Hover for daily values. Drag to zoom.",
   chartTitle = "Fear and Greed Index history",
   timeframeAriaLabel = "Fear and Greed timeframe",
@@ -829,7 +829,7 @@ export function FearGreedPanel({
             series).{" "}
           </>
         ) : null}
-        {data?.note ?? "Educational only — NFA."}
+        {data?.note ?? ""}
       </p>
     </section>
   );

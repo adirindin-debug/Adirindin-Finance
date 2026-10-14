@@ -6,7 +6,7 @@ import { E_CAP, INCOME_YEARS, PERSONAS, TIERS, computePower, displayReading, rea
 export const metadata: Metadata = {
   title: "Power Level",
   description:
-    "A light-hearted scouter-style power level for your standard of living, 0–100,000 — net worth, runway, savings rate and income on a log scale, plus the planet's top 10. Runs in your browser; nothing is stored or sent. For fun — not financial advice.",
+    "A light-hearted scouter-style power level for your standard of living, 0–100,000 — net worth, runway, savings rate and income on a log scale, plus the planet's top 10. Runs in your browser; nothing is stored or sent. For fun.",
 };
 
 const fmt = (n: number) => new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 }).format(n);
@@ -167,14 +167,14 @@ export default function PowerLevelPage() {
             estimates from the stated source and change constantly.
           </li>
           <li>
-            General information only — not personal financial advice (NFA). It does not consider your objectives,
+            General information only. It does not consider your objectives,
             financial situation or needs. Consider advice from a licensed professional before acting.
           </li>
         </ul>
       </aside>
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
-        For fun and education only · not financial advice (NFA) · @Dirindin533 / Adirindin Finance.
+         · @Dirindin533 / Adirindin Finance.
       </p>
     </div>
   );

@@ -3,7 +3,7 @@
  * Query: ?symbol=ETH|SOL (also accepts ETH-USD / SOL-USD).
  * Yahoo chart primary; Kraken early splice for ETH (~2015-08 before
  * Yahoo ETH-USD ~2017-11); Coinbase / Kraken fallbacks. Returns
- * weekly + daily close pairs like /api/mstr-history. Educational — NFA.
+ * weekly + daily close pairs like /api/mstr-history.
  */
 
 export const runtime = "nodejs";
@@ -436,7 +436,7 @@ export async function GET(req: Request) {
     source,
     from,
     to,
-    note: `${cfg.name} (${cfg.yahoo}) closes for optional cycle-map overlay. Educational — NFA.`,
+    note: `${cfg.name} (${cfg.yahoo}) closes for optional cycle-map overlay.`,
     errors: errors.length ? errors : undefined,
   };
   lastGood.set(sym, payload);

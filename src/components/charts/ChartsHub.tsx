@@ -29,11 +29,13 @@ import {
   ETF_ASSET_META,
   aggregateFlows,
   buildTotalSeries,
+  storedCopyTo,
   flowColor,
   fmtFlowUsd,
   type EtfFlowsPayload,
 } from "@/lib/etfFlows";
 import type { CommodityTilePayload } from "@/lib/commodities";
+import { StoredCopyTag } from "@/components/ui/StoredCopyTag";
 
 type TileStatus = "loading" | "ok" | "error";
 
@@ -54,6 +56,8 @@ type TileLive = {
   tooltip?: string;
   /** false = dated snapshot fallback (hides the Live badge). */
   isLive?: boolean;
+  /** Date the stored copy runs to, when a live feed fell back. */
+  storedTo?: string | null;
   /** Seasonality tile only: mini year × month heatmap instead of a sparkline. */
   mini?: MiniHeat;
   /** ETF flows tile: recent monthly net-flow bars. */
@@ -233,9 +237,10 @@ function parseBtcCycleMap(json: unknown): Omit<TileLive, "status"> | null {
 function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
   const data = json as {
     ok?: boolean;
-    current?: { ratio?: number };
     points?: Array<{ t: number; ratio: number }>;
     snapshot?: boolean;
+    stale?: boolean;
+    current?: { ratio?: number; t?: number };
   };
   const ratio = data?.current?.ratio;
   if (!data?.ok || ratio == null || !Number.isFinite(ratio)) {
@@ -246,7 +251,8 @@ function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
     headline: fmtRatio(ratio),
     secondary: "Wilshire ÷ US M2",
     spark,
-    isLive: !data.snapshot,
+    isLive: !data.snapshot && !data.stale,
+    storedTo: data.current?.t ? new Date(data.current.t * 1000).toISOString().slice(0, 10) : null,
   };
 }
 
@@ -270,7 +276,7 @@ function parseFactoryMonitor(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
-/** World equities drawdown — URTH (MSCI World proxy) drawdown phase + VIX tilt. */
+/** World equities drawdown — URTH (MSCI World proxy) drawdown label + OFR volatility note. */
 function parseGlobalEquities(json: unknown): Omit<TileLive, "status"> | null {
   const data = json as EqPayload;
   if (!data?.ok || !data.rows?.length) return null;
@@ -289,7 +295,7 @@ function parseGlobalEquities(json: unknown): Omit<TileLive, "status"> | null {
     spark,
     sparkColor: "#22d3ee",
     chip: { label: s.phase.label, color: s.phase.color },
-    chipSubtitle: s.tag ?? "No sentiment tilt (VIX mid-range)",
+    chipSubtitle: s.tag ?? "Volatility mid-range",
     tooltip: eqHoverLine(s),
     isLive: !data.snapshot,
   };
@@ -366,7 +372,8 @@ function parseEtfFlows(json: unknown): Omit<TileLive, "status"> | null {
         title: `${m.label}: ${fmtFlowUsd(m.netFlowUsd)}`,
       })),
     },
-    isLive: !total.snapshot,
+    isLive: !total.snapshot && !storedCopyTo(data.assets),
+    storedTo: storedCopyTo(data.assets) ?? (total.snapshot ? data.asOf : null),
   };
 }
 
@@ -450,7 +457,7 @@ const CATEGORIES: Category[] = [
         id: "global-equities",
         href: "/charts/global-equities",
         title: "World equities drawdown",
-        subtitle: "MSCI World proxy (URTH) · daily · VIX tilt",
+        subtitle: "MSCI World proxy (URTH) · daily · Yahoo Finance + OFR",
         endpoint: "/api/global-equities",
         parse: parseGlobalEquities,
       },
@@ -744,6 +751,8 @@ function ChartTile({
             />
             Live
           </span>
+        ) : status === "ok" && live?.isLive === false ? (
+          <StoredCopyTag to={live.storedTo ?? null} />
         ) : null}
       </div>
       <p

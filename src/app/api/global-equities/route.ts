@@ -4,11 +4,10 @@
  * Price: iShares MSCI World ETF (URTH) daily adjusted close from the Yahoo
  * Finance chart API (same public feed used elsewhere on this site), as a
  * labelled PROXY for MSCI World. MSCI index data itself is licensed and not used.
- * Sentiment: CBOE VIX close via FRED VIXCLS ("Copyrighted: Citation required"),
- * plus each day's percentile against the prior 5 years of VIX closes.
+ * Volatility tilt: OFR Financial Stress Index volatility category (US Government
+ * work), plus each day's percentile against its prior 5 years.
  *
- * Order: Yahoo query1 → query2 for URTH; FRED API (if FRED_API_KEY) → FRED CSV
- * for VIX; then last-good in-memory cache; then the dated snapshot in
+ * Order: Yahoo query1 → query2 for URTH; OFR FSI CSV for volatility; then last-good in-memory cache; then the dated snapshot in
  * src/data/global-equities-snapshot.json. Never invents data. NFA.
  */
 
@@ -27,7 +26,7 @@ const FRED_UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
 const PRICE_SOURCE =
   "iShares MSCI World ETF (URTH, NYSE Arca) adjusted close via Yahoo Finance — proxy for MSCI World";
-const VIX_SOURCE = "Cboe Volatility Index (VIX) close via FRED (VIXCLS)";
+const VIX_SOURCE = "Office of Financial Research, OFR Financial Stress Index (volatility category)";
 
 type Snapshot = { asOf: string; vixAsOf: string; rows: EqRow[] };
 const SNAP = snapshot as unknown as Snapshot;
@@ -78,58 +77,31 @@ async function fetchUrth(): Promise<Array<[string, number]>> {
   throw new Error(errors.join("; "));
 }
 
-function parseFredCsv(text: string): Array<[string, number]> {
-  const t = text.trimStart();
-  if (t.startsWith("<")) throw new Error("FRED VIX CSV: HTML page");
+/** OFR Financial Stress Index — volatility category (daily; US Government work, free to reuse). */
+async function fetchOfrVol(): Promise<Array<[string, number]>> {
+  const res = await fetch("https://www.financialresearch.gov/financial-stress-index/data/fsi.csv", {
+    headers: { "User-Agent": FRED_UA, Accept: "text/csv,text/plain,*/*" },
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(FETCH_MS),
+  });
+  if (!res.ok) throw new Error(`OFR FSI: HTTP ${res.status}`);
+  const text = (await res.text()).trimStart();
+  if (text.startsWith("<")) throw new Error("OFR FSI: HTML page");
+  const lines = text.split(/\r?\n/);
+  const head = lines[0]!.split(",").map((h) => h.trim().toLowerCase());
+  const vi = head.indexOf("volatility");
+  if (vi < 0) throw new Error("OFR FSI: no volatility column");
   const out: Array<[string, number]> = [];
-  for (const line of t.split(/\r?\n/).slice(1)) {
-    const [d, v] = line.trim().split(",");
-    if (!d || !v || v === ".") continue;
-    const n = Number(v);
-    if (Number.isFinite(n) && n > 0) out.push([d, n]);
+  for (const line of lines.slice(1)) {
+    const c = line.split(",");
+    const d = c[0]?.trim();
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d) || c[vi] === "" || c[vi] == null) continue;
+    const n = Number(c[vi]);
+    if (Number.isFinite(n)) out.push([d, n]);
   }
-  if (out.length < 1000) throw new Error("FRED VIX CSV: too short");
+  if (out.length < 1000) throw new Error("OFR FSI: short history");
+  out.sort((x, y) => (x[0] < y[0] ? -1 : 1));
   return out;
-}
-
-async function fetchVix(): Promise<Array<[string, number]>> {
-  const errors: string[] = [];
-  const key = process.env.FRED_API_KEY?.trim();
-  if (key) {
-    try {
-      const res = await fetch(
-        `https://api.stlouisfed.org/fred/series/observations?series_id=VIXCLS&api_key=${encodeURIComponent(key)}&file_type=json`,
-        {
-          headers: { "User-Agent": FRED_UA, Accept: "application/json" },
-          next: { revalidate: 3600 },
-          signal: AbortSignal.timeout(FETCH_MS),
-        },
-      );
-      if (!res.ok) throw new Error(`FRED API VIX: HTTP ${res.status}`);
-      const json = (await res.json()) as { observations?: Array<{ date: string; value: string }> };
-      const out: Array<[string, number]> = [];
-      for (const o of json.observations ?? []) {
-        const n = Number(o.value);
-        if (o.value !== "." && Number.isFinite(n) && n > 0) out.push([o.date, n]);
-      }
-      if (out.length > 1000) return out;
-      throw new Error("FRED API VIX: too short");
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : "FRED API VIX failed");
-    }
-  }
-  try {
-    const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=VIXCLS", {
-      headers: { "User-Agent": FRED_UA, Accept: "text/csv,text/plain,*/*" },
-      next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(FETCH_MS),
-    });
-    if (!res.ok) throw new Error(`FRED VIX CSV: HTTP ${res.status}`);
-    return parseFredCsv(await res.text());
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : "FRED VIX CSV failed");
-    throw new Error(errors.join("; "));
-  }
 }
 
 function upperBound(dates: string[], d: string): number {
@@ -147,7 +119,7 @@ function minus5y(d: string): string {
   return `${String(Number(d.slice(0, 4)) - 5).padStart(4, "0")}${d.slice(4)}`;
 }
 
-/** Join URTH days with the latest VIX close (≤5 days old) and its 5-year percentile. */
+/** Join URTH days with the latest OFR volatility reading (≤5 days old) and its 5-year percentile. */
 function joinRows(urth: Array<[string, number]>, vix: Array<[string, number]>): EqRow[] {
   const vd = vix.map((v) => v[0]);
   const vv = vix.map((v) => v[1]);
@@ -181,9 +153,9 @@ export async function GET() {
     warnings.push(e instanceof Error ? e.message : "URTH failed");
   }
   try {
-    vix = await fetchVix();
+    vix = await fetchOfrVol();
   } catch (e) {
-    warnings.push(e instanceof Error ? e.message : "VIX failed");
+    warnings.push(e instanceof Error ? e.message : "OFR volatility failed");
   }
 
   if (urth) {
@@ -193,21 +165,16 @@ export async function GET() {
       rows = joinRows(urth, vix);
       vixAsOf = vix[vix.length - 1]![0];
     } else {
-      // Live price, VIX from the dated snapshot where available (never invented).
-      const snapVix = new Map(SNAP.rows.map((r) => [r[0], r] as const));
-      rows = urth.map(([d, px]) => {
-        const s = snapVix.get(d);
-        return [d, px, s ? s[2] : null, s ? s[3] : null];
-      });
-      vixAsOf = SNAP.vixAsOf;
-      warnings.push("VIX from dated snapshot");
+      // No volatility tilt when the OFR feed is unavailable (never invented).
+      rows = urth.map(([d, px]) => [d, px, null, null]);
+      vixAsOf = null;
     }
     const payload: EqPayload = {
       ok: true,
       rows,
       asOf: rows[rows.length - 1]![0],
       vixAsOf,
-      origin: vix ? "Live (Yahoo URTH + FRED VIXCLS)" : "Live URTH + snapshot VIX",
+      origin: vix ? "Live (Yahoo URTH + OFR FSI volatility)" : "Live URTH (volatility unavailable)",
       snapshot: false,
       priceSource: PRICE_SOURCE,
       vixSource: VIX_SOURCE,
@@ -227,9 +194,9 @@ export async function GET() {
   return respond(
     {
       ok: true,
-      rows: SNAP.rows,
+      rows: SNAP.rows.map(([d, px]) => [d, px, null, null] as EqRow),
       asOf: SNAP.asOf,
-      vixAsOf: SNAP.vixAsOf,
+      vixAsOf: null,
       origin: `Dated snapshot through ${SNAP.asOf}`,
       snapshot: true,
       priceSource: PRICE_SOURCE,

@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Crypto seasonality · monthly & quarterly returns",
   description:
-    "Year-by-month heatmap of Bitcoin (and other crypto) returns with the share of past years each month or quarter closed green. History, not a forecast. Not financial advice.",
+    "Year-by-month heatmap of Bitcoin (and other crypto) returns with the share of past years each month or quarter closed green. History, not a forecast. ",
 };
 
 export default function CryptoSeasonalityPage() {
@@ -17,8 +17,7 @@ export default function CryptoSeasonalityPage() {
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">Crypto seasonality</h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         Every month (or quarter) of Bitcoin as a green or red tile, with how often each one has closed higher in past
-        years. Switch assets above the grid. A record of what happened, not a forecast. Research tool only — not
-        financial advice (NFA).
+        years. Switch assets above the grid. A record of what happened, not a forecast. 
       </p>
 
       <div className="mt-8">

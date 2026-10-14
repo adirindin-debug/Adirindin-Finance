@@ -1,7 +1,7 @@
 /**
  * Commodity charts — shared (client-safe) types, metadata and helpers.
  * Every series is a public, attributable source; nothing here is invented.
- * Educational · NFA.
+ * Educational
  */
 
 export type CommodityId = "gold" | "silver" | "copper" | "nickel" | "lithium" | "ironOre";

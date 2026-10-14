@@ -7,7 +7,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "BTC cycle map",
   description:
-    "Live Bitcoin cycle map with price, 50-week / 200-week moving averages, and desk cycle tops/bottoms — educational study aid for Adirindin Finance (NFA).",
+    "Live Bitcoin cycle map with price, 50-week / 200-week moving averages, and desk cycle tops/bottoms — educational study aid for Adirindin Finance.",
 };
 
 export default function BtcCycleMapChartPage() {
@@ -23,7 +23,7 @@ export default function BtcCycleMapChartPage() {
         markers for historical cycle tops and bottoms. Built as a{" "}
         <strong className="font-medium text-foreground">study aid</strong> for
         observing how price rhymes with prior epochs — not a forecast, timing
-        model, or trade signal. Educational only · not financial advice (NFA).
+        model, or trade signal. 
       </p>
       <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted">
         For the stylised 4-year cycle theory schematic (Live-dot loop, year

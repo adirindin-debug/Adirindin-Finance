@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Fear & Greed Index",
   description:
-    "Independent US stock market Fear & Greed Index via FearGreedChart.com — educational chart for Adirindin Finance (NFA).",
+    "Independent US stock market Fear & Greed Index via FearGreedChart.com — educational chart for Adirindin Finance.",
 };
 
 export default function FearGreedChartPage() {
@@ -18,14 +18,13 @@ export default function FearGreedChartPage() {
         Fear &amp; Greed Index
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        Independent US stock market sentiment gauge. Educational framing only —
-        not financial advice (NFA).
+        Independent US stock market sentiment gauge. 
       </p>
 
       <div className="mt-8">
         <FearGreedPanel
           title="Fear & Greed Index"
-          subtitle="Independent US stock market sentiment via FearGreedChart.com — educational only (NFA)."
+          subtitle="Independent US stock market sentiment via FearGreedChart.com — educational only."
           chartAriaLabel="Fear and Greed Index history. Hover for daily values. Drag to zoom."
           chartTitle="Fear and Greed Index history"
           timeframeAriaLabel="Fear and Greed timeframe"

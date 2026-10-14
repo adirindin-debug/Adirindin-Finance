@@ -1,7 +1,7 @@
 /**
  * Bond yield cycle theory silhouette for the Market cycles hub.
  * Ridge geometry and Live timing match BondYieldCycleChart.tsx exactly.
- * Educational · no yield targets · NFA.
+ * Educational · no yield targets
  */
 
 import { bondLap, bondLapIndexAt, janMs } from "@/lib/bondCycle";

@@ -366,28 +366,29 @@ export async function GET() {
   let spot: number | null = null;
   const sourceParts: string[] = [];
 
+  // Coinbase Exchange daily first (public market data); Yahoo only as a fallback.
   try {
-    const w = await yahooBars("1wk");
-    weekly = w.bars;
-    if (spot == null) spot = w.spot;
-    sourceParts.push("Yahoo weekly");
+    const { bars, warnings: w } = await coinbaseDailyBars();
+    daily = bars;
+    weekly = dailyToWeekly(bars);
+    warnings.push(...w);
+    sourceParts.push("Coinbase daily");
   } catch (e) {
-    warnings.push(
-      e instanceof Error ? `Yahoo weekly: ${e.message}` : "Yahoo weekly failed",
-    );
+    warnings.push(e instanceof Error ? `Coinbase daily: ${e.message}` : "Coinbase daily failed");
   }
 
-  try {
-    const d = await yahooBars("1d");
-    daily = d.bars;
-    if (spot == null) spot = d.spot;
-    sourceParts.push("Yahoo daily");
-  } catch (e) {
-    warnings.push(
-      e instanceof Error ? `Yahoo daily: ${e.message}` : "Yahoo daily failed",
-    );
+  if (daily.length < 200) {
+    try {
+      const w = await yahooBars("1wk");
+      weekly = w.bars;
+      spot = w.spot;
+      const d = await yahooBars("1d");
+      daily = d.bars;
+      sourceParts.push("Yahoo fallback");
+    } catch (e) {
+      warnings.push(e instanceof Error ? `Yahoo fallback: ${e.message}` : "Yahoo fallback failed");
+    }
   }
-
 
   try {
     const earlyDaily = await blockchainDailyBars();
@@ -404,25 +405,6 @@ export async function GET() {
         ? `blockchain.info early: ${e.message}`
         : "blockchain.info early failed",
     );
-  }
-
-  if (daily.length < 200) {
-    try {
-      const { bars, warnings: w } = await coinbaseDailyBars();
-      daily = bars;
-      warnings.push(...w);
-      sourceParts.push("Coinbase daily");
-      if (weekly.length < 50) {
-        weekly = dailyToWeekly(bars);
-        sourceParts.push("Coinbase→weekly");
-      }
-    } catch (e) {
-      warnings.push(
-        e instanceof Error
-          ? `Coinbase daily: ${e.message}`
-          : "Coinbase daily failed",
-      );
-    }
   }
 
   if (weekly.length < 50) {

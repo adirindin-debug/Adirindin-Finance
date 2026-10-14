@@ -401,6 +401,9 @@ function withMaSourceLabel(baseSource: string, isProxy: boolean): string {
   return `${ma} — fallback (not CoinGecko)`;
 }
 
+const MEMO = new Map<string, { at: number; body: unknown }>();
+const MEMO_MS = 30 * 60_000;
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const daysRaw = Number(searchParams.get("days") ?? "365");
@@ -413,6 +416,17 @@ export async function GET(request: Request) {
 
   const errors: string[] = [];
 
+  const memoKey = String(days);
+  const memo = MEMO.get(memoKey);
+  if (memo && Date.now() - memo.at < MEMO_MS) {
+    return Response.json(memo.body, {
+      headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200" },
+    });
+  }
+
+  // CoinGecko's free history endpoint is often Pro-only, so start the CoinMetrics
+  // fallback in parallel instead of waiting for CoinGecko to fail first.
+  const cmEarly = fetchCoinMetricsHistory(rawDays).catch(() => null);
   const [cgCurrent, paprikaCurrent, cgHistory] = await Promise.all([
     fetchCoinGeckoCurrent(),
     fetchCoinPaprikaCurrent(),
@@ -435,7 +449,7 @@ export async function GET(request: Request) {
     errors.push(
       "CoinGecko global market_cap_chart unavailable (rate limit or Pro-only)",
     );
-    const cm = await fetchCoinMetricsHistory(rawDays);
+    const cm = await cmEarly;
     if (cm) {
       rawHistory = cm;
       historyIsProxy = true;
@@ -498,8 +512,7 @@ export async function GET(request: Request) {
     ? `Chart shows a ${MA_WINDOW}-day moving average of a labelled public proxy (CoinGecko’s global daily volume history was unavailable). Levels will not match CoinGecko total-market volume or The Block’s spot exchange desk — use the compare link for The Block reference.`
     : `Chart shows CoinGecko total-market volume as a ${MA_WINDOW}-day moving average (full 7-day window only). Dollar levels will not match The Block’s spot exchange desk series — use the compare link for that reference.`;
 
-  return Response.json(
-    {
+  const body = {
       ok: true,
       currency: "USD",
       maWindow: MA_WINDOW,
@@ -518,11 +531,11 @@ export async function GET(request: Request) {
       disclaimer,
       errors: errors.length ? errors : undefined,
       asOf: new Date().toISOString(),
+  };
+  if (rawHistory) MEMO.set(memoKey, { at: Date.now(), body });
+  return Response.json(body, {
+    headers: {
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200",
     },
-    {
-      headers: {
-        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=7200",
-      },
-    },
-  );
+  });
 }

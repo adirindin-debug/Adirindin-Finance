@@ -7,7 +7,7 @@
  * anchor at Bitcoin's ~10-minute target block time and always shows it as
  * approximate ("~Apr 2028 est."). The anchor is the live chain tip when the
  * browser can fetch it (see fetchBtcTipAnchor), else the cached snapshot below.
- * Educational estimate only · NFA.
+ * Educational estimate only
  */
 
 const DAY_MS = 86_400_000;

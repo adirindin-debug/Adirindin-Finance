@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Wilshire 5000 / US M2",
   description:
-    "Wilshire 5000 index divided by US M2 money supply — educational macro ratio chart for Adirindin Finance (NFA).",
+    "Wilshire 5000 index divided by US M2 money supply — educational macro ratio chart for Adirindin Finance.",
 };
 
 export default function WilshireM2ChartPage() {
@@ -18,8 +18,7 @@ export default function WilshireM2ChartPage() {
         Wilshire 5000 / US M2
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        Classic equity / money-supply ratio framing. Educational content only —
-        not financial advice (NFA).
+        Classic equity / money-supply ratio framing. 
       </p>
 
       <div className="mt-8">

@@ -4,7 +4,7 @@ import { PropertyPricesDesk } from "@/components/property-prices/Desk";
 export const metadata: Metadata = {
   title: "Australian Property Prices",
   description:
-    "Australian property pricing estimates only. Educational purposes — estimates based on averages, not exact valuations. Not for investment or market timing. Not personal financial advice.",
+    "Australian property pricing estimates only. Educational purposes — estimates based on averages, not exact valuations. Not for investment or market timing.",
 };
 
 export default function PropertyPricesPage() {

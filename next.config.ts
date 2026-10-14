@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: true },
   async redirects() {
     return [
+      { source: "/dashboard", destination: "/cycles", permanent: true },
+      { source: "/approach", destination: "/research", permanent: true },
+      { source: "/tools/risk-sentiment", destination: "/tools/market-sentiment", permanent: true },
       // First-impression /cycle URLs (and close aliases) → live cycle desk
       {
         source: "/cycle",

@@ -1,7 +1,7 @@
 /**
  * Real estate cycle theory silhouette for the Market cycles hub.
  * Drawn Anderson shape knots and Live calendar walk match RealEstateCycleChart.tsx.
- * Anderson 18y line shape is locked — values copied verbatim. Educational · NFA.
+ * Anderson 18y line shape is locked — values copied verbatim. Educational
  */
 
 import {

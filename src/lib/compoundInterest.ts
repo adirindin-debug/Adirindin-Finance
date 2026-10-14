@@ -1,6 +1,6 @@
 /**
  * Compound interest maths for /tools/compound-interest.
- * Pure functions only — no fetching. Illustrative projections, not advice (NFA).
+ * Pure functions only — no fetching. Illustrative projections, not advice.
  */
 
 export type ContributionFrequency = "weekly" | "fortnightly" | "monthly" | "annually";

@@ -5,7 +5,7 @@ import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Market cycles",
   description:
-    "Market cycles hub: Bitcoin 4-year cycle theory, Anderson ~18-year real estate cycle, US 10-year bond yield secular regime sketch, and an observational ~46-year gold-led commodity cycle sketch — educational schematic tiles with Live markers. Not financial advice (NFA).",
+    "Market cycles hub: Bitcoin 4-year cycle theory, Anderson ~18-year real estate cycle, US 10-year bond yield secular regime sketch, and an observational ~46-year gold-led commodity cycle sketch — educational schematic tiles with Live markers.",
 };
 
 export default function CyclesPage() {
@@ -19,8 +19,7 @@ export default function CyclesPage() {
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         Theory silhouettes with a Live marker for where the calendar sits on each
-        loop. Tap a tile for the full desk. Educational content only — not
-        financial advice (NFA).
+        loop. Tap a tile for the full desk. 
       </p>
 
       <MobileTilesCaption />
@@ -29,8 +28,7 @@ export default function CyclesPage() {
 
       <p className="mt-8 max-w-3xl text-xs leading-relaxed text-muted">
         Silhouettes reuse each cycle chart’s theory curve and Live timing — never
-        invented dates or percentages. Framing for study only · not financial
-        advice (NFA) · Adirindin Finance / Anthony.
+        invented dates or percentages. Framing for study only · Adirindin Finance / Anthony.
       </p>
     </div>
   );

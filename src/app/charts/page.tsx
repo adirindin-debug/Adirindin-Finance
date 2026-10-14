@@ -5,7 +5,7 @@ import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Charts",
   description:
-    "Live tiled dashboard of Fear & Greed, crypto Fear & Greed, market volume, Bitcoin 200-week MA, Wilshire 5000 / US M2, the Philly Fed manufacturing survey, a world equities drawdown state, commodity prices (gold, silver, copper, nickel, lithium, iron ore), and monthly / quarterly returns heatmaps for crypto (Bitcoin) and equities (MSCI World, S&P 500) — educational charts for Adirindin Finance (NFA).",
+    "Live tiled dashboard of Fear & Greed, crypto Fear & Greed, market volume, Bitcoin 200-week MA, Wilshire 5000 / US M2, the Philly Fed manufacturing survey, a world equities drawdown state, commodity prices (gold, silver, copper, nickel, lithium, iron ore), and monthly / quarterly returns heatmaps for crypto (Bitcoin) and equities (MSCI World, S&P 500) — educational charts for Adirindin Finance.",
 };
 
 export default function ChartsPage() {
@@ -19,8 +19,7 @@ export default function ChartsPage() {
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         Live snapshots of public sentiment, crypto market, and macro charts.
-        Tap a tile for the full interactive view. Educational content only —
-        not financial advice (NFA).
+        Tap a tile for the full interactive view. 
       </p>
 
       <MobileTilesCaption />
@@ -30,7 +29,7 @@ export default function ChartsPage() {
       <p className="mt-8 max-w-3xl text-xs leading-relaxed text-muted">
         More charts can be added over time. Live numbers come from each chart’s
         public API when available — tiles show “—” if a fetch fails (never
-        invented). Educational · not financial advice (NFA) · Adirindin Finance
+        invented). Educational · Adirindin Finance
         / Anthony.
       </p>
     </div>

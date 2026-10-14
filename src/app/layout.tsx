@@ -6,7 +6,7 @@ import "./globals.css";
 const siteUrl = "https://adirindinfinance.com";
 const siteTitle = "Adirindin Finance";
 const siteDescription =
-  "Educational markets research desk — cycles, charts and trackers. Not personal financial advice (NFA).";
+  "Educational markets research desk — cycles, charts and trackers.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -21,7 +21,6 @@ export const metadata: Metadata = {
     "research",
     "Australia",
     "educational",
-    "NFA",
   ],
   icons: {
     icon: [

@@ -6,7 +6,7 @@
  *   trough zone 1 Jan 1940 → peak zone 1 Jan 1980 → trough zone 1 Jan 2020
  *   → peak zone 1 Jan 2060 (THEORETICAL) → trough zone 1 Jan 2100 (THEORETICAL) → …
  * The only yield figures allowed are the two historical FRED DGS10 prints below.
- * No yield target or number for any future date (regime direction only) · NFA.
+ * No yield target or number for any future date (regime direction only)
  */
 
 export const HALF_SWING_YEARS = 40;
@@ -95,7 +95,7 @@ export function projectedBondRows(lap: number = 0): BondCycleRow[] {
 }
 
 export const BOND_PROJECTED_NOTE =
-  "Projected dates are theoretical, based on the observed ~40-year half-swings — no yield target. Research / educational only, not financial advice (NFA).";
+  "Projected dates are theoretical, based on the observed ~40-year half-swings — no yield target. Research / educational only.";
 
 export const BOND_HISTORY_NOTE =
   "Regime zones are Jan-dated markers; actual extremes printed later (Sep 1981 high, Aug 2020 low). Prints cited to FRED DGS10 / Fed H.15.";

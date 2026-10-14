@@ -457,7 +457,7 @@ export function MarketVolumePanel() {
             ? " (currently a labelled fallback such as CoinMetrics, not CoinGecko)"
             : " (CoinGecko when that feed is available)"}
           . The Block link is for comparison only (we do not scrape The Block). Educational
-          only — NFA.
+          only
         </p>
       </div>
     </section>

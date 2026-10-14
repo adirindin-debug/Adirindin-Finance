@@ -9,7 +9,7 @@
  * Live is computed client-side from the real current date after mount and
  * re-ticks hourly (not frozen at build / static prerender).
  * No stacked calendar years on the diagram — phase labels only.
- * Research only — not prices, not predictive, NFA.
+ * Research only — not prices, not predictive
  */
 
 "use client";
@@ -116,7 +116,7 @@ const SVG_W = 820;
  *   theory peak k → theory trough k:     ~1y descent along PEAK → NEXT_TROUGH
  * Current lap: ~Oct 2022 → ~Oct 2025 peak → ~Oct 2026 theory trough, then the
  * dot wraps onto the same loop (~Oct 2029 peak, ~Oct 2030 trough, …) with no
- * end date. Schematic timing theory — NFA.
+ * end date. Schematic timing theory
  */
 type TheoryLap = { lowMs: number; peakMs: number; nextLowMs: number };
 
@@ -283,7 +283,7 @@ export default function BtcFourYearCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="h-auto w-full overflow-visible"
       role="img"
-      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Hover the blue halving tip or gold cycle low/peak dots for desk dates and projected (theoretical) dates. Educational rough guide only — not a predictive model or financial advice"
+      aria-label="Bitcoin 4-year cycle theory schematic — Nike-tick silhouette of roughly three years up and one year down with a Live marker that wraps onto the next lap. Hover the blue halving tip or gold cycle low/peak dots for desk dates and projected (theoretical) dates. Educational rough guide only — not a predictive model"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -336,7 +336,7 @@ export default function BtcFourYearCycleChart() {
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        Schematic · ~3 years up · ~1 year down · Live wraps onto the next lap · not a forecast · NFA
+        Schematic · ~3 years up · ~1 year down · Live wraps onto the next lap · not a forecast
       </text>
 
       <g transform={`translate(0, ${TOP_PAD})`}>
@@ -593,7 +593,7 @@ export default function BtcFourYearCycleChart() {
                       liveInfo.nextLowMs,
                     )} theory trough`
                   : `~3y ascent toward the ${approxFullDate(liveInfo.peakMs)} theory peak`
-              } (equal ~${THEORY_CYCLE_YEARS}y timing · NFA)`}
+              } (equal ~${THEORY_CYCLE_YEARS}y timing)`}
             </title>
             <circle
               className="btc-live-ring"
@@ -742,7 +742,7 @@ export default function BtcFourYearCycleChart() {
           </div>
           <p className="mt-2 text-[10px] leading-snug text-[#6b7a90]">
             {tip === "halving"
-              ? "Next date is the desk estimate (210,000 blocks × ~10 min) until that epoch lands; the 6th adds another ~210,000 blocks. Educational only · NFA."
+              ? "Next date is the desk estimate (210,000 blocks × ~10 min) until that epoch lands; the 6th adds another ~210,000 blocks."
               : CYCLE_EXTREMES_DISCLAIMER}
           </p>
           {tip === "lows" ? (

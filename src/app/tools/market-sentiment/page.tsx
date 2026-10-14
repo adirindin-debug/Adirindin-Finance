@@ -8,7 +8,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Market sentiment gauge",
   description:
-    "A calm 0–100 overview of market sentiment built only from public sources — OFR Financial Stress Index, Chicago Fed NFCI, St. Louis Fed financial stress, Alternative.me Crypto Fear & Greed and seasonality. Rough backdrop reading, not a signal. Not financial advice (NFA).",
+    "A calm 0–100 overview of market sentiment built only from public sources — OFR Financial Stress Index, Chicago Fed NFCI, St. Louis Fed financial stress, Alternative.me Crypto Fear & Greed and seasonality. Rough backdrop reading, not a signal. ",
 };
 
 export default function RiskSentimentPage() {
@@ -28,7 +28,7 @@ export default function RiskSentimentPage() {
       </p>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
         <strong className="font-medium text-foreground">Study aid only.</strong> In past testing it showed no edge for
-        calling market direction — it describes a rough versus calm backdrop. Not financial advice (NFA).
+        calling market direction — it describes a rough versus calm backdrop. 
       </p>
 
       <div className="mt-8">

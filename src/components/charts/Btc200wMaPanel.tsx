@@ -368,7 +368,7 @@ export function Btc200wMaPanel() {
             Weekly Bitcoin USD close versus its 200-week simple moving average —
             a long-cycle reference often watched in crypto. Early years may use
             a stitched composite USD average before Yahoo BTC-USD. Educational
-            only (NFA).
+            only.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted">
             <span className="inline-flex items-center gap-1.5">
@@ -616,7 +616,7 @@ export function Btc200wMaPanel() {
         </p>
         <p>
           {data?.note ??
-            "200-week simple moving average of weekly closes. Educational only — NFA."}
+            "200-week simple moving average of weekly closes."}
         </p>
         {data?.warnings && data.warnings.length > 0 ? (
           <p className="text-[11px] text-muted/80">

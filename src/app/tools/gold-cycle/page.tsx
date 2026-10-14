@@ -17,7 +17,7 @@ const RANGE_Y = Math.round(GOLD_RANGE_YEARS);
 export const metadata: Metadata = {
   title: "46-year gold-led commodity cycle sketch",
   description:
-    "Observational study of a ~46-year gold-led commodity cycle with peak-zone markers at Jan 1934, 1980, 2026 and 2072, drawn as one repeating lap shape. The long-run USD gold price chart lives in Charts → Commodity charts. Educational only — not a predictive model, not Kondratiev-as-law, not financial advice.",
+    "Observational study of a ~46-year gold-led commodity cycle with peak-zone markers at Jan 1934, 1980, 2026 and 2072, drawn as one repeating lap shape. The long-run USD gold price chart lives in Charts → Commodity charts. Educational only — not a predictive model, not Kondratiev-as-law.",
 };
 
 const PHASES = [
@@ -94,7 +94,7 @@ export default function GoldCyclePage() {
             Classic cycle diagram
           </h2>
           <span className="font-mono text-xs text-muted">
-            ≈ {GOLD_CYCLE_YEARS} years · schematic · NFA
+            ≈ {GOLD_CYCLE_YEARS} years · schematic
           </span>
         </div>
 
@@ -145,7 +145,7 @@ export default function GoldCyclePage() {
             </li>
             <li>
               Research / educational purposes only.{" "}
-              <strong className="font-medium text-[#d0d8e4]">Not financial advice (NFA)</strong>.
+              <strong className="font-medium text-[#d0d8e4]"></strong>.
             </li>
           </ul>
         </aside>
@@ -188,15 +188,15 @@ export default function GoldCyclePage() {
           ): long-run USD gold from the public{" "}
           <code className="text-xs text-foreground/80">datasets/gold-prices</code>{" "}
           monthly file (historical / official prints in the peg era; market prints
-          thereafter), refreshed with Yahoo Finance <code className="text-xs text-foreground/80">GC=F</code>{" "}
-          where available. Peg steps such as ~$20.67 and ~$35 are documented public
+          thereafter), refreshed with IMF Primary Commodity Prices monthly gold averages
+          (<code className="text-xs text-foreground/80">PGOLD</code>) where available. Peg steps such as ~$20.67 and ~$35 are documented public
           series values — not invented. That chart updates as new price data comes in.
-          Educational study aid only · not a predictive model · not financial advice.
+          Educational study aid only · not a predictive model.
         </p>
       </section>
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
-        Educational content only · not financial advice (NFA) · not a predictive model
+        Not a predictive model
         · no price targets or forecasts · @Dirindin533 / Adirindin Finance. Past
         patterns do not guarantee future results.
       </p>

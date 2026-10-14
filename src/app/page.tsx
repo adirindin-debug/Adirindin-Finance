@@ -41,8 +41,9 @@ export default function HomePage() {
         <BtcFourYearChart />
         <HowDrawn>
           each line is close ÷ close at the window start − 1, so every line starts at 0%. Daily
-          closes from the Yahoo Finance chart feed (BTC-USD, ^GSPC, ^NDX, ^AORD, MSCI World);
-          US and AU house prices and US M2 from FRED (monthly or quarterly, stepped forward).
+          closes. Sources: BTC from Coinbase Exchange; S&amp;P 500, Nasdaq 100, All Ords and MSCI World from
+          Yahoo Finance; US house prices (FHFA), AU house prices (BIS) and US M2 from FRED®, Federal Reserve
+          Bank of St. Louis (quarterly or monthly, stepped forward).
         </HowDrawn>
         <MarketStrip />
       </div>

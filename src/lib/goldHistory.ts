@@ -1,10 +1,10 @@
 /**
  * Long-run gold price (USD/oz) loader — shared by /api/gold-history and /api/commodities.
  * Primary: datasets/gold-prices monthly CSV (1833→…).
- * Freshness: Yahoo Finance GC=F monthly spliced onto the tail.
+ * Freshness: IMF PCPS PGOLD monthly averages spliced onto the tail.
  * Soft-fails to in-memory last-good, then bundled snapshot.
  * Peg-era prints are documented historical/official series — not invented.
- * Educational · NFA.
+ * Educational
  */
 
 import snapshotJson from "@/data/gold-history-snapshot.json";
@@ -30,10 +30,6 @@ const UA =
 const DATAHUB_URLS = [
   "https://raw.githubusercontent.com/datasets/gold-prices/main/data/monthly.csv",
   "https://datahub.io/core/gold-prices/r/monthly.csv",
-];
-const YAHOO_URLS = [
-  "https://query1.finance.yahoo.com/v8/finance/chart/GC=F",
-  "https://query2.finance.yahoo.com/v8/finance/chart/GC=F",
 ];
 
 const FRESH_MS = 6 * 60 * 60 * 1000;
@@ -117,56 +113,12 @@ async function loadDatahub(): Promise<Point[]> {
   throw lastErr ?? new Error("datahub gold failed");
 }
 
-async function loadYahooMonthly(): Promise<{ points: Point[]; spot: number | null }> {
-  const period1 = Math.floor(Date.UTC(2000, 0, 1) / 1000);
-  const period2 = Math.floor(Date.now() / 1000);
-  let lastErr: Error | null = null;
-  for (const base of YAHOO_URLS) {
-    try {
-      const url = `${base}?interval=1mo&period1=${period1}&period2=${period2}`;
-      const json = (await fetchJson(url)) as {
-        chart?: {
-          result?: Array<{
-            timestamp?: number[];
-            meta?: { regularMarketPrice?: number };
-            indicators?: { quote?: Array<{ close?: (number | null)[] }> };
-          }>;
-        };
-      };
-      const result = json.chart?.result?.[0];
-      const ts = result?.timestamp ?? [];
-      const closes = result?.indicators?.quote?.[0]?.close ?? [];
-      const points: Point[] = [];
-      for (let i = 0; i < ts.length; i++) {
-        const c = closes[i];
-        if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
-        // Normalise to mid-month for join stability
-        const d = new Date(ts[i]! * 1000);
-        const t = Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 15, 12, 0, 0, 0) / 1000);
-        points.push({ t, c: Math.round(c * 1000) / 1000 });
-      }
-      if (points.length < 24) {
-        lastErr = new Error("yahoo too short");
-        continue;
-      }
-      const spot =
-        typeof result?.meta?.regularMarketPrice === "number"
-          ? result.meta.regularMarketPrice
-          : points[points.length - 1]?.c ?? null;
-      return { points, spot };
-    } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-    }
-  }
-  throw lastErr ?? new Error("yahoo GC=F failed");
-}
-
 function monthKey(tSec: number): string {
   const d = new Date(tSec * 1000);
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Prefer Yahoo on overlapping months; keep datahub for the long history. */
+/** Prefer the IMF tail on overlapping months; keep datahub for the long history. */
 function stitch(datahub: Point[], yahoo: Point[]): Point[] {
   const map = new Map<string, Point>();
   for (const p of datahub) map.set(monthKey(p.t), p);
@@ -185,27 +137,27 @@ async function buildLive(): Promise<GoldPayload> {
     );
   }
 
-  let yahooPts: Point[] = [];
-  let spot: number | null = null;
+  // Recent months: IMF Primary Commodity Prices PGOLD (monthly average, public) — replaces Yahoo GC=F.
+  let imfPts: Point[] = [];
   try {
-    const y = await loadYahooMonthly();
-    yahooPts = y.points;
-    spot = y.spot;
+    const { loadImfMonthly } = await import("@/lib/commoditiesData");
+    imfPts = (await loadImfMonthly("PGOLD")).map((p) => ({ t: p.t, c: p.c }));
   } catch (e) {
-    warnings.push(`yahoo: ${e instanceof Error ? e.message : String(e)}`);
+    warnings.push(`imf: ${e instanceof Error ? e.message : String(e)}`);
   }
+  const spot: number | null = imfPts.length ? imfPts[imfPts.length - 1]!.c : null;
 
   let points: Point[] = [];
   const sources: string[] = [];
-  if (datahub.length && yahooPts.length) {
-    points = stitch(datahub, yahooPts);
-    sources.push("datasets/gold-prices monthly", "Yahoo Finance GC=F monthly");
+  if (datahub.length && imfPts.length) {
+    points = stitch(datahub, imfPts);
+    sources.push("datasets/gold-prices monthly", "IMF Primary Commodity Prices (PCPS) PGOLD monthly");
   } else if (datahub.length) {
     points = datahub;
     sources.push("datasets/gold-prices monthly");
-  } else if (yahooPts.length) {
-    points = yahooPts;
-    sources.push("Yahoo Finance GC=F monthly");
+  } else if (imfPts.length) {
+    points = imfPts;
+    sources.push("IMF Primary Commodity Prices (PCPS) PGOLD monthly");
   } else {
     throw new Error(warnings.join("; ") || "no gold sources");
   }
@@ -219,7 +171,7 @@ async function buildLive(): Promise<GoldPayload> {
     spot,
     warnings: warnings.length ? warnings : undefined,
     note:
-      "Long-run USD gold. Peg-era months come from the documented historical series (official mint / LBMA-era prints), not invented levels. Educational · NFA.",
+      "Long-run USD gold. Peg-era months come from the documented historical series (official mint / LBMA-era prints), not invented levels.",
   };
 }
 

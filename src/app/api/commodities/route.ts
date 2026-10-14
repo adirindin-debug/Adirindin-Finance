@@ -2,7 +2,7 @@
  * Commodity charts API — gold, silver, copper, nickel, lithium, iron ore.
  * GET /api/commodities            → full series (detail chart)
  * GET /api/commodities?view=tile  → 5-year monthly lines rebased to 100 (Charts hub tile)
- * Per-series soft-fail: live → last-good → dated snapshot. Educational · NFA.
+ * Per-series soft-fail: live → last-good → dated snapshot.
  */
 
 import { buildTileLines, TILE_WINDOW_YEARS } from "@/lib/commodities";
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
       asOf,
       series,
       errors: errors.length ? errors : undefined,
-      note: "Public sources only — futures closes (Yahoo Finance), IMF PCPS monthly benchmark averages and long-run gold history. Never invented. Educational · NFA.",
+      note: "Public sources only — IMF PCPS monthly benchmark averages and long-run gold history. Never invented.",
     },
     { headers: { "Cache-Control": CACHE } },
   );

@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Philly Fed Manufacturing",
   description:
-    "Philadelphia Fed Manufacturing Business Outlook Survey (current general activity, via FRED) with research reference levels — not the ISM Manufacturing PMI. Educational only (NFA).",
+    "Philadelphia Fed Manufacturing Business Outlook Survey (current general activity, via FRED) with research reference levels — not the ISM Manufacturing PMI. Educational only.",
 };
 
 export default function FactoryMonitorPage() {
@@ -19,7 +19,7 @@ export default function FactoryMonitorPage() {
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         US factory monitor built on the Philadelphia Fed manufacturing survey ·
-        monthly · not ISM. Research tool only — not financial advice (NFA).
+        monthly · not ISM. 
       </p>
 
       <div className="mt-8">

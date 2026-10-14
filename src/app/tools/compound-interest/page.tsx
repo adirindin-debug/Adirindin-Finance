@@ -6,7 +6,7 @@ import { DEFAULT_INFLATION_PCT } from "@/lib/compoundInterest";
 export const metadata: Metadata = {
   title: "Compound interest calculator",
   description:
-    "Project savings with an initial deposit and regular contributions at any rate — or at a real asset's historical growth rate (CAGR) from its ticker. Optional inflation view. Illustrative only, not financial advice (NFA).",
+    "Project savings with an initial deposit and regular contributions at any rate — or at a real asset's historical growth rate (CAGR) from its ticker. Optional inflation view. Illustrative only.",
 };
 
 export default function CompoundInterestPage() {
@@ -21,7 +21,7 @@ export default function CompoundInterestPage() {
       </p>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
         <strong className="font-medium text-foreground">A rough gauge for study.</strong> Projections are illustrative,
-        not a forecast and not financial advice (NFA). A ticker&apos;s growth rate is what it did in the past — not what
+        not a forecast. A ticker&apos;s growth rate is what it did in the past — not what
         it will do next.
       </p>
 
@@ -68,7 +68,7 @@ export default function CompoundInterestPage() {
         </p>
       </section>
 
-      <aside className="mt-8 rounded-xl border border-[#3a4558] bg-[#121820] px-5 py-4" role="note" aria-label="Not financial advice">
+      <aside className="mt-8 rounded-xl border border-[#3a4558] bg-[#121820] px-5 py-4" role="note" aria-label="">
         <p className="text-sm font-semibold text-[#d0d8e4]">Illustrative, not advice</p>
         <ul className="mt-2 list-disc space-y-1.5 pl-5 text-xs leading-relaxed text-[#9eb0c8] sm:text-sm">
           <li>
@@ -86,14 +86,14 @@ export default function CompoundInterestPage() {
           </li>
           <li>
             It does not tell anyone to buy, sell or hold anything and does not consider your objectives, financial
-            situation or needs. General information only — not personal financial advice (NFA). Consider getting advice
+            situation or needs. General information only. Consider getting advice
             from a licensed professional before acting.
           </li>
         </ul>
       </aside>
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
-        Educational content only · not financial advice (NFA) · @Dirindin533 / Adirindin Finance.
+        @Dirindin533 / Adirindin Finance.
       </p>
     </div>
   );

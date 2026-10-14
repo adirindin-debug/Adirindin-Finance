@@ -24,7 +24,7 @@
  * Adding them scaled every earlier weight by 0.8 (ratios unchanged).
  *
  * Theoretical estimation and study aid only. Not a signal, not a timing model,
- * not financial advice (NFA).
+ * not financial advice.
  */
 
 import { btcLiveSilhouette } from "@/lib/cycles/btcSilhouette";
@@ -1233,7 +1233,7 @@ export type RsSummary = {
 };
 
 /**
- * Latest headline reading exactly as /tools/risk-sentiment shows it by default:
+ * Latest headline reading exactly as /tools/market-sentiment shows it by default:
  * DEFAULT_SMOOTH score, its zone, and the mood-arc stage from the score vs the
  * score ~91 days earlier. Derived from the full payload — never invented.
  */

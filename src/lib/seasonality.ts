@@ -202,7 +202,7 @@ export type SeasonPayload = {
 };
 
 export const SEASON_FOOTER =
-  "Research tool. Past seasonality is not a forecast. Not financial advice.";
+  "Research tool. Past seasonality is not a forecast.";
 
 export const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 export const MONTH_NAMES = [

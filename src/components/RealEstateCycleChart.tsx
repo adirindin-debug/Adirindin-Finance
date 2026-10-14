@@ -580,7 +580,7 @@ export default function RealEstateCycleChart() {
       viewBox={`0 0 ${SVG_W} ${SVG_H}`}
       className="mt-6 h-auto w-full overflow-visible"
       role="img"
-      aria-label="Classic 18.6 Year Real Estate Cycle theory schematic with stacked historical and next-lap theory years on the same loop — educational rough guide only, not a predictive model or financial advice"
+      aria-label="Classic 18.6 Year Real Estate Cycle theory schematic with stacked historical and next-lap theory years on the same loop — educational rough guide only, not a predictive model"
       style={{ overflow: "visible" }}
     >
       <defs>
@@ -621,7 +621,7 @@ export default function RealEstateCycleChart() {
         fontSize="10"
         fontFamily="system-ui, sans-serif"
       >
-        Schematic · 18.6y framing · bold yellow = active cycle years · muted = inactive / next-lap until after 2031 · not a forecast · NFA
+        Schematic · 18.6y framing · bold yellow = active cycle years · muted = inactive / next-lap until after 2031 · not a forecast
       </text>
 
       {/* Shift chart geometry down into the padded canvas; title stays in the top band */}
@@ -922,7 +922,7 @@ export default function RealEstateCycleChart() {
           Bold yellow years mark the active cycle (current lap before end-2031; next-lap theory years after). Framework dates — not predictions.
         </text>
 
-        {/* Prominent theory disclaimer — AU English, NFA tone */}
+        {/* Prominent theory disclaimer — AU English tone */}
         <rect
           x="40"
           y="474"
@@ -952,7 +952,7 @@ export default function RealEstateCycleChart() {
           fontSize="9"
           fontFamily="system-ui, sans-serif"
         >
-          Not to be relied on for market timing. Research / educational purposes only. Not financial advice (NFA).
+          Not to be relied on for market timing. Research / educational purposes only. 
         </text>
       </g>
     </svg>

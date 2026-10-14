@@ -7,7 +7,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Commodity charts",
   description:
-    "Gold, silver, copper, nickel, lithium and iron ore prices from public sources (Yahoo Finance futures closes, IMF Primary Commodity Prices, long-run gold history) — educational charts for Adirindin Finance (NFA).",
+    "Gold, silver, copper, nickel, lithium and iron ore prices from public sources (IMF Primary Commodity Prices and long-run gold history) — educational charts for Adirindin Finance.",
 };
 
 export default function CommodityChartsPage() {
@@ -22,7 +22,7 @@ export default function CommodityChartsPage() {
         <Link href="/tools/gold-cycle" className="text-accent hover:underline">
           gold cycle sketch
         </Link>
-        . Educational content only — not financial advice (NFA).
+        . 
       </p>
 
       <div className="mt-8">

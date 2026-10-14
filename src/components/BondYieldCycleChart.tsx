@@ -9,7 +9,7 @@
  * along each half: Jan 2020 trough → Jan 2060 peak → Jan 2100 trough, then
  * resets onto the same loop (dashed wrap). Live is computed client-side after
  * mount and re-ticks hourly / on tab focus (no dot in SSR HTML).
- * No yield numbers on the diagram · future dates theoretical · research only · NFA.
+ * No yield numbers on the diagram · future dates theoretical · research only
  */
 
 "use client";
@@ -372,7 +372,7 @@ export default function BondYieldCycleChart() {
         viewBox={`0 0 ${SVG_W} ${SVG_H}`}
         className="h-auto w-full overflow-visible"
         role="img"
-        aria-label="US 10-year Treasury yield secular regime sketch — mountain silhouette with a trough zone on the left, peak zone in the middle and trough zone on the right, roughly 40 years each way. Stacked marker years at each column, bold yellow for the active lap. Live marker positioned by today's date. Hover the gold markers for regime dates. Educational sketch only — no yield targets, not a model or financial advice"
+        aria-label="US 10-year Treasury yield secular regime sketch — mountain silhouette with a trough zone on the left, peak zone in the middle and trough zone on the right, roughly 40 years each way. Stacked marker years at each column, bold yellow for the active lap. Live marker positioned by today's date. Hover the gold markers for regime dates. Educational sketch only — no yield targets, not a model"
         style={{ overflow: "visible" }}
       >
         <defs>
@@ -430,7 +430,7 @@ export default function BondYieldCycleChart() {
           fontFamily="system-ui, sans-serif"
         >
           Stylised sketch · ~40y up · ~40y down · bold yellow = active lap · * = theoretical · green
-          line = trough regime · red line = peak regime · NFA
+          line = trough regime · red line = peak regime
         </text>
 
         <g transform={`translate(0, ${TOP_PAD})`}>
@@ -699,8 +699,7 @@ export default function BondYieldCycleChart() {
             fontSize="9"
             fontFamily="system-ui, sans-serif"
           >
-            Not a model, not a signal, not for market timing. Research / educational purposes only. Not financial
-            advice (NFA).
+            Not a model, not a signal, not for market timing. Research / educational purposes only. 
           </text>
 
           {/* Live pulse — client-computed from today's Melbourne date (hidden until mounted) */}
@@ -713,7 +712,7 @@ export default function BondYieldCycleChart() {
                     : `~${liveInfo.yearsToNext} year${liveInfo.yearsToNext === 1 ? "" : "s"}`
                 } to the ~${liveInfo.nextZoneYear} theoretical ${
                   liveInfo.rising ? "peak" : "trough"
-                } zone · theoretical, NFA`}
+                } zone · theoretical`}
               </title>
               <circle
                 className="bond-live-ring"

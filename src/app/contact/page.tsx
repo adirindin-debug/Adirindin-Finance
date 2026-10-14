@@ -35,7 +35,7 @@ export default function ContactPage() {
         </a>
       </p>
       <p className="mt-8 text-sm text-muted">
-        Educational content only · not financial advice (NFA) · Adirindin Finance / Anthony.
+        Adirindin Finance / Anthony.
       </p>
     </div>
   );

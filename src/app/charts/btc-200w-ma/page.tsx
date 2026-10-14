@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Bitcoin 200-week MA",
   description:
-    "Bitcoin price versus the 200-week simple moving average — educational chart for Adirindin Finance (NFA).",
+    "Bitcoin price versus the 200-week simple moving average — educational chart for Adirindin Finance.",
 };
 
 export default function Btc200wMaChartPage() {
@@ -18,8 +18,7 @@ export default function Btc200wMaChartPage() {
         BTC 200-week MA
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        Bitcoin spot versus the 200-week simple moving average. Educational
-        framing only — not financial advice (NFA).
+        Bitcoin spot versus the 200-week simple moving average. 
       </p>
 
       <div className="mt-8">

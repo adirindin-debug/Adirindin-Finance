@@ -2,7 +2,7 @@
  * Relative % from the start of each window for BTC, equities, MSCI World proxy,
  * US/AU housing, and US M2.
  * Query: ?window=1d|1w|1m|ytd|1y|3y|4y|5y|10y|20y|all  (default: 1y)
- * Yahoo Finance chart API + FRED CSV/API (server-side; UA required). Educational — NFA.
+ * Yahoo Finance chart API + FRED CSV/API (server-side; UA required).
  *
  * Series sources (documented for maintainers):
  * - btc: Yahoo BTC-USD
@@ -12,9 +12,9 @@
  * - msci: Yahoo ^990100-USD-STRD — MSCI World Standard (price) index level via Yahoo
  *   delayed chart feed. Daily history from ~1972-01-03. Price return only (not net total
  *   return); not an ETF. MSCI® is a trademark of MSCI Inc.
- * - case: FRED CSUSHPISA — Case-Shiller US National Home Price Index (monthly, SA)
+ * - case: FRED USSTHPI — FHFA All-Transactions House Price Index (quarterly; US Government data)
  * - auhouses: FRED QAUN628BIS — BIS nominal Residential Property Prices for Australia
- *   (quarterly, Index 2010=100; 8 big cities). Nominal chosen to align with Case-Shiller
+ *   (quarterly, Index 2010=100; 8 big cities). Nominal chosen to align with US real estate (FHFA)
  *   (also a nominal price index) for relative-% compares. QAUR628BIS is the real (CPI-
  *   deflated) sibling if a real series is preferred later.
  * - m2: FRED M2SL — US M2 money stock (monthly, SA, billions USD). Plotted as relative
@@ -58,7 +58,7 @@ type SeriesMeta = {
   id: SeriesId;
   label: string;
   ticker: string;
-  source: "yahoo" | "fred";
+  source: "yahoo" | "fred" | "coinbase";
   yahooSymbol?: string;
   fredId?: string;
   /** Native cadence before daily forward-fill. */
@@ -70,8 +70,7 @@ const SERIES: SeriesMeta[] = [
     id: "btc",
     label: "BTC-USD",
     ticker: "BTC-USD",
-    source: "yahoo",
-    yahooSymbol: "BTC-USD",
+    source: "coinbase",
     frequency: "daily",
   },
   {
@@ -109,11 +108,12 @@ const SERIES: SeriesMeta[] = [
   },
   {
     id: "case",
+    // FHFA All-Transactions House Price Index (US Government data, public domain) — replaces S&P US real estate (FHFA).
     label: "US real estate",
-    ticker: "CSUSHPISA",
+    ticker: "USSTHPI",
     source: "fred",
-    fredId: "CSUSHPISA",
-    frequency: "monthly",
+    fredId: "USSTHPI",
+    frequency: "quarterly",
   },
   {
     // FRED QAUN628BIS — BIS nominal AU residential property prices (quarterly).
@@ -696,7 +696,7 @@ function windowMeta(key: WindowKey, nowSec: number) {
       windowSec: null as number | null,
       title: "All-time index relative %",
       definition:
-        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist on Yahoo (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI World, Case-Shiller, AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is optional on the ALL line when selected; Yahoo daily BTC-USD starts from Sep 2014, so it is marked partial/short history and uses its own inception start. Educational only — not financial advice (NFA).",
+        "ALL line = Nasdaq 100, S&P 500 and All Ordinaries from the first date all three exist (NDX daily from Oct 1985), each at 0% on the left. Optional series (MSCI World, US real estate (FHFA), AU real estate, US M2) join when selected; shorter history is marked partial. Bitcoin is optional on the ALL line when selected; BTC daily history here starts from Sep 2014, so it is marked partial/short history and uses its own inception start.",
     };
   }
   const from = windowFromSec(key, nowSec)!;
@@ -712,7 +712,7 @@ function windowMeta(key: WindowKey, nowSec: number) {
       windowSec: sec,
       title: "Relative % over ~1 day",
       definition:
-        "Each line starts at 0% at the left of the ~1 calendar-day window (prior-session style) and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+        "Each line starts at 0% at the left of the ~1 calendar-day window (prior-session style) and plots percentage return to each later close. Same start date across selected series.",
     };
   }
   if (key === "1w") {
@@ -725,7 +725,7 @@ function windowMeta(key: WindowKey, nowSec: number) {
       windowSec: sec,
       title: "Relative % over ~1 week",
       definition:
-        "Each line starts at 0% at the left of the ~7-day window and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+        "Each line starts at 0% at the left of the ~7-day window and plots percentage return to each later close. Same start date across selected series.",
     };
   }
   if (key === "1m") {
@@ -738,7 +738,7 @@ function windowMeta(key: WindowKey, nowSec: number) {
       windowSec: sec,
       title: "Relative % over ~1 month",
       definition:
-        "Each line starts at 0% at the left of the ~30-day window and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+        "Each line starts at 0% at the left of the ~30-day window and plots percentage return to each later close. Same start date across selected series.",
     };
   }
   if (key === "ytd") {
@@ -751,7 +751,7 @@ function windowMeta(key: WindowKey, nowSec: number) {
       windowSec: sec,
       title: "Relative % year-to-date",
       definition:
-        "Each line starts at 0% at the UTC calendar year start and plots percentage return to each later close. Same start date across selected series. Educational only — not financial advice (NFA).",
+        "Each line starts at 0% at the UTC calendar year start and plots percentage return to each later close. Same start date across selected series.",
     };
   }
   const years = WINDOW_YEARS[key];
@@ -763,7 +763,7 @@ function windowMeta(key: WindowKey, nowSec: number) {
     windowDays: days,
     windowSec: sec,
     title: `Relative % over ${years} year${years === 1 ? "" : "s"}`,
-    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date across selected series (BTC-USD, equities, MSCI World, Case-Shiller, AU real estate, US M2 % change). End of the line is the window return (matches the bar). Educational only — not financial advice (NFA).`,
+    definition: `Each line starts at 0% at the left of the window (close ~${years} calendar year${years === 1 ? "" : "s"} ago) and plots percentage return to each later close. Same start date across selected series (BTC-USD, equities, MSCI World, US real estate (FHFA), AU real estate, US M2 % change). End of the line is the window return (matches the bar).`,
   };
 }
 
@@ -773,7 +773,24 @@ type LoadedSeries = {
   usedFallback: boolean;
 };
 
+let selfOrigin = "https://adirindinfinance.com";
+/** BTC daily closes from our own /api/btc-history (Coinbase Exchange + Blockchain.com early history), from Sep 2014 as before. */
+async function fetchBtcDailyCoinbase(): Promise<ClosePoint[]> {
+  const res = await fetch(`${selfOrigin}/api/btc-history`, { signal: AbortSignal.timeout(25_000), cache: "no-store" });
+  if (!res.ok) throw new Error(`btc-history HTTP ${res.status}`);
+  const j = (await res.json()) as { daily?: Array<[string, number, number, number, number]> };
+  const from = Date.UTC(2014, 8, 17) / 1000;
+  const out = (j.daily ?? [])
+    .map(([d, , , , c]) => ({ t: Math.floor(Date.parse(`${d}T00:00:00Z`) / 1000), c }))
+    .filter((p) => p.t >= from && Number.isFinite(p.c) && p.c > 0);
+  if (out.length < 200) throw new Error("btc-history too short");
+  return out;
+}
+
 async function loadSeriesCloses(meta: SeriesMeta): Promise<LoadedSeries> {
+  if (meta.source === "coinbase") {
+    return { closes: await fetchBtcDailyCoinbase(), origin: "coinbase", usedFallback: false };
+  }
   if (meta.source === "yahoo") {
     if (!meta.yahooSymbol) throw new Error(`${meta.id}: missing yahooSymbol`);
     const closes = await fetchYahooDaily(meta.yahooSymbol);
@@ -792,7 +809,8 @@ async function loadSeriesCloses(meta: SeriesMeta): Promise<LoadedSeries> {
 }
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams, origin } = new URL(request.url);
+  if (!/localhost|127\.0\.0\.1/.test(origin)) selfOrigin = origin;
   const windowKey = parseWindow(searchParams.get("window"));
   const nowSecEarly = Math.floor(Date.now() / 1000);
   const meta = windowMeta(windowKey, nowSecEarly);
@@ -858,6 +876,8 @@ export async function GET(request: Request) {
     coverage: "full" | "partial";
     /** yahoo | fred, or fred with mirror/bundled note when live FRED timed out. */
     source: string;
+    stored?: boolean;
+    shortHistory?: boolean;
     frequency: "daily" | "monthly" | "quarterly";
   }> = [];
 
@@ -893,6 +913,8 @@ export async function GET(request: Request) {
       const sourceLabel =
         sMeta.source === "yahoo"
           ? "yahoo"
+          : sMeta.source === "coinbase"
+            ? "coinbase"
           : usedDataFallback
             ? `fred (${origin})`
             : "fred";
@@ -906,6 +928,8 @@ export async function GET(request: Request) {
         coverage,
         startDate,
         source: sourceLabel,
+        stored: usedDataFallback && String(originById[sMeta.id] ?? "").startsWith("bundled"),
+        shortHistory: usedFallbackBase,
         frequency: sMeta.frequency,
       });
     } catch (e) {

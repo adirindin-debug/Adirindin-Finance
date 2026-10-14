@@ -15,7 +15,7 @@ export function Footer() {
           <div className="space-y-1.5">
             <p>Adirindin Finance — educational content only.</p>
             <p className="text-xs leading-relaxed">
-              Not personal financial advice (NFA). Not a licensed Australian financial services
+              Not a licensed Australian financial services
               business; nothing here is an AFSL product, recommendation, or solicitation. Index
               names, logos and trademarks remain with their owners. Chart data is attributed on
               each panel.{" "}

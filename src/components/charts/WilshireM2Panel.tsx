@@ -1,5 +1,7 @@
 "use client";
 
+import { StoredCopyTag } from "@/components/ui/StoredCopyTag";
+
 import {
   useCallback,
   useEffect,
@@ -286,8 +288,7 @@ export function WilshireM2Panel() {
             </div>
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted">
-            Equity market vs money supply ratio from public FRED data (monthly).
-            Educational framing only (NFA).
+            US equity market (Wilshire 5000, via Yahoo Finance) vs US M2 money supply (FRED), monthly.
           </p>
         </div>
         {headline && (
@@ -299,9 +300,9 @@ export function WilshireM2Panel() {
             <p className="mt-1 font-mono text-[11px] text-muted">
               {fmtDateMonth(headline.t)}
             </p>
-            {data?.snapshot && data.asOf && (
-              <p className="mt-1 text-[11px] text-[#e8b84a]">
-                Dated snapshot · fetched {fmtDate(Date.parse(data.asOf) / 1000)}
+            {(data?.snapshot || data?.stale) && (
+              <p className="mt-1">
+                <StoredCopyTag to={new Date(headline.t * 1000).toISOString().slice(0, 10)} />
               </p>
             )}
           </div>
@@ -457,12 +458,15 @@ export function WilshireM2Panel() {
 
       <div className="mt-4 space-y-1 text-xs text-muted">
         {data?.ratioDefinition && <p>{data.ratioDefinition}</p>}
-        {data?.wilshireSource && <p>Wilshire: {data.wilshireSource}</p>}
+        <p>
+          Wilshire 5000: Source: Yahoo Finance (^W5000, monthly). FRED stopped publishing Wilshire
+          series in 2024, so there is no free public equivalent.
+        </p>
         {data?.m2Source && <p>M2: {data.m2Source}</p>}
         {data?.ok && data.asOf && (
           <p>
             {data.snapshot
-              ? `Showing a dated snapshot fetched ${fmtDate(Date.parse(data.asOf) / 1000)} while the live feeds load; refresh shortly for the latest.`
+              ? `Stored copy fetched ${fmtDate(Date.parse(data.asOf) / 1000)} — the live feeds were unavailable.`
               : `Data fetched ${fmtDate(Date.parse(data.asOf) / 1000)}.`}
           </p>
         )}
@@ -486,7 +490,7 @@ export function WilshireM2Panel() {
         <p>
           Wilshire 5000® and related marks are trademarks of their owners; FRED® is a
           registered trademark of the Federal Reserve Bank of St. Louis. No endorsement
-          implied. {data?.note ?? "Educational only — NFA."}
+          implied.
         </p>
       </div>
     </section>

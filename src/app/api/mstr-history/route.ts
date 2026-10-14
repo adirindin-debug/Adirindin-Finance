@@ -3,7 +3,7 @@
  * Last print from TradingView scanner (NASDAQ:MSTR). Daily/weekly bars
  * from Yahoo adjclose (TradingView has no public candle API) stamped to
  * that TV last so the overlay matches the TV chart. Stooq if Yahoo fails.
- * Educational — NFA.
+ *
  */
 
 export const runtime = "nodejs";
@@ -186,7 +186,7 @@ export async function GET() {
       weekly,
       daily,
       source,
-      note: "Last print from TradingView (NASDAQ:MSTR). History bars are split-adjusted closes stamped to that last. Educational — NFA.",
+      note: "Last print from TradingView (NASDAQ:MSTR). History bars are split-adjusted closes stamped to that last.",
       errors: errors.length ? errors : undefined,
     },
     {

@@ -42,8 +42,7 @@ export function PropertyPricesDesk() {
               not for investment decisions or market timing. Figures are
               estimates based on averages and dated public marks, not exact
               valuations of any address. Paste a mid from realestate.com.au or
-              Domain — this desk does not scrape. Not personal financial advice
-              (NFA).
+              Domain — this desk does not scrape. 
             </p>
           </div>
           <DeskFiles />
@@ -72,8 +71,7 @@ export function PropertyPricesDesk() {
           public marks, not exact. The chart path is a suburb-indexed proxy,
           not a valuation of the address. Australia overlay: ABS 6432.0 mean
           dwelling values (via published table prints). Melbourne overlay:
-          Valuer-General Victoria and cited research medians. Not financial
-          advice (NFA). Listing mids stay on realestate.com.au / Domain — this
+          Valuer-General Victoria and cited research medians.  Listing mids stay on realestate.com.au / Domain — this
           desk stores dated public prints you paste; it does not scrape.{" "}
           <a className="text-accent hover:underline" href="/">
             Adirindin Finance
@@ -185,7 +183,7 @@ function ChartPanel() {
   const [range, setRange] = useState<RangeKey>("20");
   const [overlay, setOverlay] = useState<OverlayKey>("australia");
   return (
-    <Panel title="Australian Property Prices" kicker="hover for $ and % · NFA">
+    <Panel title="Australian Property Prices" kicker="hover for $ and %">
       <div className="mb-3">
         <FieldLabel>Window</FieldLabel>
         <div

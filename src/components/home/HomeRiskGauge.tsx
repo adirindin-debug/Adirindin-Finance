@@ -9,7 +9,7 @@ import { DeskTag } from "@/components/home/DeskTag";
 const fmtAsOf = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-/** Homepage hero: the live Market sentiment score, zone and stage (same reading as /tools/risk-sentiment). */
+/** Homepage hero: the live Market sentiment score, zone and stage (same reading as /tools/market-sentiment). */
 export function HomeRiskGauge() {
   const [data, setData] = useState<MsSummary | null>(null);
   const [failed, setFailed] = useState(false);
@@ -69,12 +69,12 @@ export function HomeRiskGauge() {
         <p className="relative z-10 mt-2 text-xs text-muted/80">
           <span className="font-medium text-foreground/80">Sources:</span> OFR · Chicago Fed · St. Louis Fed (FRED) ·
           Alternative.me · Yahoo Finance (S&amp;P 500 monthly, seasonality) ·{" "}
-          <Link href="/tools/risk-sentiment#sources" className="text-accent hover:underline">
+          <Link href="/tools/market-sentiment#sources" className="text-accent hover:underline">
             full citations
           </Link>
         </p>
         <Link
-          href="/tools/risk-sentiment"
+          href="/tools/market-sentiment"
           className="mt-3 inline-flex text-sm font-medium text-accent after:absolute after:inset-0 after:rounded-xl after:content-[''] group-hover:underline"
         >
           See the full gauge →

@@ -1,7 +1,7 @@
 /**
  * US stock market Fear & Greed Index — FearGreedChart.com public API (~1h cache).
  * Documented free JSON feed (no key). Independent methodology — not CNN.
- * Educational only — NFA.
+ * Educational only —
  */
 
 export const runtime = "nodejs";
@@ -109,7 +109,7 @@ export async function GET() {
         compareUrl: CNN_COMPARE_URL,
         asOf: new Date().toISOString(),
         note:
-          "Independent FearGreedChart.com public API (documented, no key) — not CNN’s index and not affiliated with CNN. Educational sentiment gauge only — not financial advice (NFA).",
+          "Independent FearGreedChart.com public API (documented, no key) — not CNN’s index and not affiliated with CNN.",
       },
       {
         headers: {

@@ -2,7 +2,7 @@
  * US spot crypto ETF net flows — shared types and aggregation.
  * Daily series are summed into weekly / monthly / quarterly / yearly buckets.
  * Values are USD (Farside US$m totals converted ×1e6; ZCSH CSV already USD).
- * Educational · never invent figures · NFA.
+ * Educational · never invent figures
  */
 
 export type EtfAssetId = "btc" | "eth" | "sol" | "zcsh";
@@ -319,3 +319,42 @@ export function recentMonthlyBars(days: EtfDay[], maxMonths = 12): EtfBucket[] {
   const months = aggregateFlows(days, "monthly");
   return months.slice(-maxMonths);
 }
+
+/** If any listed asset is served from a stored copy, the earliest such last date (else null). */
+export function storedCopyTo(assets: Record<EtfAssetId, EtfAssetSeries> | undefined): string | null {
+  if (!assets) return null;
+  let out: string | null = null;
+  for (const id of ETF_ASSETS) {
+    const a = assets[id];
+    if (!a?.snapshot || a.status !== "ok" || !a.lastDate) continue;
+    if (out == null || a.lastDate < out) out = a.lastDate;
+  }
+  return out;
+}
+
+/** True when the bucket's period has not finished as of the last daily print (e.g. month-to-date). */
+export function isPartialBucket(agg: EtfAgg, bucket: EtfBucket | undefined, lastDate: string | null | undefined): boolean {
+  if (!bucket || !lastDate || agg === "daily") return false;
+  const d = new Date(`${lastDate}T00:00:00Z`);
+  let end: Date;
+  if (agg === "weekly") {
+    end = new Date(d);
+    end.setUTCDate(d.getUTCDate() + ((5 - d.getUTCDay() + 7) % 7));
+  } else {
+    const y = d.getUTCFullYear();
+    const m = d.getUTCMonth();
+    const endMonth = agg === "monthly" ? m : agg === "quarterly" ? Math.floor(m / 3) * 3 + 2 : 11;
+    end = new Date(Date.UTC(y, endMonth + 1, 0));
+  }
+  // Step back to the last weekday of the period.
+  while (end.getUTCDay() === 0 || end.getUTCDay() === 6) end.setUTCDate(end.getUTCDate() - 1);
+  return end.toISOString().slice(0, 10) > lastDate;
+}
+
+export const PARTIAL_LABEL: Record<EtfAgg, string> = {
+  daily: "",
+  weekly: "week-to-date",
+  monthly: "month-to-date",
+  quarterly: "quarter-to-date",
+  yearly: "year-to-date",
+};

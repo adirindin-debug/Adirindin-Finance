@@ -9,7 +9,7 @@
  * 1970s–80s gold pattern: flat low → steep run-up → sharp
  * mid-way correction → parabolic spike to the peak → sharp drop → long
  * "down sideways" drift ending ~58% of the way up — well above the start,
- * reflecting gold's long secular uptrend. Educational observational sketch · NFA.
+ * reflecting gold's long secular uptrend. Educational observational sketch
  */
 
 import {

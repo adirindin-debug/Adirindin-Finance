@@ -32,6 +32,8 @@ type SeriesPayload = {
   startDate?: string;
   coverage?: "full" | "partial";
   source?: string;
+  stored?: boolean;
+  shortHistory?: boolean;
   frequency?: "daily" | "monthly" | "quarterly";
 };
 
@@ -65,7 +67,7 @@ const SERIES_STYLE: Record<
   ndx: { color: "#4c9fff", short: "NDX", chip: "Nasdaq 100" },
   aord: { color: "#e8873a", short: "AORD", chip: "All Ords" },
   msci: { color: "#a78bfa", short: "WORLD", chip: "MSCI World" },
-  case: { color: "#f472b6", short: "CASE", chip: "US real estate" },
+  case: { color: "#f472b6", short: "FHFA", chip: "US real estate" },
   auhouses: { color: "#38bdf8", short: "AU", chip: "AU real estate" },
   m2: {
     color: "#94a3b8",
@@ -423,14 +425,14 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
     return {
       heading: "All-time relative chart",
       subtitle:
-        "NDX, SPX and AORD set the shared start · toggle series on chips · BTC can join the line from ~Sep 2014 · educational · NFA",
+        "NDX, SPX and AORD set the shared start · toggle series on chips · BTC can join the line from ~Sep 2014",
       kpiSuffix: "% all-time",
       chartTitle: payload?.title ?? "All-time index relative %",
       chartHint: "Selected series · start = 0% · BTC partial from ~Sep 2014",
       aria: "All-time relative percentage returns for selected series",
       loading: "Loading all-time relative returns…",
       footerLead:
-        "Educational compare from the first date NDX, SPX and AORD all exist on Yahoo (NDX daily, Oct 1985). Toggle series chips to show or hide lines; BTC can be toggled on with its shorter history from around Sep 2014",
+        "Compare from the first date NDX, SPX and AORD all exist (NDX daily, Oct 1985). Toggle series chips to show or hide lines; BTC can be toggled on with its shorter history from around Sep 2014",
       startsLine: starts,
       errorLabel: "all-time compare chart",
     };
@@ -441,7 +443,7 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
   const daysBit = days != null ? `~${days}d` : windowKey;
   return {
     heading: `${label} relative chart`,
-    subtitle: `Each line starts at 0% · ${label} window · shared scale · educational · NFA`,
+    subtitle: `Each line starts at 0% · ${label} window · shared scale`,
     kpiSuffix: `${windowKey.toUpperCase()} %`,
     chartTitle: payload?.title ?? `Relative % over ${label}`,
     chartHint: `Shared % scale · from ${daysBit} ago · not price levels`,
@@ -770,7 +772,7 @@ export function BtcFourYearChart() {
                   : null);
               const missing = !s;
               const title = `${s?.ticker ?? style.short} · ${copy.kpiSuffix}${start ? ` · from ${start}` : ""}${
-                s?.coverage === "partial" ? " · short history" : ""
+                s?.shortHistory ? ` · since ${start?.slice(0, 4) ?? ""}` : s?.stored ? " · stored copy (live feed unavailable)" : ""
               }${style.hint ? ` · ${style.hint}` : ""}${missing ? " · unavailable" : ""}`;
               return (
                 <button
@@ -802,7 +804,11 @@ export function BtcFourYearChart() {
                   >
                     {missing ? "—" : pct == null ? "—" : fmtPct(pct, 0)}
                   </span>
-                  {s?.coverage === "partial" ? <span className="text-[10px] text-muted">short</span> : null}
+                  {s?.shortHistory && start ? (
+                    <span className="text-[10px] text-muted">since {start.slice(0, 4)}</span>
+                  ) : s?.stored ? (
+                    <span className="rounded-full border border-border/70 px-1.5 text-[10px] text-muted">stored copy</span>
+                  ) : null}
                 </button>
               );
             })}
@@ -815,7 +821,7 @@ export function BtcFourYearChart() {
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <p className="text-sm text-muted">{copy.loading}</p>
             <p className="text-xs text-muted/70">
-              BTC · S&amp;P 500 · Case-Shiller · equities · MSCI World · AU real estate · US M2
+              BTC · S&amp;P 500 · US real estate · equities · MSCI World · AU real estate · US M2
             </p>
           </div>
         )}
@@ -1201,9 +1207,9 @@ export function BtcFourYearChart() {
           <>
             <strong className="font-medium text-muted">ALL:</strong> the shared
             start is NDX, SPX and AORD from Oct 1985. Bitcoin can be toggled on
-            for the line when selected; Yahoo daily BTC-USD starts around Sep
-            2014, so it is marked partial/short history versus that shared
-            start. Shorter series (e.g. Bitcoin from 2014) are marked partial.{" "}
+            for the line when selected; its daily history here starts around Sep
+            2014, so it is marked with its start year. Shorter series show
+            &ldquo;since&nbsp;year&rdquo;.{" "}
           </>
         ) : (
           <>
@@ -1218,20 +1224,19 @@ export function BtcFourYearChart() {
         change from the window start, not the raw money-stock level.{" "}
         <strong className="font-medium text-muted">Bar mode:</strong> latest %
         for the selected window as grouped bars (same end value as the line).
-        Data via Yahoo Finance delayed third-party chart feeds (BTC-USD, ^NDX, ^GSPC, ^AORD, ^990100-USD-STRD) and FRED®,
-        Federal Reserve Bank of St. Louis (CSUSHPISA S&amp;P CoreLogic Case-Shiller
-        US National HPI; QAUN628BIS BIS AU residential property prices; M2SL US M2).
-        The MSCI World chip is the developed-world MSCI World Standard (price)
-        index via Yahoo&apos;s delayed chart feed (^990100-USD-STRD) — not an ETF,
-        not ACWI, and not a net total-return series. MSCI® is a trademark of MSCI
-        Inc.; Case-Shiller® and other index names are trademarks of their owners; no
-        endorsement implied. Monthly/quarterly series are step-forward-filled to the shared axis.
-        Partial series may appear if history is short or a feed fails. Bonds not
-        included yet. For the full BTC+MSTR cycle desk, open{" "}
-        <a href="/dashboard" className="text-accent hover:underline">
-          Cycle desk
+        BTC: Coinbase Exchange BTC-USD daily closes (Blockchain.com before mid-2015).
+        Nasdaq 100, S&amp;P 500, All Ordinaries and MSCI World: Yahoo Finance delayed chart feed
+        (^NDX, ^GSPC, ^AORD, ^990100-USD-STRD) — no free public equivalent; index names are
+        trademarks of their owners (MSCI®, S&amp;P®, ASX®), no endorsement implied. FRED®, Federal
+        Reserve Bank of St. Louis: USSTHPI (FHFA All-Transactions House Price Index), QAUN628BIS
+        (BIS AU residential property prices), M2SL (US M2). Monthly/quarterly series are
+        step-forward-filled to the shared axis. A &ldquo;stored copy&rdquo; tag means the live
+        feed was unavailable and a saved copy is shown. Bonds not included yet. For the BTC
+        cycle theory, open{" "}
+        <a href="/dashboard/btc-cycle" className="text-accent hover:underline">
+          BTC 4-year cycle
         </a>
-        . Educational only — not investment advice (NFA).
+        .
       </p>
       ) : null}
       {payload?.errors && Object.keys(payload.errors).length > 0 && (

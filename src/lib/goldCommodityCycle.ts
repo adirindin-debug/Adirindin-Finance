@@ -14,7 +14,7 @@
  * in the US$35 peg era (model position only).
  *
  * Observational sketch only — not “the Kondratiev law”, not Cardo IP, not a
- * price target model. Tweak anchors / knots HERE only. Educational · NFA.
+ * price target model. Tweak anchors / knots HERE only. Educational
  */
 
 export const GOLD_CYCLE_YEARS = 46;
@@ -307,7 +307,7 @@ export const GOLD_TROUGH_NOTES: Record<number, string> = {
 };
 
 export const GOLD_CAVEAT_SHORT =
-  "Adirindin observational study · gold-led · ~46y peak zones · not Kondratiev-as-law · not a predictive model · NFA";
+  "Adirindin observational study · gold-led · ~46y peak zones · not Kondratiev-as-law · not a predictive model";
 
 export const GOLD_SOURCE_LINE =
   "Gold USD: datasets/gold-prices (historical monthly) + Yahoo Finance GC=F for recent closes · peg-era levels are documented official/historical series, not invented";

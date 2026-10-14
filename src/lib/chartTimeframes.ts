@@ -2,7 +2,7 @@
  * Shared chart timeframe toggles for homepage compare + portfolio performance.
  * Canonical key is lowercase (API / localStorage). Labels are uppercase for UI chips.
  * Portfolio summary/holdings return window uses the same keys (via PortfolioTimeframe).
- * Educational — NFA.
+ * Educational
  */
 
 export const CHART_TIMEFRAME_STORAGE_KEY = "adirindin.chartTimeframe";

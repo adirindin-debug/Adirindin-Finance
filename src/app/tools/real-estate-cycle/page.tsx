@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "18.6 Year Real Estate Cycle theory",
   description:
-    "Educational 18.6 Year Real Estate Cycle theory framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic), with next-lap theory waypoints overlaid on the same loop. Not a predictive model or financial advice.",
+    "Educational 18.6 Year Real Estate Cycle theory framing (classic Recovery → Mid-cycle → Land boom → Downturn schematic), with next-lap theory waypoints overlaid on the same loop. Not a predictive model.",
 };
 
 /**
@@ -71,7 +71,7 @@ export default function RealEstateCyclePage() {
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
             Classic cycle diagram
           </h2>
-          <span className="font-mono text-xs text-muted">≈ 18.6 years · schematic · NFA</span>
+          <span className="font-mono text-xs text-muted">≈ 18.6 years · schematic</span>
         </div>
 
         {/* Compact phase strip matching card vocabulary */}
@@ -127,7 +127,7 @@ export default function RealEstateCyclePage() {
               not to be relied on for market timing
             </strong>
             , and is for <strong className="font-medium text-[#d0d8e4]">research / educational purposes only</strong>.
-            The green Live marker is calendar-dated on the classic path (not a decorative tour). Not financial advice (NFA).
+            The green Live marker is calendar-dated on the classic path (not a decorative tour). 
           </p>
         </aside>
       </div>
@@ -155,7 +155,7 @@ export default function RealEstateCyclePage() {
           This page does not invent the ~18-year land cycle. The modern framing is widely associated
           with Fred Harrison&apos;s work (building on earlier land-cycle research, often traced to Homer
           Hoyt). Educators Phil Anderson and Jason Pizzino have discussed and taught this framework.
-          Educational study aid only · not financial advice.
+          
         </p>
       </section>
 
@@ -182,7 +182,7 @@ export default function RealEstateCyclePage() {
       </section>
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
-        Educational content only · not financial advice (NFA) · no fake returns shown · @Dirindin533 /
+        No fake returns shown · @Dirindin533 /
         Adirindin Finance. Past patterns do not guarantee future results.
       </p>
     </div>

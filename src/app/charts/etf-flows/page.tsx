@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Crypto ETF flows · US spot net flows",
   description:
-    "US spot Bitcoin, Ethereum, Solana and Zcash (ZCSH) ETF net flows — daily through yearly aggregation. Public Farside and SoSoValue-backed sources. Educational only (NFA).",
+    "US spot Bitcoin, Ethereum, Solana and Zcash (ZCSH) ETF net flows — daily through yearly aggregation. Public Farside and SoSoValue-backed sources. Educational only.",
 };
 
 export default function EtfFlowsChartPage() {
@@ -21,7 +21,7 @@ export default function EtfFlowsChartPage() {
         US spot crypto ETF net flows for Bitcoin, Ethereum, Solana and Zcash
         (ZCSH). Toggle the asset and aggregation (daily / weekly / monthly /
         quarterly / yearly). Public source tables only — we never invent
-        figures. Educational framing only — not financial advice (NFA).
+        figures. 
       </p>
 
       <div className="mt-8">

@@ -5,7 +5,7 @@ import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Tools",
   description:
-    "Research tools desk: portfolio tracker, Australian property prices, a compound interest calculator with historical asset growth rates and a just-for-fun Power Level scouter. Educational and illustrative only — not financial advice.",
+    "Research tools desk: portfolio tracker, Australian property prices, a compound interest calculator with historical asset growth rates and a just-for-fun Power Level scouter. Educational and illustrative only.",
 };
 
 type ToolCard = { href: string; title: string; badge?: string; blurb: string; meta: string; cta: string };
@@ -24,7 +24,7 @@ const tools: ToolCard[] = [
     title: "Compound interest calculator",
     blurb:
       "Project a starting balance plus regular contributions at any rate — no cap — or at a real asset's historical growth rate by ticker. Optional inflation view in today's dollars. Rough gauge only — historical rates are not a forecast.",
-    meta: "Calculator · ticker CAGR · optional inflation · illustrative · NFA",
+    meta: "Calculator · ticker CAGR · optional inflation · illustrative",
     cta: "Open the calculator",
   },
   {
@@ -33,7 +33,7 @@ const tools: ToolCard[] = [
     badge: "Beta",
     blurb:
       "A scouter-style power level for your standard of living, 0–100,000. Net worth, runway, savings rate and income on a log scale, with quick-fill examples and the planet's top 10 from Forbes. Runs in your browser — nothing stored or sent. Just for fun.",
-    meta: "Fun · log-scale score · client-side · not a measure of worth · NFA",
+    meta: "Fun · log-scale score · client-side · not a measure of worth",
     cta: "Scan your power level",
   },
   {
@@ -56,7 +56,7 @@ export default function ToolsHubPage() {
         <Link href="/cycles" className="text-accent hover:underline">
           Market cycles
         </Link>
-        . Educational framing only — not personal financial advice, not a recommendation, and not a
+        . , not a recommendation, and not a
         promise of returns. Anthony / Adirindin (@Dirindin533).
       </p>
       <MobileTilesCaption />

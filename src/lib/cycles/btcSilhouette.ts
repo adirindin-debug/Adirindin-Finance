@@ -1,7 +1,7 @@
 /**
  * BTC 4y cycle theory silhouette for the Market cycles hub.
  * Geometry and Live timing match BtcFourYearCycleChart.tsx exactly —
- * not price data, not invented dates. Educational · NFA.
+ * not price data, not invented dates. Educational
  */
 
 import {

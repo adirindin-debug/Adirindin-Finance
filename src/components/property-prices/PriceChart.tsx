@@ -431,7 +431,7 @@ export function PriceChart(props: {
         Overlay: Off, Australia mean (ABS 6432.0 Total Value of Dwellings,
         series A83728647F), Melbourne houses (Valuer-General Victoria /
         Abelson &amp; Joyeux research prints), or suburb medians. Not a
-        valuation · not Cotality HVI · educational only (NFA).
+        valuation · not Cotality HVI · educational only.
         {noProxy.length
           ? ` No suburb-proxy for ${noProxy.join(", ")}.`
           : ""}

@@ -1,6 +1,6 @@
 /**
  * Desk cycle extreme dates for the BTC 4y theory schematic hover cards.
- * Sourced from Anthony (Adirindin) — exchange prints can differ; educational only · NFA.
+ * Sourced from Anthony (Adirindin) — exchange prints can differ; educational only
  */
 
 export type CycleExtremeRow = {
@@ -31,7 +31,7 @@ export const CYCLE_BOTTOMS: ReadonlyArray<CycleExtremeRow> = [
 ];
 
 export const CYCLE_EXTREMES_DISCLAIMER =
-  "Based on data available to this desk. Different exchanges sometimes print different top/bottom dates. Educational only · NFA.";
+  "Based on data available to this desk. Different exchanges sometimes print different top/bottom dates.";
 
 /* -------------------------------------------------------------------------- */
 /* Equal ~4-year theory timing (shared by the Live dot and projected rows)    */
@@ -44,7 +44,7 @@ export const CYCLE_EXTREMES_DISCLAIMER =
  *   theory peak   (lap k) = anchor + 4k years
  * History rhymes with this: tops Dec 2017 → Nov 2021 → Oct 2025 (~4y apart);
  * each ~1y drawdown: Dec 2017 → Dec 2018, Nov 2021 → Nov 2022, Oct 2025 → ~Oct 2026.
- * Schematic timing theory only — not a forecast · NFA.
+ * Schematic timing theory only — not a forecast
  */
 export const THEORY_PEAK_ANCHOR = { year: 2025, month: 10, day: 6 } as const;
 export const THEORY_CYCLE_YEARS = 4;
@@ -127,7 +127,7 @@ export const PROJECTED_CYCLE_LOWS: ReadonlyArray<ProjectedRow> = [0, 1, 2].map((
 }));
 
 export const PROJECTED_DATES_NOTE =
-  "Projected dates are theoretical, based on equal ~4-year spacing — not a forecast. Research / educational only, not financial advice (NFA).";
+  "Projected dates are theoretical, based on equal ~4-year spacing — not a forecast. Research / educational only.";
 
 export function cycleTopHoverRows(): CycleExtremeRow[] {
   return [...CYCLE_TOPS];

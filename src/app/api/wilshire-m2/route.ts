@@ -490,17 +490,7 @@ async function refreshLive(): Promise<WilshirePayload> {
       return null;
     }),
     (async (): Promise<{ obs: Obs[]; source: string } | null> => {
-      for (const id of ["WILL5000PR", "WILL5000IND"] as const) {
-        try {
-          const obs = await fetchFredWilshire(id, apiKey);
-          return {
-            obs,
-            source: apiKey ? `FRED API ${id}` : `FRED CSV ${id}`,
-          };
-        } catch (e) {
-          errors.push(e instanceof Error ? e.message : `${id} failed`);
-        }
-      }
+      // FRED discontinued its Wilshire 5000 series in 2024, so go straight to the monthly fallback.
       try {
         const obs = await fetchYahooWilshireMonthly();
         return {
@@ -544,7 +534,7 @@ async function refreshLive(): Promise<WilshirePayload> {
     fredCredits: "Data via FRED®, Federal Reserve Bank of St. Louis.",
     macroMicroUrl:
       "https://en.macromicro.me/collections/34/us-stock-relative/24033/wilshire5000-to-us-m2",
-    note: "Educational valuation framing (concept similar to MacroMicro Wilshire/M2). Not a forecast or financial advice (NFA).",
+    note: "Valuation framing (concept similar to MacroMicro Wilshire/M2). Not a forecast.",
     errors: errors.length ? errors : undefined,
     asOf: new Date().toISOString(),
   };

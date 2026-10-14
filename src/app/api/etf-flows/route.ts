@@ -7,7 +7,7 @@
  *
  * Order: live scrape → last-good in-memory cache → dated snapshot.
  * Never invents figures. ZCSH may return status "pending" if scrape fails.
- * Educational · NFA.
+ *
  */
 
 import snapshot from "@/data/etf-flows-snapshot.json";
@@ -291,7 +291,7 @@ export async function GET() {
     assets,
     errors: errors.length ? errors : undefined,
     disclaimer:
-      "US spot crypto ETF net flows from public tables. Educational framing only — not financial advice (NFA).",
+      "US spot crypto ETF net flows from public tables.",
   };
 
   return Response.json(payload, {

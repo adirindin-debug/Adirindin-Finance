@@ -9,7 +9,7 @@
  *  - Seasonality of the calendar month (derived monthly statistic)
  * Stress readings are ranked against their own prior history (no look-ahead) and
  * flipped so that low stress = hotter. Missing inputs drop out and the rest
- * re-scale; nothing is filled in. Educational only · NFA.
+ * re-scale; nothing is filled in. Educational only
  */
 import { ZONES, zoneFor, seasonTag, type Zone } from "@/lib/riskSentiment";
 
@@ -123,7 +123,7 @@ export const INPUTS: InputMeta[] = [
     color: "#e879f9",
     how: "This calendar month's average S&P 500 return and green-month odds vs an average month (in standard errors), using only months completed before the date. 50 = an average month.",
     source: "Adirindin calculation from monthly S&P 500 index returns (month-end closes originally sourced from Yahoo Finance)",
-    sourceUrl: "https://adirindinfinance.com/charts/seasonality",
+    sourceUrl: "/charts/seasonality/equities",
     licence: "Derived monthly statistic only — no prices are shown.",
     credit: "Seasonality: Adirindin calculation from monthly S&P 500 returns; underlying price data: Yahoo Finance.",
   },

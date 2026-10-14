@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "World equities drawdown",
   description:
-    "Heuristic phase for developed-world equities from drawdown off the all-time high (URTH, MSCI World proxy) with a one-notch VIX tilt. Educational only (NFA).",
+    "Heuristic phase for developed-world equities from drawdown off the all-time high (URTH, MSCI World proxy) with a volatility note from the OFR Financial Stress Index.",
 };
 
 export default function GlobalEquitiesPage() {
@@ -18,8 +18,8 @@ export default function GlobalEquitiesPage() {
         World equities drawdown
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        Where developed-world shares sit on the path from a hot market to washout and repair, from
-        price drawdown plus public volatility data. Research tool only — not financial advice (NFA).
+        How far developed-world shares sit below their all-time high, with a volatility note from
+        the OFR Financial Stress Index.
       </p>
 
       <div className="mt-8">

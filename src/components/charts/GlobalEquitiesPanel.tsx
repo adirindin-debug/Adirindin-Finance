@@ -146,7 +146,6 @@ export function GlobalEquitiesPanel() {
       pLo = Math.min(pLo, p.px);
       pHi = Math.max(pHi, p.ath);
       ddLo = Math.min(ddLo, p.dd);
-      if (p.vix != null) vHi = Math.max(vHi, p.vix);
     }
     const pad = (pHi - pLo) * 0.06;
     pLo -= pad;
@@ -154,7 +153,7 @@ export function GlobalEquitiesPanel() {
     const yP = (v: number) => TOP.y + ((pHi - v) / (pHi - pLo)) * TOP.h;
     ddLo = Math.min(-0.14, Math.floor((ddLo - 0.02) * 20) / 20);
     const yD = (dd: number) => BOT.y + (dd / ddLo) * BOT.h;
-    vHi = Math.ceil((vHi + 2) / 10) * 10 || 40;
+    vHi = 100;
     const yV = (v: number) => BOT.y + BOT.h - (v / vHi) * BOT.h;
 
     const line = (f: (p: EqPoint) => number | null) => {
@@ -176,7 +175,7 @@ export function GlobalEquitiesPanel() {
     const bandPaths = DD_LEVELS.map((lvl) => line((p) => yP(p.ath * (1 + lvl))));
     const ddLine = line((p) => yD(p.dd));
     const ddArea = `${ddLine} L${xOf(pts[pts.length - 1]!.d).toFixed(1)} ${BOT.y} L${xOf(pts[0]!.d).toFixed(1)} ${BOT.y} Z`;
-    const vixPath = line((p) => (p.vix != null ? yV(p.vix) : null));
+    const vixPath = line((p) => (p.vixPct != null ? yV(p.vixPct) : null));
 
     // Phase bar segments (runs of the same phase) and Repair runs.
     type Seg = { x: number; w: number; color: string; key: string };
@@ -402,7 +401,10 @@ export function GlobalEquitiesPanel() {
               World equities drawdown
             </h2>
             <div className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Timeframe">
-              {TIMEFRAMES.map((t) => (
+              {TIMEFRAMES.filter((t) => {
+                if (typeof t.years !== "number" || !all.length) return true;
+                return cutoff(all[all.length - 1]!.d, t.years) >= all[0]!.d;
+              }).map((t) => (
                 <button
                   key={t.key}
                   type="button"
@@ -426,8 +428,8 @@ export function GlobalEquitiesPanel() {
           </div>
           <p className="mt-1 max-w-xl text-sm text-muted">
             Developed-world equities via the iShares MSCI World ETF (URTH), a labelled proxy for
-            MSCI World. Drawdown from the all-time high sets the phase; VIX tilts the label one
-            notch.
+            MSCI World. Drawdown from the all-time high sets the label; a volatility note comes from the
+            OFR Financial Stress Index.
           </p>
         </div>
         {summary && (
@@ -448,7 +450,7 @@ export function GlobalEquitiesPanel() {
               {summary.phase.label}
             </span>
             <p className="mt-1 text-[11px] text-muted">
-              {summary.tag ?? "No sentiment tilt"}
+              {summary.tag ?? "Volatility mid-range"}
             </p>
             <div className="relative mt-2 h-2 w-full overflow-visible rounded-full" aria-label="Phase scale by drawdown">
               <div className="flex h-2 w-full overflow-hidden rounded-full">
@@ -499,10 +501,8 @@ export function GlobalEquitiesPanel() {
             ["vs 200-day MA", fmtPct(summary.dist200d)],
             ["vs 200-week MA", fmtPct(summary.dist200w)],
             [
-              "VIX (5y pctile)",
-              summary.vix != null
-                ? `${summary.vix.toFixed(1)}${summary.vixPct != null ? ` (p${Math.round(summary.vixPct)})` : ""}`
-                : "—",
+              "OFR volatility (5y pctile)",
+              summary.vixPct != null ? `p${Math.round(summary.vixPct)}` : "—",
             ],
           ].map(([k, v]) => (
             <div key={k}>
@@ -525,7 +525,7 @@ export function GlobalEquitiesPanel() {
               viewBox={`0 0 ${W} ${H}`}
               className="w-full cursor-crosshair touch-none select-none"
               role="img"
-              aria-label={`URTH (MSCI World proxy) with all-time-high bands, phase bar, drawdown and VIX, ${tf} window. Hover for values.`}
+              aria-label={`URTH (MSCI World proxy) with all-time-high bands, phase bar, drawdown and OFR volatility percentile, ${tf} window. Hover for values.`}
               onPointerDown={onDown}
               onPointerMove={onMove}
               onPointerUp={onUp}
@@ -603,7 +603,7 @@ export function GlobalEquitiesPanel() {
                 </text>
               ))}
               <text x={W - PAD_R + 4} y={BOT.y - 4} fill={VIX_COLOR} fontSize={9} fontWeight={600}>
-                VIX
+                OFR vol pctile
               </text>
               <text x={PAD_L} y={BOT.y - 4} fill="#9aa8b5" fontSize={9} fontWeight={600}>
                 Drawdown from ATH
@@ -631,8 +631,8 @@ export function GlobalEquitiesPanel() {
                   <line x1={chart.xOf(hp.d)} x2={chart.xOf(hp.d)} y1={TOP.y} y2={BOT.y + BOT.h} stroke="#9eb0c8" strokeDasharray="3 3" opacity={0.8} />
                   <circle cx={chart.xOf(hp.d)} cy={chart.yP(hp.px)} r={3.5} fill={LINE} stroke="#000" strokeWidth={1.5} />
                   <circle cx={chart.xOf(hp.d)} cy={chart.yD(hp.dd)} r={3} fill={DD_COLOR} stroke="#000" strokeWidth={1.2} />
-                  {hp.vix != null && (
-                    <circle cx={chart.xOf(hp.d)} cy={chart.yV(hp.vix)} r={2.5} fill={VIX_COLOR} stroke="#000" strokeWidth={1} />
+                  {hp.vixPct != null && (
+                    <circle cx={chart.xOf(hp.d)} cy={chart.yV(hp.vixPct)} r={2.5} fill={VIX_COLOR} stroke="#000" strokeWidth={1} />
                   )}
                 </g>
               )}
@@ -651,8 +651,8 @@ export function GlobalEquitiesPanel() {
                   ["ATH to date", `US$${fmtPx(hp.ath)}`, "#c5d0de"],
                   ["Drawdown", fmtPct(hp.dd), DD_COLOR],
                   [
-                    "VIX",
-                    hp.vix != null ? `${hp.vix.toFixed(1)}${hp.vixPct != null ? ` (5y p${Math.round(hp.vixPct)})` : ""}` : "—",
+                    "OFR volatility",
+                    hp.vixPct != null ? `5y p${Math.round(hp.vixPct)}` : "—",
                     VIX_COLOR,
                   ],
                 ].map(([k, v, c]) => (
@@ -694,32 +694,33 @@ export function GlobalEquitiesPanel() {
         ))}
         <span className="inline-flex items-center gap-1.5">
           <span className="h-1 w-3 rounded-sm" style={{ background: REPAIR_COLOR }} aria-hidden />
-          Repair (thin strip)
+          Recovering (thin strip)
         </span>
       </div>
       <div className="mt-3 space-y-1 text-[11px] leading-relaxed text-muted">
         <p>
-          Phase = drawdown of URTH adjusted close from its all-time high (series starts 12 Jan 2012,
-          so 15Y, 20Y and Max show the same span). Repair: still more than 12% below the high, at least 5%
-          off the low since that high, and higher than three months ago — fear staying high is normal
-          here. Sentiment tilt, one notch only, from VIX vs its own 5-year range: Hot market+ when VIX is
-          in its lowest 10% (complacent), &quot;Hot market but nervous&quot; at the 75th percentile or above,
-          Cooling with rising vol, Washout+ on a VIX spike (90th percentile or ≥30). Greed or low vol
-          is a strength flag only, not a short signal. No top or bottom dates.
+          Label = drawdown of URTH adjusted close from its all-time high (series starts 12 Jan 2012,
+          so ranges longer than that aren&apos;t offered). Recovering: still more than 12% below the high, at
+          least 5% off the low since that high, and higher than three months ago. Volatility note, from
+          the OFR Financial Stress Index volatility category against its own prior 5 years: &quot;volatility
+          very low&quot; (bottom 10%) or &quot;volatility elevated&quot; (75th percentile or above) near highs,
+          &quot;volatility rising&quot; in a pullback, &quot;volatility high&quot; (90th percentile or above) in a
+          deep drawdown. Context only — no top or bottom dates.
         </p>
         <p>
-          Price: iShares MSCI World ETF (URTH, NYSE Arca) adjusted close (dividends reinvested) via
+          Price: iShares MSCI World ETF (URTH, NYSE Arca) adjusted close (dividends reinvested). Source:
           Yahoo Finance, used as a proxy — not MSCI index data. MSCI World is a trademark of MSCI Inc.;
           iShares is a trademark of BlackRock. No endorsement implied.
         </p>
         <p>
-          Sentiment: Chicago Board Options Exchange, CBOE Volatility Index: VIX, via FRED (VIXCLS).{" "}
-          <a href="https://fred.stlouisfed.org/series/VIXCLS" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-            View on FRED →
+          Volatility: Source: Office of Financial Research, OFR Financial Stress Index (volatility
+          category).{" "}
+          <a href="https://www.financialresearch.gov/financial-stress-index/" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+            OFR Financial Stress Index →
           </a>{" "}
           As of {data?.asOf ? fmtDay(data.asOf) : "—"} (price)
-          {data?.vixAsOf ? ` · ${fmtDay(data.vixAsOf)} (VIX)` : ""}
-          {data?.snapshot ? " · dated snapshot" : ""}.
+          {data?.vixAsOf ? ` · ${fmtDay(data.vixAsOf)} (OFR)` : ""}
+          {data?.snapshot ? " · stored copy" : ""}.
         </p>
       </div>
       <p className="mt-4 border-t border-border pt-3 text-xs text-foreground/80">{EQ_FOOTER}</p>

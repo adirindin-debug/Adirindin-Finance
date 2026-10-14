@@ -5,7 +5,7 @@
  * Pre-2014 extension: Blockchain.com Charts `market-price` (daily average USD across
  * major exchanges) resampled to weekly closes, stitched before Yahoo/Coinbase without
  * double-counting overlap (modern source wins). Soft-fails to Yahoo-era chart if the
- * pre-history fetch fails. Live spot prefers Coinbase ticker. Educational — NFA.
+ * pre-history fetch fails. Live spot prefers Coinbase ticker.
  */
 
 export const runtime = "nodejs";
@@ -370,24 +370,23 @@ export async function GET() {
   let prehistoryWeeklyCount = 0;
   let stitchSeamDate: string | null = null;
 
+  // Coinbase Exchange first (public market data); Yahoo only as a last-resort fallback.
   try {
-    modernWeeks = await fetchYahooWeeklyCloses();
-    modernSource = "yahoo-weekly";
+    const { dailies, chunkErrors } = await fetchCoinbaseDailyCloses();
+    dailyCount = dailies.length;
+    if (chunkErrors.length) warnings.push(...chunkErrors);
+    modernWeeks = dailyToWeekly(dailies);
+    modernSource = "coinbase-daily";
   } catch (e) {
     warnings.push(
-      e instanceof Error ? `Yahoo weekly: ${e.message}` : "Yahoo weekly failed",
+      e instanceof Error ? `Coinbase daily: ${e.message}` : "Coinbase daily failed",
     );
     try {
-      const { dailies, chunkErrors } = await fetchCoinbaseDailyCloses();
-      dailyCount = dailies.length;
-      if (chunkErrors.length) warnings.push(...chunkErrors);
-      modernWeeks = dailyToWeekly(dailies);
-      modernSource = "coinbase-daily";
+      modernWeeks = await fetchYahooWeeklyCloses();
+      modernSource = "yahoo-weekly";
     } catch (e2) {
       warnings.push(
-        e2 instanceof Error
-          ? `Coinbase daily: ${e2.message}`
-          : "Coinbase daily failed",
+        e2 instanceof Error ? `Yahoo weekly: ${e2.message}` : "Yahoo weekly failed",
       );
     }
   }
@@ -491,7 +490,7 @@ export async function GET() {
       prehistorySource
         ? "Early years before the Yahoo/Coinbase seam use Blockchain.com's composite average USD market price (not Yahoo BTC-USD)."
         : null,
-      "Educational cycle framing only — not financial advice (NFA).",
+      "",
     ].filter(Boolean);
 
     return Response.json(

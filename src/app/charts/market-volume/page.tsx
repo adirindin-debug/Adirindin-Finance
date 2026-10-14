@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Crypto market volume",
   description:
-    "Total crypto market volume as a 7-day moving average — educational chart for Adirindin Finance (NFA).",
+    "Total crypto market volume as a 7-day moving average — educational chart for Adirindin Finance.",
 };
 
 export default function MarketVolumeChartPage() {
@@ -19,7 +19,7 @@ export default function MarketVolumeChartPage() {
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         Total crypto market volume (7-day moving average when available).
-        Educational framing only — not financial advice (NFA).
+        
       </p>
 
       <div className="mt-8">

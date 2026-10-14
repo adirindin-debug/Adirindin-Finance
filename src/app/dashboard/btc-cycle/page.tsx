@@ -7,7 +7,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "BTC 4 year cycle theory",
   description:
-    "Educational Bitcoin 4-year cycle theory schematic: protocol halvings (~every 210,000 blocks / historically ~every 4 years), rough ~3-year up / ~1-year down observation, Live-dot wrap onto the next lap, and an open question on causality. Not a predictive model or financial advice.",
+    "Educational Bitcoin 4-year cycle theory schematic: protocol halvings (~every 210,000 blocks / historically ~every 4 years), rough ~3-year up / ~1-year down observation, Live-dot wrap onto the next lap, and an open question on causality. Not a predictive model.",
 };
 
 /**
@@ -21,7 +21,7 @@ const PHASES = [
     width: "40%",
     color: "#3dcc9a",
     summary:
-      "Historically, risk-on stretches after major bottoms have often lasted on the order of a few years — roughly framed as about ~3 years of expansion before a larger reset. The earlier part of that stretch is the quieter rebuild / expansion zone on the schematic. Treat the length as an approximate study aid, not a stopwatch.",
+      "Historically, rising stretches after major bottoms have often lasted on the order of a few years — roughly framed as about ~3 years of expansion before a larger reset. The earlier part of that stretch is the quieter rebuild / expansion zone on the schematic. Treat the length as an approximate study aid, not a stopwatch.",
   },
   {
     name: "Halving epoch",
@@ -103,7 +103,7 @@ export default function BtcCyclePage() {
           <h2 className="text-sm font-semibold uppercase tracking-[0.14em] text-accent">
             Classic cycle diagram
           </h2>
-          <span className="font-mono text-xs text-muted">≈ 4 years · schematic · NFA</span>
+          <span className="font-mono text-xs text-muted">≈ 4 years · schematic</span>
         </div>
 
         <div className="mt-5 flex h-14 w-full overflow-hidden rounded-lg border border-[#222]">
@@ -161,8 +161,7 @@ export default function BtcCyclePage() {
               research / educational purposes only
             </strong>
             . Live is calendar-dated on the path (Melbourne timezone; not a decorative tour).
-            No dollar prices and no stacked calendar years on this schematic. Not financial
-            advice (NFA).
+            No dollar prices and no stacked calendar years on this schematic. 
           </p>
         </aside>
       </div>
@@ -176,7 +175,7 @@ export default function BtcCyclePage() {
           Charts · BTC cycle map
         </Link>
         . Cycle peaks/troughs on that map are desk markers for study, not exchange-certified
-        events. @Dirindin533 · educational only — NFA.
+        events. @Dirindin533
       </p>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -214,7 +213,7 @@ export default function BtcCyclePage() {
       </aside>
 
       <p className="mt-8 text-xs leading-relaxed text-muted">
-        Educational content only · not financial advice (NFA) · no forecasts or fake
+        No forecasts or fake
         track records · @Dirindin533 / Adirindin Finance. Past patterns do not guarantee
         future results.
       </p>

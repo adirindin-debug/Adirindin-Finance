@@ -7,7 +7,7 @@ import holdingsJson from "@/data/portfolioHoldings.json";
 export const metadata: Metadata = {
   title: "Portfolio",
   description:
-    "Track your holdings in AUD — live quotes, allocation, and P&L vs your cost basis. Educational only; not financial advice.",
+    "Track your holdings in AUD — live quotes, allocation, and P&L vs your cost basis.",
 };
 
 function loadSeed(): PortfolioConfig {

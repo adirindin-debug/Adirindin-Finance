@@ -6,7 +6,7 @@ import { MobileViewHint } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Crypto Fear & Greed Index",
   description:
-    "Alternative.me crypto market Fear & Greed Index — educational chart for Adirindin Finance (NFA).",
+    "Alternative.me crypto market Fear & Greed Index — educational chart for Adirindin Finance.",
 };
 
 export default function CryptoFearGreedChartPage() {
@@ -18,15 +18,14 @@ export default function CryptoFearGreedChartPage() {
         Crypto Fear &amp; Greed Index
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        Crypto market sentiment via Alternative.me. Educational framing only —
-        not financial advice (NFA).
+        Crypto market sentiment via Alternative.me. 
       </p>
 
       <div className="mt-8">
         <FearGreedPanel
           endpoint="/api/fear-greed-crypto"
           title="Crypto Fear & Greed Index"
-          subtitle="Alternative.me crypto market sentiment — educational only (NFA)."
+          subtitle="Alternative.me crypto market sentiment — educational only."
           chartAriaLabel="Crypto Fear and Greed Index history. Hover for daily values. Drag to zoom."
           chartTitle="Crypto Fear and Greed Index history"
           timeframeAriaLabel="Crypto Fear and Greed timeframe"

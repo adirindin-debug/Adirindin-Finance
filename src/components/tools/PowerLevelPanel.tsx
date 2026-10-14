@@ -775,10 +775,14 @@ export function PowerTop10() {
               {data.source}
             </a>{" "}
             · figures as of {fmtAsOf(data.asOf)}
-            {data.live ? " · refreshed hourly" : " · saved snapshot (live list unavailable)"}. Net worth is Forbes&apos;
+            {data.live ? " · refreshed hourly" : " · stored copy (live list unavailable)"}. Net worth is Forbes&apos;
             published estimate, unchanged. Power levels use net worth only (income and habits unknown), converted to A$
             {fx ? ` at ${fx.usdPerAud.toFixed(4)} USD per AUD (${fx.label}, ${fx.asOf})` : ""}. The scouter caps at{" "}
             {fmtGroup(P_DISPLAY_MAX)}.
+          </p>
+          <p className="mt-2 text-xs text-muted">
+            Credit: rich-list names and net worth figures are from Forbes Real-Time Billionaires (Forbes Media LLC),
+            cited for reference only. Forbes® is a trademark of Forbes Media LLC; no endorsement implied.
           </p>
           <p className="mt-2 text-xs text-muted" data-health-note>
             Health and youth inputs (like age and body fat) only count when you enter your own; rich-list power levels use net worth only.

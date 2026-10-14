@@ -7,16 +7,16 @@
  * so it is not used. URTH history begins 12 Jan 2012, so "ATH" means the
  * highest adjusted close since then.
  *
- * Sentiment: CBOE VIX close via FRED (VIXCLS; "Copyrighted: Citation
- * required") and its percentile against the prior 5 years of daily closes.
- * Sentiment only tilts the label one notch; drawdown is the primary key.
+ * Volatility: OFR Financial Stress Index volatility category (US Government
+ * work) and its percentile against the prior 5 years of daily readings.
+ * It only adds a short note to the label; drawdown is the primary key.
  * No CNN Fear & Greed (no clean public feed) and no crypto Fear & Greed.
  *
  * Heuristic state from price and public sentiment. Not a psychology model.
- * No top/bottom dates. Not financial advice.
+ * No top/bottom dates. 
  */
 
-/** One trading day: date (YYYY-MM-DD), URTH adj close, VIX close, VIX 5y percentile (0–100). */
+/** One trading day: date (YYYY-MM-DD), URTH adj close, OFR volatility reading, its 5y percentile (0–100). */
 export type EqRow = [string, number, number | null, number | null];
 
 export type PhaseKey =
@@ -29,13 +29,13 @@ export type PhaseKey =
 export type Phase = { key: PhaseKey; label: string; color: string; band: string };
 
 export const PHASES: Record<PhaseKey, Phase> = {
-  hot: { key: "hot", label: "Hot market", color: "#39e75f", band: "0% to −5%" },
-  cooling: { key: "cooling", label: "Cooling", color: "#fbbf24", band: "−5% to −12%" },
-  stress: { key: "stress", label: "Stress", color: "#fb923c", band: "−12% to −20%" },
-  washout: { key: "washout", label: "Washout", color: "#a78bfa", band: "−20% to −30%" },
+  hot: { key: "hot", label: "Near highs", color: "#39e75f", band: "0% to −5%" },
+  cooling: { key: "cooling", label: "Pullback", color: "#fbbf24", band: "−5% to −12%" },
+  stress: { key: "stress", label: "Correction", color: "#fb923c", band: "−12% to −20%" },
+  washout: { key: "washout", label: "Deep drawdown", color: "#a78bfa", band: "−20% to −30%" },
   capitulation: {
     key: "capitulation",
-    label: "Capitulation zone",
+    label: "Very deep drawdown",
     color: "#e879f9",
     band: "worse than −30%",
   },
@@ -46,7 +46,7 @@ export const REPAIR_COLOR = "#2dd4bf";
 /** Drawdown band edges (fractions). */
 export const DD_LEVELS = [-0.05, -0.12, -0.2, -0.3] as const;
 
-/** VIX tilt thresholds (5-year percentile and absolute spike level). */
+/** Volatility note thresholds (5-year percentile of the OFR volatility category). */
 export const VIX_VERY_LOW_PCT = 10;
 export const VIX_NERVOUS_PCT = 75;
 export const VIX_SPIKE_PCT = 90;
@@ -58,7 +58,7 @@ export const REPAIR_BOUNCE = 0.05;
 export const REPAIR_LOOKBACK = 63;
 
 export const EQ_FOOTER =
-  "Heuristic state from price and public sentiment. Not a psychology model. Not financial advice.";
+  "Rough state from price drawdown, with a volatility note from the OFR Financial Stress Index.";
 
 export function phaseFromDd(dd: number): Phase {
   if (dd > -0.05) return PHASES.hot;
@@ -90,29 +90,29 @@ function tagFor(
 ): string | null {
   if (repair) {
     return vixPct != null && vixPct >= VIX_ELEVATED_PCT
-      ? "Repair · fear still high (normal here)"
-      : "Repair";
+      ? "Recovering · volatility still high"
+      : "Recovering";
   }
   if (vix == null || vixPct == null) {
-    return phase.key === "capitulation" ? "Extreme" : null;
+    return null;
   }
   switch (phase.key) {
     case "hot":
-      if (vixPct <= VIX_VERY_LOW_PCT) return "Hot market+ · vol very low (complacent)";
-      if (vixPct >= VIX_NERVOUS_PCT) return "Hot market but nervous · vol elevated";
+      if (vixPct <= VIX_VERY_LOW_PCT) return "Near highs · volatility very low";
+      if (vixPct >= VIX_NERVOUS_PCT) return "Near highs · volatility elevated";
       return null;
     case "cooling":
       return vixPrev != null && vix > vixPrev && vixPct >= 50
-        ? "Cooling · vol rising"
+        ? "Pullback · volatility rising"
         : null;
     case "stress":
       return null;
     case "washout":
-      return vixPct >= VIX_SPIKE_PCT || vix >= VIX_SPIKE_LEVEL
-        ? "Washout+ · vol spike"
+      return vixPct >= VIX_SPIKE_PCT
+        ? "Deep drawdown · volatility high"
         : null;
     case "capitulation":
-      return "Extreme";
+      return null;
   }
 }
 
@@ -263,11 +263,8 @@ export function fmtPx(n: number): string {
   return n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** Card hover: "30 Sep 2026 · URTH 206.23 · −2.5% from ATH · VIX 16.0 (5y p33) · Hot market". */
+/** Card hover: "30 Sep 2026 · URTH 206.23 · −2.5% from ATH · OFR volatility p33 · Near highs". */
 export function eqHoverLine(s: EqSummary): string {
-  const vix =
-    s.vix != null
-      ? `VIX ${s.vix.toFixed(1)}${s.vixPct != null ? ` (5y p${Math.round(s.vixPct)})` : ""}`
-      : "VIX —";
+  const vix = s.vixPct != null ? `OFR volatility 5y p${Math.round(s.vixPct)}` : "OFR volatility —";
   return `${fmtDay(s.date)} · URTH ${fmtPx(s.px)} · ${fmtPct(s.dd)} from ATH · ${vix} · ${s.phase.label}${s.tag ? ` · ${s.tag}` : ""}`;
 }

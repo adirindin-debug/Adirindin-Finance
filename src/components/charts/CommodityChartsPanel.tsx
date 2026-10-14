@@ -7,7 +7,7 @@
  * aligned on dates). Auto-scaled axis (log or linear), timeframe toggles,
  * hover read-out for every selected series and per-metal source attribution.
  * Gold is the long-run USD series that used to sit on /tools/gold-cycle
- * (with its 15 Aug 1971 Nixon Shock marker). Educational · NFA.
+ * (with its 15 Aug 1971 Nixon Shock marker). Educational
  */
 
 import {
@@ -807,14 +807,13 @@ export function CommodityChartsPanel() {
           })}
         </ul>
         <p className="mt-3 text-[11px] leading-relaxed text-muted">
-          Futures closes via Yahoo Finance are delayed third-party data (continuous front-month
-          contracts can jump at rolls). IMF PCPS prices are monthly averages of benchmark quotes ©
-          International Monetary Fund; nickel / iron ore fall back to the same IMF series via FRED®
+          Silver, copper, nickel, iron ore, lithium and recent gold months are IMF Primary Commodity
+          Prices (PCPS) — monthly averages of benchmark quotes © International Monetary Fund; copper /
+          nickel / iron ore fall back to the same IMF series via FRED®
           (Federal Reserve Bank of St. Louis). Gold peg-era levels are documented official prints,
           not invented. The lithium series is the IMF’s lithium metal benchmark, not lithium
           carbonate or spodumene. Overlay mode indexes each metal to 100 at the window start — it
-          compares % moves, not prices. No endorsement implied. Educational only — not financial
-          advice (NFA).
+          compares % moves, not prices. No endorsement implied. 
         </p>
       </div>
     </section>

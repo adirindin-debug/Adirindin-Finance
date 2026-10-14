@@ -1,6 +1,6 @@
 /**
  * Crypto Fear & Greed Index — Alternative.me (server fetch, ~1h cache).
- * Educational only — NFA.
+ * Educational only —
  */
 
 export const runtime = "nodejs";
@@ -90,7 +90,7 @@ export async function GET() {
         source: "Alternative.me Crypto Fear & Greed Index",
         sourceUrl: "https://alternative.me/crypto/fear-and-greed-index/",
         asOf: new Date().toISOString(),
-        note: "Educational sentiment gauge only — not financial advice (NFA).",
+        note: "",
       },
       {
         headers: {

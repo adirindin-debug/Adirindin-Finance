@@ -531,7 +531,7 @@ export function PortfolioShell({ seed }: Props) {
 
 
       <p className="mt-10 text-center text-[11px] leading-relaxed text-zinc-600">
-        NFA: Educational tracker only · not financial advice · not an AFSL product. Security quotes
+        Educational tracker only · not an AFSL product. Security quotes
         and AUD FX via Yahoo Finance (may be delayed). Spot-crypto logos via{" "}
         <a
           href="https://www.coingecko.com"
