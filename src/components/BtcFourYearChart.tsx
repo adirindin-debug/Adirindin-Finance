@@ -91,7 +91,8 @@ const DEFAULT_SELECTED: SeriesId[] = [...ALL_SERIES_IDS];
 
 const W = 920;
 const H = 420;
-const PAD = { top: 40, right: 28, bottom: 36, left: 58 };
+/* right pad leaves room for the current-value labels at the line ends */
+const PAD = { top: 40, right: 76, bottom: 36, left: 58 };
 
 function fmtPct(n: number, digits = 1) {
   const sign = n > 0 ? "+" : "";
@@ -592,6 +593,28 @@ export function BtcFourYearChart() {
     return activeYScale(0);
   }, [activeYRange, activeYScale]);
 
+  const endMarks = useMemo(() => {
+    if (!chart || !activeYScale) return [];
+    const marks = chart.clipped
+      .filter((s) => s.points.length > 1 && !chart.omitted.includes(s.id))
+      .map((s) => {
+        const last = s.points[s.points.length - 1]!;
+        return { id: s.id, color: SERIES_STYLE[s.id].color, pct: last.pct, x: chart.xScale(last.t), y: activeYScale(last.pct), labelY: 0, lead: false };
+      })
+      .sort((a, b) => a.y - b.y);
+    if (marks[0]) marks[0].lead = true;
+    // De-overlap labels: keep a minimum vertical gap, then shift up if we ran past the bottom.
+    const gap = narrow ? 22 : 13;
+    let prev = -Infinity;
+    for (const m of marks) {
+      m.labelY = Math.max(m.y, prev + gap);
+      prev = m.labelY;
+    }
+    const overflow = prev - (H - PAD.bottom);
+    if (overflow > 0) for (const m of marks) m.labelY -= overflow;
+    return marks;
+  }, [chart, activeYScale, narrow]);
+
   const onLineMouseMove = useCallback(
     (e: ReactMouseEvent<SVGSVGElement>) => {
       if (!chart || !chart.clipped?.length) {
@@ -659,85 +682,73 @@ export function BtcFourYearChart() {
     setLineHover(null);
   }, []);
 
-  const toggleBtn =
-    "min-h-10 shrink-0 rounded-md px-2.5 py-2 text-[11px] font-semibold uppercase tracking-wide transition-colors sm:min-h-0 sm:px-3 sm:py-1.5 sm:text-xs";
-  const toggleOn = "bg-accent text-white shadow-sm";
-  const toggleOff =
-    "bg-transparent text-foreground/70 hover:bg-white/5 hover:text-foreground";
+  const segBtn =
+    "min-h-9 shrink-0 rounded-md px-3 py-1.5 text-xs font-semibold tracking-wide transition-colors";
+  const segOn = "bg-accent text-white shadow-sm";
+  const segOff = "bg-transparent text-foreground/65 hover:bg-white/5 hover:text-foreground";
 
   return (
     <section
-      className="mt-12"
       aria-label="Multi-timeframe percentage gains compare"
     >
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-accent">
-          {copy.heading}
-        </h2>
-        <p className="text-xs text-muted">{copy.subtitle}</p>
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
+              Relative price chart
+            </h2>
+            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />
+              Live data
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-muted">{copy.subtitle}</p>
+        </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-            Window
-          </span>
-          <div
-            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
-            role="group"
-            aria-label="Timeframe"
-          >
-            {HOMEPAGE_CHART_TIMEFRAMES.map((w) => (
-              <button
-                key={w.key}
-                type="button"
-                className={`${toggleBtn} ${windowKey === w.key ? toggleOn : toggleOff}`}
-                aria-pressed={windowKey === w.key}
-                onClick={() => selectWindow(w.key)}
-              >
-                {w.label}
-              </button>
-            ))}
-          </div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div
+          className="flex max-w-full flex-nowrap gap-0.5 overflow-x-auto rounded-lg border border-border/90 bg-[#141b24] p-0.5"
+          role="group"
+          aria-label="Timeframe"
+        >
+          {HOMEPAGE_CHART_TIMEFRAMES.map((w) => (
+            <button
+              key={w.key}
+              type="button"
+              className={`${segBtn} ${windowKey === w.key ? segOn : segOff}`}
+              aria-pressed={windowKey === w.key}
+              onClick={() => selectWindow(w.key)}
+            >
+              {w.label}
+            </button>
+          ))}
         </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-            View
-          </span>
-          <div
-            className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
-            role="group"
-            aria-label="Chart type"
-          >
+        <div
+          className="flex flex-nowrap gap-0.5 rounded-lg border border-border/90 bg-[#141b24] p-0.5"
+          role="group"
+          aria-label="Chart type"
+        >
+          {(["line", "bar"] as const).map((m) => (
             <button
+              key={m}
               type="button"
-              className={`${toggleBtn} ${chartMode === "line" ? toggleOn : toggleOff}`}
-              aria-pressed={chartMode === "line"}
-              onClick={() => setChartMode("line")}
+              className={`${segBtn} ${chartMode === m ? segOn : segOff}`}
+              aria-pressed={chartMode === m}
+              onClick={() => setChartMode(m)}
             >
-              Line
+              {m === "line" ? "Line" : "Bar"}
             </button>
-            <button
-              type="button"
-              className={`${toggleBtn} ${chartMode === "bar" ? toggleOn : toggleOff}`}
-              aria-pressed={chartMode === "bar"}
-              onClick={() => setChartMode("bar")}
-            >
-              Bar
-            </button>
-          </div>
+          ))}
         </div>
       </div>
 
       {status === "ready" && payload?.series && (
         <div className="mb-3">
-          <span className="mb-1.5 block text-[10px] font-medium uppercase tracking-[0.14em] text-muted">
-            Series (click to toggle)
-          </span>
           <div
-            className="grid grid-cols-2 gap-2 sm:grid-cols-4"
+            className="flex flex-wrap gap-2"
             role="group"
-            aria-label="Toggle series visibility"
+            aria-label="Toggle series visibility (tap to show or hide)"
           >
             {ALL_SERIES_IDS.map((id) => {
               const s = payload.series!.find((x) => x.id === id);
@@ -751,50 +762,40 @@ export function BtcFourYearChart() {
                   ? new Date(s.points[0].t * 1000).toISOString().slice(0, 10)
                   : null);
               const missing = !s;
+              const title = `${s?.ticker ?? style.short} · ${copy.kpiSuffix}${start ? ` · from ${start}` : ""}${
+                s?.coverage === "partial" ? " · short history" : ""
+              }${style.hint ? ` · ${style.hint}` : ""}${missing ? " · unavailable" : ""}`;
               return (
                 <button
                   key={id}
                   type="button"
                   disabled={missing}
                   aria-pressed={on}
+                  title={title}
                   aria-label={`${style.chip}${style.hint ? ` (${style.hint})` : ""}${on ? ", shown" : ", hidden"}`}
                   onClick={() => toggleSeries(id)}
-                  className={`rounded-lg bg-card px-3 py-2 text-left transition-colors ${
+                  className={`inline-flex min-h-9 items-center gap-2 rounded-full border px-3 py-1.5 text-xs transition-colors ${
                     missing
-                      ? "cursor-not-allowed border border-border/40 opacity-40"
+                      ? "cursor-not-allowed border-border/40 opacity-40"
                       : on
-                        ? "border-2 border-accent shadow-sm"
-                        : "border border-border/50 opacity-70 hover:opacity-90"
+                        ? "bg-white/[0.04]"
+                        : "border-border/60 text-muted hover:border-border"
                   }`}
-                  style={
-                    on && !missing
-                      ? { borderColor: style.color, boxShadow: `0 0 0 1px ${style.color}33` }
-                      : undefined
-                  }
+                  style={on && !missing ? { borderColor: `${style.color}99` } : undefined}
                 >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="inline-block h-2 w-2 rounded-full"
-                      style={{ background: style.color, opacity: on ? 1 : 0.45 }}
-                      aria-hidden
-                    />
-                    <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
-                      {style.chip}
-                    </span>
-                  </div>
-                  <p
-                    className="mt-1 text-lg font-semibold tabular-nums"
-                    style={{ color: on ? style.color : "#8b9bb4" }}
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={on ? { background: style.color } : { border: `1.5px solid ${style.color}` }}
+                    aria-hidden
+                  />
+                  <span className={on ? "font-medium text-foreground" : ""}>{style.chip}</span>
+                  <span
+                    className="font-semibold tabular-nums"
+                    style={{ color: on ? style.color : undefined }}
                   >
-                    {missing ? "—" : pct == null ? "—" : fmtPct(pct)}
-                  </p>
-                  <p className="text-[10px] text-muted">
-                    {s?.ticker ?? style.short} · {copy.kpiSuffix}
-                    {start ? ` · from ${start}` : ""}
-                    {s?.coverage === "partial" ? " · short history" : ""}
-                    {style.hint ? ` · ${style.hint}` : ""}
-                    {missing ? " · unavailable" : on ? "" : " · hidden"}
-                  </p>
+                    {missing ? "—" : pct == null ? "—" : fmtPct(pct, 0)}
+                  </span>
+                  {s?.coverage === "partial" ? <span className="text-[10px] text-muted">short</span> : null}
                 </button>
               );
             })}
@@ -849,38 +850,6 @@ export function BtcFourYearChart() {
             onMouseLeave={onLineMouseLeave}
           >
             <title>{copy.chartTitle}</title>
-            <text
-              x={PAD.left}
-              y={18}
-              fill="#e8eef7"
-              fontSize="14"
-              fontFamily="system-ui, sans-serif"
-              fontWeight="600"
-            >
-              {copy.chartTitle}
-            </text>
-            <text
-              x={W - PAD.right}
-              y={16}
-              fill="#8b9bb4"
-              fontSize="10"
-              fontFamily="system-ui, sans-serif"
-              textAnchor="end"
-            >
-              {copy.chartHint}
-            </text>
-
-            <text
-              x={PAD.left}
-              y={34}
-              fill="#8b9bb4"
-              fontSize="9"
-              fontFamily="system-ui, sans-serif"
-              fontWeight="600"
-            >
-              {chart.yLog ? "% gain (log)" : "% gain (shared)"}
-            </text>
-
             {yTicks.map((v) => {
               const y = activeYScale(v);
               return (
@@ -945,9 +914,11 @@ export function BtcFourYearChart() {
                   d={p.d}
                   fill="none"
                   stroke={p.color}
-                  strokeWidth="2"
+                  strokeWidth="1.6"
+                  strokeOpacity="0.9"
                   strokeLinejoin="round"
                   strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
                 />
               ))}
             {chart.paths
@@ -958,11 +929,33 @@ export function BtcFourYearChart() {
                   d={p.d}
                   fill="none"
                   stroke={p.color}
-                  strokeWidth="2.1"
+                  strokeWidth="2.4"
                   strokeLinejoin="round"
                   strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
                 />
               ))}
+
+            {/* Current value: Live dot at each line's latest point + label in the right margin */}
+            {endMarks.map((m) => (
+              <g key={`end-${m.id}`} pointerEvents="none">
+                {m.id === "btc" || m.lead ? (
+                  <circle className="cycle-live-ring" cx={m.x} cy={m.y} r={narrow ? 7 : 5} fill="none" stroke={m.color} strokeWidth="1.5" />
+                ) : null}
+                <circle cx={m.x} cy={m.y} r={narrow ? 6 : 4} fill={m.color} stroke="#000" strokeWidth="1.5" />
+                <text
+                  x={W - PAD.right + 8}
+                  y={m.labelY}
+                  dominantBaseline="middle"
+                  fill={m.color}
+                  fontSize={narrow ? 20 : 11}
+                  fontWeight="600"
+                  fontFamily="system-ui, sans-serif"
+                >
+                  {fmtPct(m.pct, 0)}
+                </text>
+              </g>
+            ))}
 
             {/* Invisible hit target for hover (plot area) */}
             <rect
@@ -1018,7 +1011,9 @@ export function BtcFourYearChart() {
                 {lineHover.dateLabel}
               </p>
               <ul className="space-y-1">
-                {lineHover.values.map((v) => (
+                {[...lineHover.values]
+                  .sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity))
+                  .map((v) => (
                   <li
                     key={v.id}
                     className="flex items-center justify-between gap-3 text-[11px] tabular-nums"
@@ -1031,34 +1026,14 @@ export function BtcFourYearChart() {
                       />
                       <span style={{ color: v.color }}>{v.short}</span>
                     </span>
-                    <span style={{ color: v.color }}>
+                    <span className="font-semibold" style={{ color: v.color }}>
                       {v.pct == null ? "—" : fmtPct(v.pct)}
                     </span>
                   </li>
-                ))}
+                  ))}
               </ul>
             </div>
           )}
-          {/* Legend outside SVG so x-axis dates never collide with chips */}
-          <div
-            className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 border-t border-white/[0.06] bg-black px-4 pb-3 pt-2.5"
-            aria-hidden
-          >
-            {selectedSeries.map((s) => {
-              const style = SERIES_STYLE[s.id];
-              return (
-                <div key={s.id} className="inline-flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-[2px] w-4 rounded-full"
-                    style={{ background: style.color }}
-                  />
-                  <span className="text-[10px] leading-none text-[#c8d0dc]">
-                    {style.short} ({s.ticker})
-                  </span>
-                </div>
-              );
-            })}
-          </div>
           </div>
         )}
         {status === "ready" && chartMode === "bar" && barLayout && activeYScale && (
@@ -1249,12 +1224,7 @@ export function BtcFourYearChart() {
         </a>
         . Educational only — not investment advice (NFA).
       </p>
-      ) : (
-        <p className="mt-1 text-xs text-muted">
-          Relative % change from a shared start · Yahoo Finance and FRED data ·
-          educational only (NFA).
-        </p>
-      )}
+      ) : null}
       {payload?.errors && Object.keys(payload.errors).length > 0 && (
         <p className="mt-1 text-[11px] text-muted/80">
           Some feeds had errors:{" "}

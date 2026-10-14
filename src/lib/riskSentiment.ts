@@ -289,7 +289,7 @@ export const ZONES: Zone[] = [
     label: "Hot market",
     min: 60,
     max: 80,
-    color: "#fbbf24",
+    color: "#4ade80",
     blurb: "Near highs, firm momentum, calm vol, greedy sentiment.",
   },
   {
@@ -297,7 +297,7 @@ export const ZONES: Zone[] = [
     label: "Euphoria-leaning",
     min: 80,
     max: 100,
-    color: "#ff5d5d",
+    color: "#22c55e",
     blurb: "Most inputs stretched hot at once. Historically uncommon.",
   },
 ];

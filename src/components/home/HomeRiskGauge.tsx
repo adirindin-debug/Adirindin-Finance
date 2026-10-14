@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ZONES, type RsSummary } from "@/lib/riskSentiment";
+import { DeskTag } from "@/components/home/DeskTag";
 
 /* Half-dial geometry (viewBox 0 0 240 140). */
 const CX = 120;
@@ -45,7 +46,7 @@ export function HomeRiskGauge() {
   return (
     <Link
       href="/tools/risk-sentiment"
-      className="group mt-10 flex flex-col items-center gap-6 rounded-xl border border-border bg-card p-6 transition hover:border-accent hover:bg-accent/5 sm:flex-row sm:gap-10 sm:p-8"
+      className="group mt-8 flex flex-col items-center gap-6 rounded-xl border border-border bg-card p-6 transition hover:border-accent hover:bg-accent/5 sm:flex-row sm:gap-10 sm:p-8"
     >
       <svg viewBox="0 0 240 140" className="h-[130px] w-[220px] shrink-0" role="img" aria-label={score != null ? `Market risk and sentiment score ${score.toFixed(0)} of 100` : "Market risk and sentiment gauge"}>
         {ZONES.map((z) => (
@@ -69,7 +70,10 @@ export function HomeRiskGauge() {
         )}
       </svg>
       <div className="min-w-0 text-center sm:text-left">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Market risk &amp; sentiment</p>
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Market risk &amp; sentiment</p>
+          <DeskTag kind="live" />
+        </div>
         {data && score != null && data.zone ? (
           <>
             <p className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: data.zone.color }}>
@@ -78,10 +82,20 @@ export function HomeRiskGauge() {
               <span className="ml-3 text-2xl sm:text-3xl">{data.zone.label}</span>
             </p>
             <p className="mt-2 max-w-xl text-sm text-muted">
-              {data.zone.blurb} Mood stage: <span className="text-foreground/90">{data.stage}</span>.
+              {data.zone.blurb}
+              {data.stage && data.stage !== data.zone.label ? (
+                <>
+                  {" "}Mood stage: <span className="text-foreground/90">{data.stage}</span>.
+                </>
+              ) : data.rising != null ? (
+                <> {data.rising ? "Higher" : "Lower"} than three months ago.</>
+              ) : null}
             </p>
             <p className="mt-2 text-xs text-muted/80">
-              10-day average of the blended score · as of {fmtAsOf(data.asOf!)} (US close) · educational, NFA
+              <span className="font-medium text-foreground/80">How it’s drawn:</span> 0–100 blend of
+              MSCI World (URTH) / S&amp;P 500 trend and drawdown, VIX, US credit spreads (FRED), US and
+              crypto Fear &amp; Greed, Google Trends and seasonality · 10-day average · as of{" "}
+              {fmtAsOf(data.asOf!)} (US close)
             </p>
           </>
         ) : (

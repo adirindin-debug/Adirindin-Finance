@@ -203,37 +203,24 @@ export function MarketStrip() {
   ];
 
   return (
-    <section className="mt-12" aria-label="BTC info">
-      <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">
-          BTC info
-        </p>
-        <p className="text-xs text-muted">Educational / live market data · not advice</p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-4">
+    <section className="mt-4" aria-label="BTC snapshot">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 rounded-xl border border-border bg-card px-4 py-3 sm:grid-cols-4">
         {cards.map((c) => (
-          <div key={c.label} className="rounded-lg border border-border bg-card p-4">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-              {c.label}
-            </p>
-            <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-foreground">
-              {c.value}
-            </p>
-            <p className="mt-1 text-xs text-muted">{c.hint}</p>
+          <div key={c.label} className="min-w-0">
+            <dt className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{c.label}</dt>
+            <dd className="mt-0.5 font-mono text-lg font-semibold tabular-nums text-foreground">{c.value}</dd>
+            <dd className="truncate text-[11px] text-muted" title={c.hint}>{c.hint}</dd>
           </div>
         ))}
-      </div>
+      </dl>
       {state.status === "error" && (
         <p className="mt-2 text-xs text-muted">
           Could not refresh live feed ({state.error}). Halving day counts still shown.
         </p>
       )}
-      <p className="mt-3 text-xs text-muted">
-        Source: Coinbase Exchange BTC-USD (spot ticker and daily candles), with Yahoo
-        Finance chart as a fallback when Coinbase is rate-limited. Drawdown uses recent
-        daily closes from that feed, not an all-time exchange ATH. Halving date is fixed
-        (20 Apr 2024). Next halving estimate uses 210,000 blocks at Bitcoin's 10-minute
-        target block time. Educational only — NFA.
+      <p className="mt-2 text-xs text-muted">
+        BTC price from the Coinbase Exchange BTC-USD ticker (Yahoo Finance fallback); drawdown vs
+        recent daily closes, not an all-time exchange high. Halving countdown assumes 10-minute blocks.
       </p>
     </section>
   );

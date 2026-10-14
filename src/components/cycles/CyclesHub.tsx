@@ -263,21 +263,18 @@ function CycleStripCard({ tile, halvingAnchor }: { tile: CycleTile; halvingAncho
     >
       <div className="flex items-start justify-between gap-2">
         <h3 className="text-base font-semibold text-foreground group-hover:text-accent">{tile.title}</h3>
-        {nowMs !== null ? (
-          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
-            Live
-          </span>
-        ) : null}
+        <span className="inline-flex shrink-0 items-center rounded-full border border-muted/50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+          Theory
+        </span>
       </div>
       <p className="mt-0.5 text-[11px] text-muted">{tile.blurb}</p>
-      <div className="mt-3">
+      <div className="mt-2">
         <CycleSilhouette
           path={tile.path}
           viewBox={tile.viewBox}
           color={tile.color}
           marker={live?.pt ?? null}
-          className="h-[96px] w-full overflow-visible"
+          className="h-[72px] w-full overflow-visible"
         />
       </div>
       <p className="mt-3 text-sm font-medium text-foreground/90">
