@@ -56,8 +56,8 @@ export function HomeRiskGauge() {
                 </span>
               ) : null}
               {data.watch ? (
-                <span className="ml-2 inline-block rounded-full border border-[#3a4558] bg-[#141b24] px-2 py-0.5 text-[11px] font-medium text-[#c8d0dc]">
-                  Complacency watch
+                <span className="ml-2 inline-block text-[11px] text-[#94a3b8]">
+                  Complacency watch (info only, not a reliable top signal in testing)
                 </span>
               ) : null}
             </p>

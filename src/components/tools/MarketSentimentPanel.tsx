@@ -264,11 +264,8 @@ export function MarketSentimentPanel() {
               </span>
             ) : null}
             {watchOn ? (
-              <span
-                className="rounded-full border border-[#3a4558] bg-[#141b24] px-2 py-0.5 font-medium text-[#c8d0dc]"
-                title={`Complacency watch: ${watchWhy.join("; ")}`}
-              >
-                Complacency watch
+              <span className="text-[#94a3b8]" title={`Conditions met: ${watchWhy.join("; ")}`}>
+                · Complacency watch (info only, not a reliable top signal in testing)
               </span>
             ) : null}
             {smooth !== "raw" && row[1] != null ? <span>· raw day {cell(row, 1)!.toFixed(1)}</span> : null}
@@ -455,7 +452,7 @@ export function MarketSentimentPanel() {
         </table>
       </div>
       {watchOn ? (
-        <p className="mt-2 text-[11px] text-muted">Complacency watch: {watchWhy.join("; ")}.</p>
+        <p className="mt-2 text-[11px] text-muted">Complacency watch (info only, not a reliable top signal in testing): {watchWhy.join("; ")}.</p>
       ) : null}
       <div className="mt-3 flex flex-wrap gap-1.5">
         {data.sources.map((s) => (

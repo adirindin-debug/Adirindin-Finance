@@ -65,9 +65,9 @@ export default function RiskSentimentPage() {
           at least {STRETCH_NEEDED} of volatility, credit, NFCI and breadth also read {STRETCH_AT} or more.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          <strong className="font-medium text-foreground">Complacency watch.</strong> A small grey note shown when the
+          <strong className="font-medium text-foreground">Complacency watch (info only).</strong> A plain grey note shown only when the
           score is {WATCH_SCORE} or more and at least {WATCH_NEEDED} of these hold: {WATCH_CONDITIONS.map((c) => c.label.charAt(0).toLowerCase() + c.label.slice(1)).join("; ")}.
-          It describes a calm, stretched backdrop — in testing it was not a reliable warning of falls.
+          It describes a calm, stretched backdrop for information only — in testing it was not a reliable top signal. Global breadth carries 5% because its monthly, lagged data added little at turning points.
         </p>
         <p className="mt-2 font-mono text-xs text-[#c8d0dc]">score = Σ (weightᵢ × subᵢ) ÷ Σ weightᵢ &nbsp;(over inputs with data)</p>
         <div className="mt-4 overflow-x-auto rounded-lg border border-[#1d2633]">
