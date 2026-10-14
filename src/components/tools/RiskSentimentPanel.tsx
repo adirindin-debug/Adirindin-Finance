@@ -545,7 +545,7 @@ export function RiskSentimentPanel() {
 
   return (
     <section className="rounded-xl border border-border bg-[#0f1419] p-4 sm:p-6">
-      {loading && <p className="py-20 text-center text-sm text-muted">Loading risk &amp; sentiment inputs…</p>}
+      {loading && <p className="py-20 text-center text-sm text-muted">Loading market sentiment inputs…</p>}
       {!loading && data && !data.ok && (
         <p className="py-16 text-center text-sm text-red-400">
           {data.error ?? "Could not load the gauge"} — nothing shown rather than guessing.
@@ -855,13 +855,13 @@ export function RiskSentimentPanel() {
                 className="block w-full cursor-crosshair touch-none select-none outline-none focus-visible:ring-1 focus-visible:ring-accent"
                 role="img"
                 tabIndex={0}
-                aria-label="Risk and sentiment score history. Hover, drag or use arrow keys to scrub."
+                aria-label="Market sentiment score history. Hover, drag or use arrow keys to scrub."
                 onPointerMove={onPointerMove}
                 onPointerDown={onPointerDown}
                 onPointerLeave={onPointerLeave}
                 onKeyDown={onKeyDown}
               >
-                <title>Risk &amp; sentiment score history</title>
+                <title>Market sentiment score history</title>
                 <defs>
                   <linearGradient id="rs-line" x1="0" y1={view.yOf(0)} x2="0" y2={view.yOf(100)} gradientUnits="userSpaceOnUse">
                     <stop offset="0" stopColor={ZONES[0]!.color} />

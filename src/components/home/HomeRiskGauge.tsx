@@ -21,7 +21,7 @@ const arc = (a: number, b: number) => {
 const fmtAsOf = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-/** Homepage hero: the live Market risk & sentiment score, zone and stage (same reading as /tools/risk-sentiment). */
+/** Homepage hero: the live Market sentiment score, zone and stage (same reading as /tools/risk-sentiment). */
 export function HomeRiskGauge() {
   const [data, setData] = useState<RsSummary | null>(null);
   const [failed, setFailed] = useState(false);
@@ -48,7 +48,7 @@ export function HomeRiskGauge() {
       href="/tools/risk-sentiment"
       className="group mt-8 flex flex-col items-center gap-6 rounded-xl border border-border bg-card p-6 transition hover:border-accent hover:bg-accent/5 sm:flex-row sm:gap-10 sm:p-8"
     >
-      <svg viewBox="0 0 240 140" className="h-[130px] w-[220px] shrink-0" role="img" aria-label={score != null ? `Market risk and sentiment score ${score.toFixed(0)} of 100` : "Market risk and sentiment gauge"}>
+      <svg viewBox="0 0 240 140" className="h-[130px] w-[220px] shrink-0" role="img" aria-label={score != null ? `Market sentiment score ${score.toFixed(0)} of 100` : "Market sentiment gauge"}>
         {ZONES.map((z) => (
           <path
             key={z.key}
@@ -71,7 +71,7 @@ export function HomeRiskGauge() {
       </svg>
       <div className="min-w-0 text-center sm:text-left">
         <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Market risk &amp; sentiment</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Market sentiment</p>
           <DeskTag kind="live" />
         </div>
         {data && score != null && data.zone ? (

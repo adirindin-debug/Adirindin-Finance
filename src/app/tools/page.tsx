@@ -5,7 +5,7 @@ import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Tools",
   description:
-    "Research tools desk: portfolio tracker, Australian property prices, a market risk & sentiment gauge, a compound interest calculator with historical asset growth rates and a just-for-fun Power Level scouter. Educational and illustrative only — not financial advice.",
+    "Research tools desk: portfolio tracker, Australian property prices, a compound interest calculator with historical asset growth rates and a just-for-fun Power Level scouter. Educational and illustrative only — not financial advice.",
 };
 
 type ToolCard = { href: string; title: string; badge?: string; blurb: string; meta: string; cta: string };
@@ -18,14 +18,6 @@ const tools: ToolCard[] = [
       "Personal holdings tracker that stays on your device. Track positions, returns and allocation for study — not a broker and not advice.",
     meta: "Local tracker · browser storage · educational",
     cta: "Open portfolio",
-  },
-  {
-    href: "/tools/risk-sentiment",
-    title: "Market risk & sentiment gauge",
-    blurb:
-      "One 0–100 reading from washout to euphoria-leaning, blended from public URTH and S&P 500 drawdown, RSI and 200-day trend, VIX, credit spreads (Moody's BAA − 10y via FRED), Fear & Greed, search attention, calendar-month seasonality and a light touch of the cycle calendars. Scrub the history over an S&P 500, Nasdaq or URTH base chart. Study aid — not a signal.",
-    meta: "Composite · transparent weights · 3Y default · educational · NFA",
-    cta: "Open the gauge",
   },
   {
     href: "/tools/compound-interest",
@@ -60,7 +52,7 @@ export default function ToolsHubPage() {
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Tools</p>
       <h1 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Research tools</h1>
       <p className="mt-3 max-w-3xl text-sm text-muted">
-        Desk for trackers, Australian property tools, a market risk &amp; sentiment gauge, a compound interest calculator and a just-for-fun Power Level scouter. Cycle theories live under{" "}
+        Desk for trackers, Australian property tools, a compound interest calculator and a just-for-fun Power Level scouter. Cycle theories live under{" "}
         <Link href="/#cycles" className="text-accent hover:underline">
           Market cycles
         </Link>

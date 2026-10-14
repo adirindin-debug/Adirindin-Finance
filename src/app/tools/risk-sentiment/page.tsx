@@ -1,5 +1,5 @@
+import Link from "next/link";
 import type { Metadata } from "next";
-import { ToolsBackLink } from "@/components/tools/ToolsBackLink";
 import { RiskSentimentPanel } from "@/components/tools/RiskSentimentPanel";
 import {
   COMPONENTS,
@@ -14,7 +14,7 @@ import {
 import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
-  title: "Market risk & sentiment gauge",
+  title: "Market sentiment gauge",
   description:
     "Transparent 0–100 blend of public price-risk, trend, volatility, credit-spread, sentiment, search-attention, cycle-calendar and seasonality inputs — from washout to euphoria-leaning. Theoretical study aid only, not a signal. Not financial advice (NFA).",
 };
@@ -79,8 +79,12 @@ export default function RiskSentimentPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <MobileViewHint />
-      <ToolsBackLink category="Sentiment" />
-      <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market risk &amp; sentiment gauge</h1>
+      <div className="mb-3">
+        <Link href="/" className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-accent/60 bg-accent/10 px-3.5 py-1.5 text-sm font-medium text-accent transition hover:border-accent hover:bg-accent/20 hover:text-foreground">
+          ← Back to Home
+        </Link>
+      </div>
+      <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market sentiment gauge</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         One number for how hot or washed-out risk appetite looks, built from public price, trend, volatility, credit-spread,
         sentiment and attention data, a seasonality read on the calendar month, plus a light touch of the Adirindin cycle
