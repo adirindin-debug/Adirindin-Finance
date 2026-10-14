@@ -825,10 +825,10 @@ export function BtcFourYearChart() {
           <svg
             ref={lineSvgRef}
             viewBox={`0 0 ${W} ${H}`}
-            className="block w-full"
+            className="block h-auto w-full sm:h-[420px]"
             role="img"
             aria-label={copy.aria}
-            style={{ background: "#000", height: 420 }}
+            style={{ background: "#000", aspectRatio: `${W} / ${H}` }}
             onMouseMove={onLineMouseMove}
             onMouseLeave={onLineMouseLeave}
           >
@@ -1048,10 +1048,10 @@ export function BtcFourYearChart() {
         {status === "ready" && chartMode === "bar" && barLayout && activeYScale && (
           <svg
             viewBox={`0 0 ${W} ${H}`}
-            className="block w-full"
+            className="block h-auto w-full sm:h-[420px]"
             role="img"
             aria-label={`Latest ${copy.kpiSuffix} as grouped bars for selected series`}
-            style={{ background: "#000", height: 420 }}
+            style={{ background: "#000", aspectRatio: `${W} / ${H}` }}
           >
             <title>
               Latest {windowKey === "all" ? "cumulative" : windowKey.toUpperCase()}{" "}
