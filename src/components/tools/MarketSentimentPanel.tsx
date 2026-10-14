@@ -41,8 +41,8 @@ const fmtDay = (d: string) =>
 const fmtMonthYear = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { month: "short", year: "numeric", timeZone: "UTC" });
 
-const DESK = { W: 920, H: 360, PAD: { top: 16, right: 96, bottom: 30, left: 40 } };
-const PHONE = { W: 420, H: 340, PAD: { top: 14, right: 54, bottom: 28, left: 30 } };
+const DESK = { W: 920, H: 360, PAD: { top: 16, right: 22, bottom: 30, left: 40 } };
+const PHONE = { W: 420, H: 340, PAD: { top: 14, right: 16, bottom: 28, left: 30 } };
 
 /** Smooth path through points (Catmull-Rom → cubic Bézier), for display only. */
 function smoothPath(pts: Array<[number, number] | null>): string {
@@ -325,10 +325,9 @@ export function MarketSentimentPanel() {
             <linearGradient id="ms-zone-grad" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={view.yOf(100)} y2={view.yOf(0)}>
               {ZONES.slice()
                 .reverse()
-                .flatMap((z) => [
-                  <stop key={`${z.key}-a`} offset={`${100 - z.max + (z.max === 100 ? 0 : 1)}%`} stopColor={z.color} />,
-                  <stop key={`${z.key}-b`} offset={`${100 - z.min - (z.min === 0 ? 0 : 1)}%`} stopColor={z.color} />,
-                ])}
+                .map((z) => (
+                  <stop key={z.key} offset={`${100 - (z.min + z.max) / 2}%`} stopColor={z.color} />
+                ))}
             </linearGradient>
             <filter id="ms-line-glow" x="-5%" y="-20%" width="110%" height="140%">
               <feGaussianBlur stdDeviation="2.5" />
@@ -336,28 +335,19 @@ export function MarketSentimentPanel() {
           </defs>
           {ZONES.map((z) => (
             <g key={z.key}>
-              <rect x={PAD.left} width={view.iw} y={view.yOf(z.max)} height={view.yOf(z.min) - view.yOf(z.max)} fill={z.color} opacity={0.055} />
+              <rect x={PAD.left} width={view.iw} y={view.yOf(z.max)} height={view.yOf(z.min) - view.yOf(z.max)} fill={z.color} opacity={0.085} />
               {z.min > 0 ? (
-                <line x1={PAD.left} x2={PAD.left + view.iw} y1={view.yOf(z.min)} y2={view.yOf(z.min)} stroke={z.color} strokeOpacity={0.14} strokeWidth={1} />
+                <line x1={PAD.left} x2={PAD.left + view.iw} y1={view.yOf(z.min)} y2={view.yOf(z.min)} stroke={z.color} strokeOpacity={0.22} strokeWidth={1} />
               ) : null}
               <text x={PAD.left - 6} y={view.yOf(z.max) + 4} fill="#6b7a8f" fontSize={10} textAnchor="end">
                 {z.max}
               </text>
-              <text
-                x={PAD.left + view.iw + 6}
-                y={view.yOf((z.min + z.max) / 2) + 3.5}
-                fill={z.color}
-                fontSize={narrow ? 9 : 10}
-                fontWeight={600}
-                opacity={0.8}
-              >
-                {narrow ? z.label.split(/[ -]/)[0] : z.label}
-              </text>
             </g>
           ))}
+          <rect x={PAD.left + view.iw + 6} y={view.yOf(100)} width={6} height={view.yOf(0) - view.yOf(100)} rx={3} fill="url(#ms-zone-grad)" />
           {view.basePath ? <path d={view.basePath} fill="none" stroke="#c8d0dc" strokeOpacity={0.28} strokeWidth={1.2} vectorEffect="non-scaling-stroke" /> : null}
-          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeOpacity={0.35} strokeWidth={5} filter="url(#ms-line-glow)" />
-          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeWidth={2.4} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeOpacity={0.5} strokeWidth={6} filter="url(#ms-line-glow)" />
+          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeWidth={2.8} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           {view.ticks.map((t, i) => (
             <text
               key={i}
@@ -385,6 +375,22 @@ export function MarketSentimentPanel() {
             {baseHover != null ? ` · ${baseLabel} ${baseHover.toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : ""}
           </div>
         ) : null}
+      </div>
+      <div className="mt-3" aria-label="Colour scale">
+        <div
+          className="h-2 rounded-full"
+          style={{ background: `linear-gradient(90deg, ${ZONES.map((z) => `${z.color} ${(z.min + z.max) / 2}%`).join(", ")})` }}
+        />
+        <div className="mt-1.5 grid grid-cols-5 text-center text-[10px] font-semibold leading-tight sm:text-[11px]">
+          {ZONES.map((z) => (
+            <span key={z.key} style={{ color: z.color }} className={zone?.key === z.key ? "underline decoration-2 underline-offset-4" : "opacity-85"}>
+              {z.label}
+              <span className="block font-normal text-muted">
+                {z.min}–{z.max}
+              </span>
+            </span>
+          ))}
+        </div>
       </div>
       <p className="mt-2 text-[11px] text-muted">
         Score line: {smoothName.toLowerCase()}. Zone label changes only once the score is 5 points past a zone line.

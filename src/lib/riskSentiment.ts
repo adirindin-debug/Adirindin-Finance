@@ -265,7 +265,7 @@ export const ZONES: Zone[] = [
     label: "Washout",
     min: 0,
     max: 20,
-    color: "#a78bfa",
+    color: "#fb923c",
     blurb: "Deep drawdown, stretched-low momentum, vol spiking, fear readings pinned low.",
   },
   {
@@ -273,7 +273,7 @@ export const ZONES: Zone[] = [
     label: "Repair",
     min: 20,
     max: 40,
-    color: "#2dd4bf",
+    color: "#facc15",
     blurb: "Still bruised. Readings off the floor but well below average.",
   },
   {
@@ -281,7 +281,7 @@ export const ZONES: Zone[] = [
     label: "Neutral",
     min: 40,
     max: 60,
-    color: "#94a3b8",
+    color: "#60a5fa",
     blurb: "Mixed inputs. Nothing stretched either way.",
   },
   {
@@ -297,7 +297,7 @@ export const ZONES: Zone[] = [
     label: "Euphoria-leaning",
     min: 80,
     max: 100,
-    color: "#16a34a",
+    color: "#10b981",
     blurb: "Most inputs stretched hot at once. Historically uncommon.",
   },
 ];
