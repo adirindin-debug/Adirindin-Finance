@@ -10,7 +10,7 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-14">
       <h1 className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-        A personal research desk for market cycles.
+        A research desk for market cycles.
       </h1>
       <p className="mt-4 max-w-2xl text-muted">
         I built these charts and cycle frameworks for my own use and share them
