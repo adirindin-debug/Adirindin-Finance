@@ -2,9 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const nav: { href: string; label: string; shortLabel?: string }[] = [
+const nav = [
   { href: "/", label: "Home" },
   { href: "/charts", label: "Charts" },
+  { href: "/cycles", label: "Market cycles", shortLabel: "Cycles" },
   { href: "/tools", label: "Tools" },
 ];
 

@@ -17,7 +17,7 @@ export default function HomePage() {
         for anyone interested. Educational only — not financial advice (NFA).
       </p>
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <Link href="#cycles" className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white">
+        <Link href="/cycles" className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white">
           Explore market cycles
         </Link>
         <Link
@@ -47,9 +47,12 @@ export default function HomePage() {
         <MarketStrip />
       </div>
 
-      <section id="cycles" className="mt-12 scroll-mt-20">
+      <section className="mt-12">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Where are we in the cycle?</h2>
+          <Link href="/cycles" className="text-xs font-medium text-accent hover:underline">
+            Open cycles hub →
+          </Link>
         </div>
         <CycleStrip />
         <HowDrawn>

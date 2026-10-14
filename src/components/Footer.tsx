@@ -30,6 +30,9 @@ export function Footer() {
           <Link href="/charts" className="hover:text-accent">
             Charts
           </Link>
+          <Link href="/cycles" className="hover:text-accent">
+            Market cycles
+          </Link>
           <Link href="/tools" className="hover:text-accent">
             Tools
           </Link>
