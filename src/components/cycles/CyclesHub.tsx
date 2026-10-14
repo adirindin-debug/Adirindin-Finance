@@ -83,11 +83,13 @@ function CycleSilhouette({
   viewBox,
   color,
   marker,
+  className = "h-[180px] w-full overflow-visible sm:h-[220px] lg:h-[240px]",
 }: {
   path: string;
   viewBox: string;
   color: string;
   marker: { x: number; y: number } | null;
+  className?: string;
 }) {
   /* Soft fill under the theory curve — same visual language as Charts hub sparklines. */
   const [, , , vbH] = viewBox.split(" ").map(Number);
@@ -97,7 +99,7 @@ function CycleSilhouette({
     <svg
       viewBox={viewBox}
       preserveAspectRatio="xMidYMid meet"
-      className="h-[180px] w-full overflow-visible sm:h-[220px] lg:h-[240px]"
+      className={className}
       aria-hidden
     >
       <path d={fillD} fill={color} fillOpacity="0.10" />
@@ -232,8 +234,8 @@ function CycleTileCard({
   );
 }
 
-export function CyclesHub() {
-  /* Live chain tip for the BTC halving estimate; cached snapshot until (or if) it loads. */
+/** Live chain tip for the BTC halving estimate; cached snapshot until (or if) it loads. */
+function useHalvingAnchor() {
   const [halvingAnchor, setHalvingAnchor] = useState<BtcTipAnchor | undefined>(undefined);
   useEffect(() => {
     let cancelled = false;
@@ -244,6 +246,71 @@ export function CyclesHub() {
       cancelled = true;
     };
   }, []);
+  return halvingAnchor;
+}
+
+/** Homepage order: Bitcoin, gold, bonds, real estate. */
+const STRIP_ORDER = ["btc", "gold", "bond", "re"];
+
+function CycleStripCard({ tile, halvingAnchor }: { tile: CycleTile; halvingAnchor?: BtcTipAnchor }) {
+  const nowMs = useLiveNow();
+  const live = nowMs === null ? null : tile.live(nowMs, halvingAnchor);
+  const [phase, detail] = nowMs === null ? ["Locating Live…", ""] : (live?.phaseLine ?? "—").split("\n");
+  return (
+    <Link
+      href={tile.href}
+      className="group flex flex-col rounded-xl border border-border bg-card p-4 transition hover:border-accent hover:bg-accent/5"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="text-base font-semibold text-foreground group-hover:text-accent">{tile.title}</h3>
+        {nowMs !== null ? (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" aria-hidden />
+            Live
+          </span>
+        ) : null}
+      </div>
+      <p className="mt-0.5 text-[11px] text-muted">{tile.blurb}</p>
+      <div className="mt-3">
+        <CycleSilhouette
+          path={tile.path}
+          viewBox={tile.viewBox}
+          color={tile.color}
+          marker={live?.pt ?? null}
+          className="h-[96px] w-full overflow-visible"
+        />
+      </div>
+      <p className="mt-3 text-sm font-medium text-foreground/90">
+        <PhaseText text={phase ?? "—"} />
+      </p>
+      {detail ? (
+        <p className="mt-1 text-xs text-muted">
+          <PhaseText text={detail} />
+        </p>
+      ) : null}
+    </Link>
+  );
+}
+
+/** Compact "where are we in the cycle" strip — same silhouettes and Live logic as the hub tiles. */
+export function CycleStrip() {
+  const halvingAnchor = useHalvingAnchor();
+  const tiles = STRIP_ORDER.map((id) => TILES.find((t) => t.id === id)!);
+  return (
+    <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {tiles.map((tile) => (
+        <CycleStripCard
+          key={tile.id}
+          tile={tile}
+          halvingAnchor={tile.id === "btc" ? halvingAnchor : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function CyclesHub() {
+  const halvingAnchor = useHalvingAnchor();
 
   return (
     <div className="mt-8 grid gap-5 sm:grid-cols-1 lg:grid-cols-2">

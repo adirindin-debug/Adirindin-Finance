@@ -35,6 +35,7 @@ import {
   buildSeasonality,
   computeRows,
   rowMonthKeys,
+  summarizePayload,
   thinRows,
   type RawInputs,
   type RsPayload,
@@ -291,14 +292,16 @@ async function withFallback(
   }
 }
 
-function respond(body: RsPayload, sMaxAge: number) {
-  return Response.json(body, {
+/** `?summary=1` returns only the latest headline reading (homepage hero) — a few hundred bytes instead of the full history. */
+function respond(body: RsPayload, sMaxAge: number, summary = false) {
+  return Response.json(summary ? summarizePayload(body) : body, {
     headers: { "Cache-Control": `public, s-maxage=${sMaxAge}, stale-while-revalidate=86400` },
   });
 }
 
-export async function GET() {
-  if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800);
+export async function GET(req: Request) {
+  const summary = new URL(req.url).searchParams.get("summary") === "1";
+  if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800, summary);
 
   const warnings: string[] = [];
   const [world, spx, vix, baa10y, usFng, cryptoFng, ixic] = await Promise.all([
@@ -336,6 +339,7 @@ export async function GET() {
         generated: new Date().toISOString(),
       },
       60,
+      summary,
     );
   }
 
@@ -368,5 +372,5 @@ export async function GET() {
     generated: new Date().toISOString(),
   };
   if (!warnings.length) lastGood = { at: Date.now(), body };
-  return respond(body, warnings.length ? 300 : 1800);
+  return respond(body, warnings.length ? 300 : 1800, summary);
 }

@@ -458,6 +458,18 @@ export function BtcFourYearChart() {
   const [payload, setPayload] = useState<ApiPayload | null>(null);
   const [lineHover, setLineHover] = useState<LineHover | null>(null);
   const lineSvgRef = useRef<SVGSVGElement | null>(null);
+  /* Phones (<640px): the 920-wide viewBox shrinks ~2.5x, so axis text is drawn
+     larger in viewBox units and tick counts are thinned to stay readable. */
+  const [narrow, setNarrow] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 639px)");
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const axisFont = narrow ? 24 : 10;
   const lineWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Read the homepage preference, preserving legacy shared-key choices.
@@ -551,10 +563,13 @@ export function BtcFourYearChart() {
   const activeYScale = chart?.yScale ?? barLayout?.yScale ?? null;
 
   const yTicks = useMemo(() => {
-    if (chartMode === "line" && chart?.yTicks?.length) return chart.yTicks;
-    if (activeYRange) return ticks(activeYRange.min, activeYRange.max);
-    return [];
-  }, [chart, chartMode, activeYRange]);
+    let out: number[] = [];
+    if (chartMode === "line" && chart?.yTicks?.length) out = chart.yTicks;
+    else if (activeYRange) out = ticks(activeYRange.min, activeYRange.max);
+    // Narrow screens: keep every other tick (always keeping 0% when present).
+    if (narrow && out.length > 4) out = out.filter((v, i) => i % 2 === 0 || v === 0);
+    return out;
+  }, [chart, chartMode, activeYRange, narrow]);
 
   const xTicks = useMemo(() => {
     if (!chart) return [];
@@ -562,13 +577,14 @@ export function BtcFourYearChart() {
     const { minT, maxT } = chart;
     const mid1 = minT + (maxT - minT) / 3;
     const mid2 = minT + (2 * (maxT - minT)) / 3;
+    if (narrow) return [{ t: minT, pct: 0 }, { t: maxT, pct: 0 }];
     return [
       { t: minT, pct: 0 },
       { t: mid1, pct: 0 },
       { t: mid2, pct: 0 },
       { t: maxT, pct: 0 },
     ];
-  }, [chart]);
+  }, [chart, narrow]);
 
   const zeroY = useMemo(() => {
     if (!activeYRange || !activeYScale) return null;
@@ -878,12 +894,12 @@ export function BtcFourYearChart() {
                     strokeWidth="1"
                   />
                   <text
-                    x={PAD.left - 8}
-                    y={y + 3}
+                    x={narrow ? PAD.left + 4 : PAD.left - 8}
+                    y={narrow ? y - 6 : y + 3}
                     fill="#9eb0c8"
-                    fontSize="10"
+                    fontSize={axisFont}
                     fontFamily="system-ui, sans-serif"
-                    textAnchor="end"
+                    textAnchor={narrow ? "start" : "end"}
                     opacity="0.9"
                   >
                     {chart.yLog ? fmtAxisPct(v) : fmtPct(v, 0)}
@@ -904,17 +920,17 @@ export function BtcFourYearChart() {
               />
             )}
 
-            {xTicks.map((p) => {
+            {xTicks.map((p, i) => {
               const x = chart.xScale(p.t);
               return (
                 <text
                   key={p.t}
                   x={x}
-                  y={H - 14}
+                  y={narrow ? H - 6 : H - 14}
                   fill="#8b9bb4"
-                  fontSize="10"
+                  fontSize={axisFont}
                   fontFamily="system-ui, sans-serif"
-                  textAnchor="middle"
+                  textAnchor={narrow ? (i === 0 ? "start" : "end") : "middle"}
                 >
                   {fmtDate(p.t)}
                 </text>
@@ -1106,12 +1122,12 @@ export function BtcFourYearChart() {
                     strokeWidth="1"
                   />
                   <text
-                    x={PAD.left - 8}
-                    y={y + 3}
+                    x={narrow ? PAD.left + 4 : PAD.left - 8}
+                    y={narrow ? y - 6 : y + 3}
                     fill="#9eb0c8"
-                    fontSize="10"
+                    fontSize={axisFont}
                     fontFamily="system-ui, sans-serif"
-                    textAnchor="end"
+                    textAnchor={narrow ? "start" : "end"}
                     opacity="0.9"
                   >
                     {fmtPct(v, 0)}
@@ -1180,6 +1196,15 @@ export function BtcFourYearChart() {
           </svg>
         )}
       </div>
+      <button
+        type="button"
+        onClick={() => setShowNotes((v) => !v)}
+        aria-expanded={showNotes}
+        className="mt-3 text-xs font-medium text-accent hover:underline"
+      >
+        {showNotes ? "Hide source notes" : "Show source notes"}
+      </button>
+      {showNotes ? (
       <p className="mt-2 text-xs text-muted">
         {copy.footerLead}
         {copy.startsLine ? ` — starts: ${copy.startsLine}` : ""}. Not absolute
@@ -1224,6 +1249,12 @@ export function BtcFourYearChart() {
         </a>
         . Educational only — not investment advice (NFA).
       </p>
+      ) : (
+        <p className="mt-1 text-xs text-muted">
+          Relative % change from a shared start · Yahoo Finance and FRED data ·
+          educational only (NFA).
+        </p>
+      )}
       {payload?.errors && Object.keys(payload.errors).length > 0 && (
         <p className="mt-1 text-[11px] text-muted/80">
           Some feeds had errors:{" "}

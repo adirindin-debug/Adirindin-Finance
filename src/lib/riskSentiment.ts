@@ -1213,3 +1213,55 @@ export function thinRows(rows: RsRow[]): RsRow[] {
   }
   return out;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Compact summary (homepage hero)                                            */
+/* -------------------------------------------------------------------------- */
+
+export type RsSummary = {
+  ok: boolean;
+  asOf: string | null;
+  /** Headline score — the gauge page's default view (10-day EMA). */
+  score: number | null;
+  /** Same-day raw composite. */
+  raw: number | null;
+  zone: { key: string; label: string; color: string; blurb: string } | null;
+  stage: string | null;
+  rising: boolean | null;
+  generated: string;
+  error?: string;
+};
+
+/**
+ * Latest headline reading exactly as /tools/risk-sentiment shows it by default:
+ * DEFAULT_SMOOTH score, its zone, and the mood-arc stage from the score vs the
+ * score ~91 days earlier. Derived from the full payload — never invented.
+ */
+export function summarizePayload(body: RsPayload): RsSummary {
+  const base = { asOf: body.asOf, generated: body.generated, error: body.error };
+  const rows = body.rows ?? [];
+  const span = SMOOTH_OPTIONS.find((o) => o.key === DEFAULT_SMOOTH)?.span ?? null;
+  const scores = smoothScores(rows, span);
+  let i = rows.length - 1;
+  while (i >= 0 && scores[i] == null) i--;
+  if (!body.ok || i < 0) {
+    return { ...base, ok: false, score: null, raw: null, zone: null, stage: null, rising: null };
+  }
+  const score = scores[i]!;
+  const cutoff = new Date(Date.parse(`${rows[i]![0]}T00:00:00Z`) - 91 * 86_400_000).toISOString().slice(0, 10);
+  let j = i;
+  while (j >= 0 && rows[j]![0] > cutoff) j--;
+  const prev = j >= 0 ? scores[j] ?? null : null;
+  const rising = prev != null ? score >= prev : true;
+  const z = zoneFor(score);
+  return {
+    ...base,
+    ok: true,
+    asOf: rows[i]![0],
+    score,
+    raw: rows[i]![1],
+    zone: { key: z.key, label: z.label, color: z.color, blurb: z.blurb },
+    stage: arcStage(score, rising).label,
+    rising,
+  };
+}
