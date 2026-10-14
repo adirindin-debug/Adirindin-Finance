@@ -1,88 +1,62 @@
 /**
- * Same-origin data for /tools/risk-sentiment (Market risk & sentiment gauge).
+ * Same-origin data for /tools/risk-sentiment (Market sentiment gauge, v2).
  *
- * Live public feeds, each falling back on its own to the dated snapshot in
- * src/data/risk-sentiment-snapshot.json (refresh: scripts/build-risk-sentiment-snapshot.mjs):
- *  - URTH (iShares MSCI World ETF) adjusted close — Yahoo Finance chart API
- *    (query1 → query2), same pattern as global equities / seasonality. Primary
- *    equity input; developed-markets proxy, not the licensed MSCI index series.
- *    History from ~Jan 2012 — before that, S&P pair logic fills the equity block
- *  - S&P 500 (^GSPC) daily close — Yahoo Finance chart API (query1 → query2).
- *    Secondary equity input; fills the equity block on days without URTH data
- *  - Nasdaq Composite (^IXIC) daily close — Yahoo Finance chart API. Base chart
- *    overlay only (returned as `ixic`, aligned to rows) — NOT a score input
- *  - VIX close — FRED VIXCLS (API if FRED_API_KEY, else CSV)
- *  - Credit spreads — Moody's BAA minus 10-year Treasury, FRED BAA10Y daily (API
- *    if FRED_API_KEY, else CSV). Percentiles also use the static monthly BAA −
- *    long Treasury history 1925–1985 (src/data/credit-spread-history.json)
- *  - US stocks Fear & Greed — FearGreedChart.com public API (independent, not CNN)
- *  - Crypto Fear & Greed — Alternative.me public API
- *  - Google Trends "bitcoin" monthly — snapshot only (unofficial endpoint; never
- *    scraped from production)
- *  - Seasonality input — derived from the URTH / S&P 500 closes above, with older
- *    S&P 500 month-end closes (Dec 1949 →) from the Seasonality page's dataset
- *    (src/data/seasonality-snapshot.json). Expanding window, no look-ahead
- * A failed source is reported, never invented. Educational only · NFA.
+ * Score inputs — all publicly available and displayable with credit:
+ *  - OFR Financial Stress Index (overall + volatility, equity valuation, credit
+ *    categories) — daily CSV from the Office of Financial Research (US Treasury)
+ *  - Chicago Fed NFCI and St. Louis Fed STLFSI4 — weekly, FRED CSV (API if FRED_API_KEY)
+ *  - Crypto Fear & Greed — Alternative.me public API (attribution beside the data)
+ *  - Seasonality — derived from the stored S&P 500 month-end dataset
+ * Base chart overlay only (never feeds the score): S&P 500 / Nasdaq / URTH daily
+ * closes from Yahoo Finance's chart API — see the page note on display terms.
+ * A failed source is reported and dropped, never invented. Educational only · NFA.
  */
 
-import snapshot from "@/data/risk-sentiment-snapshot.json";
 import seasonSnapshot from "@/data/seasonality-snapshot.json";
-import creditHistory from "@/data/credit-spread-history.json";
 import type { MonthClose } from "@/lib/seasonality";
+import { baseMonthlyReturns, buildSeasonality } from "@/lib/riskSentiment";
 import {
-  alignToRows,
-  baseMonthlyReturns,
-  buildSeasonality,
-  computeRows,
-  rowMonthKeys,
-  summarizePayload,
-  thinRows,
-  type RawInputs,
-  type RsPayload,
+  INPUTS,
+  SMOOTH,
+  alignStep,
+  blendRow,
+  ema,
+  rollingPercentile,
+  shiftDays,
+  summarize,
+  type MsPayload,
+  type MsRow,
   type Series,
   type SourceStatus,
-} from "@/lib/riskSentiment";
+} from "@/lib/marketSentiment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-const FETCH_MS = 12_000;
+const FETCH_MS = 15_000;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const FRED_UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
-/** Equity history start (5 years of warm-up before the first displayed row). */
-const EQ_FROM = Date.UTC(1985, 0, 1) / 1000;
-/** URTH listing ~12 Jan 2012 (same period1 as global equities / seasonality). */
+/** Overlay history start. */
+const EQ_FROM = Date.UTC(2004, 0, 1) / 1000;
 const URTH_FROM = 1325376000;
-const WORLD_SYMBOL = "URTH";
+/** First date the score is shown (5 years of OFR history before it for ranking). */
+const DISPLAY_FROM = "2005-01-03";
+/** Daily rows for the last ~10 years; weekly (Fridays) before that to keep the payload small. */
+const DAILY_YEARS = 10;
+/** Weekly Fed indices are dated Friday and published the following Wednesday/Thursday. */
+const WEEKLY_LAG_DAYS = 6;
 
-type SnapBlock = { asOf: string; source: string; note?: string; rows: Series };
-type Snap = {
-  fetched: string;
-  spx?: SnapBlock;
-  ixic?: SnapBlock;
-  world?: SnapBlock;
-  vix?: SnapBlock;
-  baa10y?: SnapBlock;
-  usFng?: SnapBlock;
-  cryptoFng?: SnapBlock;
-  trendsBitcoin?: SnapBlock;
-};
-const SNAP = snapshot as unknown as Snap;
-/** S&P 500 month-end closes from the Seasonality dataset (Yahoo ^GSPC, Dec 1949 →). */
 const SPX_MONTHS = ((seasonSnapshot as unknown as { spx?: { months?: MonthClose[] } }).spx?.months ?? null) as
   | MonthClose[]
   | null;
 
-/** Monthly BAA − long Treasury, Jan 1925 – Dec 1985 (Moody's via FRED). */
-const CREDIT_MONTHS = ((creditHistory as unknown as { months?: Series }).months ?? null) as Series | null;
-
-let lastGood: { at: number; body: RsPayload } | null = null;
+let lastGood: { at: number; body: MsPayload } | null = null;
 const MEMO_MS = 30 * 60 * 1000;
 
-async function fetchYahooDaily(symbol: string, minRows = 9000): Promise<Series> {
+async function fetchYahooDaily(symbol: string, minRows = 4000): Promise<Series> {
   const errors: string[] = [];
   for (const host of ["query1", "query2"]) {
     try {
@@ -168,76 +142,74 @@ async function fetchUrth(): Promise<Series> {
 const fetchSpx = () => fetchYahooDaily("^GSPC");
 /** Nasdaq Composite — base chart overlay only (never feeds the score). */
 const fetchIxic = () => fetchYahooDaily("^IXIC");
-const fetchWorld = () => fetchUrth();
+type OfrCols = { ofr: Series; ofrVol: Series; ofrEq: Series; ofrCredit: Series };
 
-/** FRED daily series — API when FRED_API_KEY is set, else the public CSV. Cached ~1 h. */
-async function fetchFredDaily(id: string, label: string, minRows: number, positiveOnly: boolean): Promise<Series> {
+/** OFR FSI daily CSV: Date, OFR FSI, Credit, Equity valuation, Safe assets, Funding, Volatility, … */
+async function fetchOfr(): Promise<OfrCols> {
+  const res = await fetch("https://www.financialresearch.gov/financial-stress-index/data/fsi.csv", {
+    headers: { "User-Agent": UA, Accept: "text/csv,text/plain,*/*" },
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(FETCH_MS),
+  });
+  if (!res.ok) throw new Error(`OFR FSI: HTTP ${res.status}`);
+  const text = (await res.text()).trimStart();
+  if (text.startsWith("<")) throw new Error("OFR FSI: HTML page");
+  const lines = text.split(/\r?\n/);
+  const head = lines[0]!.split(",").map((h) => h.trim().toLowerCase());
+  const col = (name: string) => head.indexOf(name);
+  const ci = { ofr: col("ofr fsi"), ofrCredit: col("credit"), ofrEq: col("equity valuation"), ofrVol: col("volatility") };
+  if (Object.values(ci).some((i) => i < 0)) throw new Error("OFR FSI: unexpected columns");
+  const out: OfrCols = { ofr: [], ofrVol: [], ofrEq: [], ofrCredit: [] };
+  for (const line of lines.slice(1)) {
+    const c = line.split(",");
+    const d = c[0]?.trim();
+    if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    for (const k of Object.keys(ci) as Array<keyof OfrCols>) {
+      const n = Number(c[ci[k]]);
+      if (c[ci[k]] !== "" && Number.isFinite(n)) out[k].push([d, n]);
+    }
+  }
+  if (out.ofr.length < 4000) throw new Error("OFR FSI: short history");
+  return out;
+}
+
+/** FRED series — API when FRED_API_KEY is set, else the public CSV. Cached ~1 h. */
+async function fetchFred(id: string, minRows: number): Promise<Series> {
   const key = process.env.FRED_API_KEY?.trim();
-  const errors: string[] = [];
-  const ok = (n: number) => Number.isFinite(n) && (!positiveOnly || n > 0);
   if (key) {
     try {
       const res = await fetch(
         `https://api.stlouisfed.org/fred/series/observations?series_id=${id}&api_key=${encodeURIComponent(key)}&file_type=json`,
         { headers: { "User-Agent": FRED_UA }, next: { revalidate: 3600 }, signal: AbortSignal.timeout(FETCH_MS) },
       );
-      if (!res.ok) throw new Error(`FRED API ${label}: HTTP ${res.status}`);
-      const json = (await res.json()) as { observations?: Array<{ date: string; value: string }> };
-      const out: Series = [];
-      for (const o of json.observations ?? []) {
-        const n = Number(o.value);
-        if (o.value !== "." && o.value !== "" && ok(n)) out.push([o.date, n]);
+      if (res.ok) {
+        const json = (await res.json()) as { observations?: Array<{ date: string; value: string }> };
+        const out: Series = [];
+        for (const o of json.observations ?? []) {
+          const n = Number(o.value);
+          if (o.value !== "." && o.value !== "" && Number.isFinite(n)) out.push([o.date, n]);
+        }
+        if (out.length >= minRows) return out;
       }
-      if (out.length >= minRows) return out;
-      throw new Error(`FRED API ${label}: too short`);
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : `FRED API ${label} failed`);
+    } catch {
+      /* fall through to CSV */
     }
   }
-  try {
-    const res = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}`, {
-      headers: { "User-Agent": FRED_UA, Accept: "text/csv,text/plain,*/*" },
-      next: { revalidate: 3600 },
-      signal: AbortSignal.timeout(FETCH_MS),
-    });
-    if (!res.ok) throw new Error(`FRED ${label} CSV: HTTP ${res.status}`);
-    const text = (await res.text()).trimStart();
-    if (text.startsWith("<")) throw new Error(`FRED ${label} CSV: HTML page`);
-    const out: Series = [];
-    for (const line of text.split(/\r?\n/).slice(1)) {
-      const [d, v] = line.trim().split(",");
-      const n = Number(v);
-      if (d && v && v !== "." && ok(n)) out.push([d, n]);
-    }
-    if (out.length < minRows) throw new Error(`FRED ${label} CSV: too short`);
-    return out;
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : `FRED ${label} CSV failed`);
-    throw new Error(errors.join("; "));
-  }
-}
-
-const fetchVix = () => fetchFredDaily("VIXCLS", "VIX", 8000, true);
-/** Moody's BAA − 10-year Treasury (pp), daily from 2 Jan 1986. */
-const fetchBaa10y = () => fetchFredDaily("BAA10Y", "BAA10Y", 9000, false);
-
-async function fetchUsFng(): Promise<Series> {
-  const res = await fetch("https://feargreedchart.com/api/?action=history", {
-    headers: { Accept: "application/json" },
+  const res = await fetch(`https://fred.stlouisfed.org/graph/fredgraph.csv?id=${id}`, {
+    headers: { "User-Agent": FRED_UA, Accept: "text/csv,text/plain,*/*" },
     next: { revalidate: 3600 },
     signal: AbortSignal.timeout(FETCH_MS),
   });
-  if (!res.ok) throw new Error(`FearGreedChart HTTP ${res.status}`);
-  const json = (await res.json()) as Array<{ date?: string; score?: number }>;
+  if (!res.ok) throw new Error(`FRED ${id}: HTTP ${res.status}`);
+  const text = (await res.text()).trimStart();
+  if (text.startsWith("<")) throw new Error(`FRED ${id}: HTML page`);
   const out: Series = [];
-  for (const r of Array.isArray(json) ? json : []) {
-    const v = Number(r.score);
-    if (typeof r.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.date) && Number.isFinite(v)) {
-      out.push([r.date, v]);
-    }
+  for (const line of text.split(/\r?\n/).slice(1)) {
+    const [d, v] = line.trim().split(",");
+    const n = Number(v);
+    if (d && v && v !== "." && Number.isFinite(n)) out.push([d, n]);
   }
-  out.sort((a, b) => (a[0] < b[0] ? -1 : 1));
-  if (out.length < 1000) throw new Error("FearGreedChart: short history");
+  if (out.length < minRows) throw new Error(`FRED ${id}: too short`);
   return out;
 }
 
@@ -260,41 +232,21 @@ async function fetchCryptoFng(): Promise<Series> {
   return out;
 }
 
-async function withFallback(
-  key: string,
-  label: string,
-  live: () => Promise<Series>,
-  snap: SnapBlock | undefined,
-  warnings: string[],
-): Promise<{ series: Series | null; status: SourceStatus }> {
+
+async function attempt<T>(label: string, key: string, fn: () => Promise<T>, warnings: string[]) {
   try {
-    const series = await live();
-    return {
-      series,
-      status: { key, label, origin: "live", from: series[0]![0], asOf: series[series.length - 1]![0] },
-    };
+    return { value: await fn(), ok: true as const, key, label };
   } catch (e) {
     warnings.push(`${label}: ${e instanceof Error ? e.message : "failed"}`);
-    if (snap?.rows?.length) {
-      return {
-        series: snap.rows,
-        status: {
-          key,
-          label,
-          origin: "snapshot",
-          from: snap.rows[0]![0],
-          asOf: snap.asOf,
-          note: "Live feed failed — dated snapshot",
-        },
-      };
-    }
-    return { series: null, status: { key, label, origin: "missing", from: null, asOf: null, note: "Pending — feed unavailable" } };
+    return { value: null, ok: false as const, key, label };
   }
 }
 
-/** `?summary=1` returns only the latest headline reading (homepage hero) — a few hundred bytes instead of the full history. */
-function respond(body: RsPayload, sMaxAge: number, summary = false) {
-  return Response.json(summary ? summarizePayload(body) : body, {
+const flip = (s: Series): Series => s.map(([d, v]) => [d, Math.round((100 - v) * 10) / 10]);
+const lastDate = (s: Series | null) => (s?.length ? s[s.length - 1]![0] : null);
+
+function respond(body: MsPayload, sMaxAge: number, summary: boolean) {
+  return Response.json(summary ? summarize(body) : body, {
     headers: { "Cache-Control": `public, s-maxage=${sMaxAge}, stale-while-revalidate=86400` },
   });
 }
@@ -304,73 +256,87 @@ export async function GET(req: Request) {
   if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800, summary);
 
   const warnings: string[] = [];
-  const [world, spx, vix, baa10y, usFng, cryptoFng, ixic] = await Promise.all([
-    withFallback("world", `URTH (${WORLD_SYMBOL}) — MSCI World ETF proxy`, fetchWorld, SNAP.world, warnings),
-    withFallback("spx", "S&P 500 (^GSPC)", fetchSpx, SNAP.spx, warnings),
-    withFallback("vix", "VIX (FRED VIXCLS)", fetchVix, SNAP.vix, warnings),
-    withFallback("baa10y", "Credit spreads (FRED BAA10Y — Moody's BAA − 10y)", fetchBaa10y, SNAP.baa10y, warnings),
-    withFallback("usFng", "US stocks Fear & Greed (FearGreedChart.com)", fetchUsFng, SNAP.usFng, warnings),
-    withFallback("cryptoFng", "Crypto Fear & Greed (Alternative.me)", fetchCryptoFng, SNAP.cryptoFng, warnings),
-    withFallback("ixic", "Nasdaq Composite (^IXIC) — chart overlay only", fetchIxic, SNAP.ixic, warnings),
+  const [ofr, nfci, stl, cfg, spx, ixic, urth] = await Promise.all([
+    attempt("OFR Financial Stress Index", "ofr", fetchOfr, warnings),
+    attempt("Chicago Fed NFCI (FRED)", "nfci", () => fetchFred("NFCI", 1500), warnings),
+    attempt("St. Louis Fed STLFSI4 (FRED)", "stlfsi", () => fetchFred("STLFSI4", 1000), warnings),
+    attempt("Crypto Fear & Greed (Alternative.me)", "cryptoFng", fetchCryptoFng, warnings),
+    // Base chart only — not part of the score.
+    summary ? Promise.resolve({ value: null, ok: false as const, key: "spx", label: "S&P 500" }) : attempt("S&P 500 base chart (Yahoo Finance)", "spx", fetchSpx, warnings),
+    summary ? Promise.resolve({ value: null, ok: false as const, key: "ixic", label: "Nasdaq" }) : attempt("Nasdaq Composite base chart (Yahoo Finance)", "ixic", fetchIxic, warnings),
+    summary ? Promise.resolve({ value: null, ok: false as const, key: "urth", label: "URTH" }) : attempt("URTH base chart (Yahoo Finance)", "urth", fetchUrth, warnings),
   ]);
-  const tb = SNAP.trendsBitcoin;
-  const trendsStatus: SourceStatus = tb?.rows?.length
-    ? {
-        key: "trends",
-        label: 'Google Trends "bitcoin" (monthly)',
-        origin: "snapshot",
-        from: tb.rows[0]![0],
-        asOf: tb.asOf,
-        note: "Dated snapshot by design (unofficial endpoint, refreshed manually)",
-      }
-    : { key: "trends", label: 'Google Trends "bitcoin" (monthly)', origin: "missing", from: null, asOf: null, note: "Pending" };
 
-  const sources = [world.status, spx.status, vix.status, baa10y.status, usFng.status, cryptoFng.status, trendsStatus, ixic.status];
+  // Row dates: OFR trading days (fall back to weekdays if OFR is unavailable).
+  let dates: string[] = ofr.value ? ofr.value.ofr.map(([d]) => d).filter((d) => d >= "2000-01-01") : [];
+  if (!dates.length) {
+    for (let t = Date.parse("2005-01-03"); t <= Date.now(); t += 86_400_000) {
+      const d = new Date(t);
+      if (d.getUTCDay() % 6 !== 0) dates.push(d.toISOString().slice(0, 10));
+    }
+  }
+  const subs: Array<Array<number | null>> = [];
+  const ofrSub = (s?: Series) => (s ? alignStep(dates, flip(rollingPercentile(s, 5, 250)), 7) : dates.map(() => null));
+  subs.push(ofrSub(ofr.value?.ofr), ofrSub(ofr.value?.ofrVol), ofrSub(ofr.value?.ofrEq), ofrSub(ofr.value?.ofrCredit));
+  const weekly = (s: Series | null) =>
+    s ? alignStep(dates, shiftDays(flip(rollingPercentile(s, 10, 260)), WEEKLY_LAG_DAYS), 21) : dates.map(() => null);
+  subs.push(weekly(nfci.value), weekly(stl.value));
+  subs.push(alignStep(dates, cfg.value, 4));
+  const monthKeys = [...new Set(dates.map((d) => d.slice(0, 7)))];
+  const season = buildSeasonality(baseMonthlyReturns({ spx: null, world: null, spxMonths: SPX_MONTHS }), monthKeys);
+  subs.push(dates.map((d) => season.get(d.slice(0, 7))?.score ?? null));
 
-  if (!spx.series && !world.series) {
+  const raw = dates.map((_, i) => blendRow(INPUTS.map((_, k) => subs[k]![i]!)));
+  const e10 = ema(raw, SMOOTH.ema10);
+  const e42 = ema(raw, SMOOTH.ema42);
+
+  if (!raw.some((v) => v != null)) {
     return respond(
-      {
-        ok: false,
-        rows: [],
-        asOf: null,
-        sources,
-        warnings,
-        error: "URTH and S&P 500 history unavailable (live and snapshot)",
-        generated: new Date().toISOString(),
-      },
+      { ok: false, rows: [], asOf: null, sources: [], warnings, error: "Not enough source data for a score", generated: new Date().toISOString() },
       60,
       summary,
     );
   }
 
-  const inputs: RawInputs = {
-    spx: spx.series,
-    world: world.series,
-    vix: vix.series,
-    usFng: usFng.series,
-    cryptoFng: cryptoFng.series,
-    trends: tb?.rows ?? null,
-    spxMonths: SPX_MONTHS,
-    baa10y: baa10y.series,
-    creditMonths: CREDIT_MONTHS,
-  };
-  const season = buildSeasonality(baseMonthlyReturns(inputs), rowMonthKeys(inputs));
-  const rows = thinRows(computeRows(inputs, season));
-  const seasonOut: NonNullable<RsPayload["season"]> = {};
-  for (const r of rows) {
-    const k = r[0].slice(0, 7);
-    if (!(k in seasonOut)) seasonOut[k] = season.get(k) ?? null;
-  }
-  const body: RsPayload = {
+  // Keep display window; daily for the last DAILY_YEARS, Fridays before.
+  const dailyFrom = new Date(Date.now() - DAILY_YEARS * 365.25 * 86_400_000).toISOString().slice(0, 10);
+  const keep: number[] = [];
+  dates.forEach((d, i) => {
+    if (d < DISPLAY_FROM || raw[i] == null) return;
+    if (d >= dailyFrom || new Date(`${d}T00:00:00Z`).getUTCDay() === 5) keep.push(i);
+  });
+  const rows: MsRow[] = keep.map((i) => [dates[i]!, raw[i]!, e10[i]!, e42[i]!, ...INPUTS.map((_, k) => {
+    const v = subs[k]![i];
+    return v == null ? null : Math.round(v * 10) / 10;
+  })]);
+  const keptDates = keep.map((i) => dates[i]!);
+  const overlay = summary
+    ? undefined
+    : {
+        spx: spx.value ? alignStep(keptDates, spx.value, 5) : undefined,
+        ixic: ixic.value ? alignStep(keptDates, ixic.value, 5) : undefined,
+        urth: urth.value ? alignStep(keptDates, urth.value, 5) : undefined,
+      };
+  const curMonth = keptDates[keptDates.length - 1]?.slice(0, 7);
+  const st = curMonth ? season.get(curMonth) : null;
+
+  const sources: SourceStatus[] = [
+    { key: "ofr", label: ofr.label, ok: ofr.ok, asOf: lastDate(ofr.value?.ofr ?? null) },
+    { key: "nfci", label: nfci.label, ok: nfci.ok, asOf: lastDate(nfci.value) },
+    { key: "stlfsi", label: stl.label, ok: stl.ok, asOf: lastDate(stl.value) },
+    { key: "cryptoFng", label: cfg.label, ok: cfg.ok, asOf: lastDate(cfg.value) },
+    { key: "season", label: "Seasonality (stored S&P 500 month-ends)", ok: !!SPX_MONTHS?.length, asOf: SPX_MONTHS?.[SPX_MONTHS.length - 1]?.[0] ?? null },
+  ];
+  const body: MsPayload = {
     ok: true,
     rows,
-    ixic: alignToRows(rows, ixic.series),
-    season: seasonOut,
-    asOf: rows.length ? rows[rows.length - 1]![0] : null,
+    overlay,
+    season: st ? { month: curMonth!, score: st.score, avg: st.avg, baseAvg: st.baseAvg, n: st.n } : null,
+    asOf: keptDates[keptDates.length - 1] ?? null,
     sources,
     warnings: warnings.length ? warnings : undefined,
     generated: new Date().toISOString(),
   };
-  if (!warnings.length) lastGood = { at: Date.now(), body };
+  if (!warnings.length && !summary) lastGood = { at: Date.now(), body };
   return respond(body, warnings.length ? 300 : 1800, summary);
 }

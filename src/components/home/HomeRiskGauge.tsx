@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ZONES, type RsSummary } from "@/lib/riskSentiment";
+import { ZONES, type MsSummary } from "@/lib/marketSentiment";
 import { DeskTag } from "@/components/home/DeskTag";
 
 /* Half-dial geometry (viewBox 0 0 240 140). */
@@ -23,12 +23,12 @@ const fmtAsOf = (d: string) =>
 
 /** Homepage hero: the live Market sentiment score, zone and stage (same reading as /tools/risk-sentiment). */
 export function HomeRiskGauge() {
-  const [data, setData] = useState<RsSummary | null>(null);
+  const [data, setData] = useState<MsSummary | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     fetch("/api/risk-sentiment?summary=1")
-      .then((r) => r.json() as Promise<RsSummary>)
+      .then((r) => r.json() as Promise<MsSummary>)
       .then((j) => {
         if (cancelled) return;
         if (j.ok && j.score != null) setData(j);
@@ -83,19 +83,18 @@ export function HomeRiskGauge() {
             </p>
             <p className="mt-2 max-w-xl text-sm text-muted">
               {data.zone.blurb}
-              {data.stage && data.stage !== data.zone.label ? (
-                <>
-                  {" "}Mood stage: <span className="text-foreground/90">{data.stage}</span>.
-                </>
-              ) : data.rising != null ? (
-                <> {data.rising ? "Higher" : "Lower"} than three months ago.</>
+              {data.change3m != null ? ` ${data.change3m >= 0 ? "Up" : "Down"} ${Math.abs(data.change3m).toFixed(0)} points on three months ago.` : ""}
+              {data.season ? (
+                <span className="ml-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ borderColor: `${data.season.color}66`, color: data.season.color }}>
+                  {data.season.label}
+                </span>
               ) : null}
             </p>
             <p className="mt-2 text-xs text-muted/80">
-              <span className="font-medium text-foreground/80">How it’s drawn:</span> 0–100 blend of
-              MSCI World (URTH) / S&amp;P 500 trend and drawdown, VIX, US credit spreads (FRED), US and
-              crypto Fear &amp; Greed, Google Trends and seasonality · 10-day average · as of{" "}
-              {fmtAsOf(data.asOf!)} (US close)
+              <span className="font-medium text-foreground/80">How it’s drawn:</span> 0–100 blend of public
+              stress and conditions data — OFR Financial Stress Index (overall, volatility, equity valuation, credit),
+              Chicago Fed NFCI, St. Louis Fed stress index (via FRED), Crypto Fear &amp; Greed (Alternative.me) and
+              seasonality · ~2-month average · as of {fmtAsOf(data.asOf!)}
             </p>
           </>
         ) : (
