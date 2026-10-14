@@ -125,21 +125,21 @@ function CycleSilhouette({
           <g className="cycle-live-marker">
             <circle
               className="cycle-live-ring"
-              r="20"
+              r="9"
               fill="none"
               stroke="#f5f0e6"
-              strokeWidth="2.5"
+              strokeWidth="2"
               vectorEffect="non-scaling-stroke"
             />
-            <circle r="30" fill="#f5f0e6" fillOpacity="0.14" />
+            <circle r="13" fill="#0a0a0a" fillOpacity="0.4" />
             <circle
-              r="20"
+              r="9"
               fill="#f5f0e6"
               stroke="#0a0a0a"
               strokeWidth="2.5"
               vectorEffect="non-scaling-stroke"
             />
-            <circle r="6" fill="#1a1a1a" />
+            <circle r="2.5" fill="#1a1a1a" />
           </g>
         </g>
       ) : null}
