@@ -219,8 +219,7 @@ export function MarketStrip() {
         </p>
       )}
       <p className="mt-2 text-xs text-muted">
-        BTC price from the Coinbase Exchange BTC-USD ticker (Yahoo Finance fallback); drawdown vs
-        recent daily closes, not an all-time exchange high. Halving countdown assumes 10-minute blocks.
+        BTC price: Coinbase (Yahoo Finance backup). Drawdown uses recent daily closes. Halving dates are estimates.
       </p>
     </section>
   );

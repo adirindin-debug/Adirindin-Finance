@@ -13,8 +13,8 @@ export default function HomePage() {
         A research desk for market cycles.
       </h1>
       <p className="mt-4 max-w-2xl text-muted">
-        I built these charts and cycle frameworks for my own use and share them
-        for anyone interested. Educational only — not financial advice (NFA).
+        Charts and cycle ideas I made for myself, shared for anyone curious.
+        Educational only — not financial advice (NFA).
       </p>
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <Link href="/cycles" className="rounded-md bg-accent px-5 py-2.5 text-sm font-medium text-white">
@@ -29,9 +29,8 @@ export default function HomePage() {
         <DataUpdated />
       </div>
       <p className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted">
-        <span className="font-medium text-foreground/80">How to read this desk:</span>
-        <DeskTag kind="live" /> is drawn from market data feeds;
-        <DeskTag kind="theory" /> is a cycle framework for context — not a forecast.
+        <DeskTag kind="live" /> = real market data ·
+        <DeskTag kind="theory" /> = a cycle idea for context, not a forecast
       </p>
 
       <HomeRiskGauge />
@@ -45,8 +44,7 @@ export default function HomePage() {
         </div>
         <CycleStrip />
         <HowDrawn>
-          theoretical cycle frameworks, not forecasts. Each curve is a schematic theory shape and the
-          dot marks today’s date on its calendar — it isn’t read from prices.
+          theory shapes, not prices. The dot marks today’s date on each one.
         </HowDrawn>
       </section>
 
@@ -54,10 +52,8 @@ export default function HomePage() {
       <div className="mt-12 rounded-2xl border border-border bg-[#0d1218] p-4 sm:p-6">
         <BtcFourYearChart />
         <HowDrawn>
-          each line is close ÷ close at the window start − 1, so every line starts at 0%. Daily
-          closes. Sources: BTC from Coinbase Exchange; S&amp;P 500, Nasdaq 100, All Ords and MSCI World from
-          Yahoo Finance; US house prices (FHFA), AU house prices (BIS) and US M2 from FRED®, Federal Reserve
-          Bank of St. Louis (quarterly or monthly, stepped forward).
+          every line starts at 0% at the start of the window. Sources: Coinbase, Yahoo Finance,
+          FHFA, BIS and FRED® (Federal Reserve Bank of St. Louis).
         </HowDrawn>
         <MarketStrip />
       </div>
@@ -71,7 +67,7 @@ export default function HomePage() {
       </p>
 
       <section className="mt-10 flex flex-col items-start justify-between gap-4 rounded-xl border border-border bg-card p-5 sm:flex-row sm:items-center">
-        <p className="text-sm text-muted">I post chart updates and cycle notes on X.</p>
+        <p className="text-sm text-muted">Chart updates and cycle notes on X.</p>
         <a
           href="https://x.com/Dirindin533"
           target="_blank"

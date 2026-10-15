@@ -26,6 +26,8 @@ type CycleTile = {
   href: string;
   title: string;
   blurb: string;
+  /** One plain line for the homepage strip. */
+  short: string;
   path: string;
   viewBox: string;
   color: string;
@@ -41,6 +43,7 @@ const TILES: CycleTile[] = [
     href: "/dashboard/btc-cycle",
     title: "Bitcoin",
     blurb: "4-year cycle theory",
+    short: "Bitcoin’s boom-and-bust rhythm around each halving.",
     path: BTC_SILHOUETTE.path,
     viewBox: BTC_SILHOUETTE.viewBox,
     color: BTC_SILHOUETTE.color,
@@ -51,6 +54,7 @@ const TILES: CycleTile[] = [
     href: "/tools/real-estate-cycle",
     title: "Real estate",
     blurb: "18.6-year real estate cycle theory",
+    short: "An 18.6-year land and property cycle.",
     path: RE_SILHOUETTE.path,
     viewBox: RE_SILHOUETTE.viewBox,
     color: RE_SILHOUETTE.color,
@@ -61,6 +65,7 @@ const TILES: CycleTile[] = [
     href: "/tools/bond-cycle",
     title: "Bond yields",
     blurb: "US 10y secular regime sketch · ~40y halves",
+    short: "Long swings in US 10-year yields, about 40 years each way.",
     path: BOND_SILHOUETTE.path,
     viewBox: BOND_SILHOUETTE.viewBox,
     color: BOND_SILHOUETTE.color,
@@ -71,6 +76,7 @@ const TILES: CycleTile[] = [
     href: "/tools/gold-cycle",
     title: "Gold",
     blurb: "~46y gold-led commodity cycle · observational study",
+    short: "A roughly 46-year gold and commodities cycle.",
     path: GOLD_SILHOUETTE.path,
     viewBox: GOLD_SILHOUETTE.viewBox,
     color: GOLD_SILHOUETTE.color,
@@ -269,7 +275,7 @@ function CycleStripCard({ tile, halvingAnchor }: { tile: CycleTile; halvingAncho
           Theory
         </span>
       </div>
-      <p className="mt-0.5 text-[11px] text-muted">{tile.blurb}</p>
+      <p className="mt-0.5 text-[11px] text-muted">{tile.short}</p>
       <div className="mt-2">
         <CycleSilhouette
           path={tile.path}

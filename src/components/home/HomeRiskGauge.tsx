@@ -40,6 +40,7 @@ export function HomeRiskGauge() {
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Market sentiment</p>
           <DeskTag kind="live" />
         </div>
+        <p className="mt-1 text-sm text-muted">How calm or stressed markets are right now, from fear to greed.</p>
         {data && score != null && data.zone ? (
           <>
             <p className="mt-2 text-4xl font-semibold tracking-tight sm:text-5xl" style={{ color: data.zone.color }}>
@@ -48,8 +49,7 @@ export function HomeRiskGauge() {
               <span className="ml-3 text-2xl sm:text-3xl">{data.zone.label}</span>
             </p>
             <p className="mt-2 max-w-xl text-sm text-muted">
-              {data.zone.blurb}
-              {data.change3m != null ? ` ${data.change3m >= 0 ? "Up" : "Down"} ${Math.abs(data.change3m).toFixed(0)} points on three months ago.` : ""}
+              {data.change3m != null ? `${data.change3m >= 0 ? "Up" : "Down"} ${Math.abs(data.change3m).toFixed(0)} points on 3 months ago.` : ""}
               {data.season ? (
                 <span className="ml-2 inline-block rounded-full border px-2 py-0.5 text-[11px] font-medium" style={{ borderColor: `${data.season.color}55`, background: `${data.season.color}14`, color: data.season.color }}>
                   {data.season.label}
@@ -57,7 +57,7 @@ export function HomeRiskGauge() {
               ) : null}
               {data.watch ? (
                 <span className="ml-2 inline-block text-[11px] text-[#94a3b8]">
-                  Complacency watch (info only, not a reliable top signal in testing)
+                  Complacency watch (info only, not a top signal)
                 </span>
               ) : null}
             </p>

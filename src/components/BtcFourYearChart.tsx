@@ -424,8 +424,6 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
     const starts = formatStartsLine(payload);
     return {
       heading: "All-time relative chart",
-      subtitle:
-        "NDX, SPX and AORD set the shared start · toggle series on chips · BTC can join the line from ~Sep 2014",
       kpiSuffix: "% all-time",
       chartTitle: payload?.title ?? "All-time index relative %",
       chartHint: "Selected series · start = 0% · BTC partial from ~Sep 2014",
@@ -443,7 +441,6 @@ function windowCopy(windowKey: WindowKey, payload: ApiPayload | null) {
   const daysBit = days != null ? `~${days}d` : windowKey;
   return {
     heading: `${label} relative chart`,
-    subtitle: `Each line starts at 0% · ${label} window · shared scale`,
     kpiSuffix: `${windowKey.toUpperCase()} %`,
     chartTitle: payload?.title ?? `Relative % over ${label}`,
     chartHint: `Shared % scale · from ${daysBit} ago · not price levels`,
@@ -711,7 +708,7 @@ export function BtcFourYearChart() {
               Live data
             </span>
           </div>
-          <p className="mt-1 text-sm text-muted">{copy.subtitle}</p>
+          <p className="mt-1 text-sm text-muted">How different assets have performed against each other.</p>
         </div>
       </div>
 
