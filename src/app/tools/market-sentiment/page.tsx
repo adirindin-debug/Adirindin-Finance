@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { BackLink } from "@/components/nav/BackLink";
 import type { Metadata } from "next";
 import { MarketSentimentPanel } from "@/components/tools/MarketSentimentPanel";
 import { HYSTERESIS_PTS, INPUTS, MIN_WEIGHT, STRETCH_AT, STRETCH_NEEDED, VALUATION_CAP, WATCH_CONDITIONS, WATCH_NEEDED, WATCH_SCORE, ZONES, zoneLine } from "@/lib/marketSentiment";
@@ -16,9 +16,9 @@ export default function RiskSentimentPage() {
     <div className="mx-auto max-w-6xl px-4 py-10">
       <MobileViewHint />
       <div className="mb-3">
-        <Link href="/" className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-accent/60 bg-accent/10 px-3.5 py-1.5 text-sm font-medium text-accent transition hover:border-accent hover:bg-accent/20 hover:text-foreground">
+        <BackLink href="/" className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-accent/60 bg-accent/10 px-3.5 py-1.5 text-sm font-medium text-accent transition hover:border-accent hover:bg-accent/20 hover:text-foreground">
           ← Back to Home
-        </Link>
+        </BackLink>
       </div>
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market sentiment gauge</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">

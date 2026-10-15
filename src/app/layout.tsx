@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Footer } from "@/components/Footer";
 import { Header } from "@/components/Header";
+import { ScrollRestorer } from "@/components/nav/ScrollRestorer";
 import "./globals.css";
 
 const siteUrl = "https://adirindinfinance.com";
@@ -73,6 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en-AU">
       <body className="flex min-h-screen flex-col antialiased">
+        <ScrollRestorer />
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />
