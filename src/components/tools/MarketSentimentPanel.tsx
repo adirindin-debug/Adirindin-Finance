@@ -262,8 +262,8 @@ export function MarketSentimentPanel() {
               <span className="rounded-full border px-2 py-0.5 font-medium" style={{ borderColor: `${tag.color}55`, background: `${tag.color}14`, color: tag.color }}>
                 {tag.label}
               </span>
-            {tag ? <span className="text-[11px] text-muted">Past monthly averages only, not a forecast.</span> : null}
             ) : null}
+            {tag ? <span className="text-[11px] text-muted">Past monthly averages only, not a forecast.</span> : null}
             {watchOn ? (
               <span className="text-[#94a3b8]" title={`Conditions met: ${watchWhy.join("; ")}`}>
                 · Complacency watch (info only, not a reliable top signal in testing)
