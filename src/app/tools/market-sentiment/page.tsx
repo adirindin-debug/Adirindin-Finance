@@ -23,8 +23,8 @@ export default function RiskSentimentPage() {
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">Market sentiment gauge</h1>
       <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
         A rough overview of the market backdrop on one 0–100 scale: higher means calmer financial conditions and firmer
-        risk appetite, lower means more stress. It is built only from public sources that can be shown openly, and it
-        moves slowly on purpose — a ~2-month average by default, so it shows the broad mood rather than day-to-day noise.
+        risk appetite, lower means more stress. It is built only from public sources that can be shown openly. By default it shows a 10-day
+        average, which follows changes in mood within days; a slower ~2-month view is one tap away.
       </p>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
         <strong className="font-medium text-foreground">Study aid only.</strong> In past testing it showed no edge for
@@ -48,11 +48,10 @@ export default function RiskSentimentPage() {
           is shown if less than {MIN_WEIGHT}% of the weight has data.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          <strong className="font-medium text-foreground">Smoothing.</strong> The big number and line show a ~2-month
-          (42-session) exponential average of the daily blend by default; a 10-day average and the raw daily blend are one
-          tap away. The zone label only changes once the score is {HYSTERESIS_PTS} points past a zone line, so it doesn’t
-          flick back and forth near a boundary. Over the last three years this cut day-to-day movement by about half and
-          zone changes by about a third versus the previous design.
+          <strong className="font-medium text-foreground">Smoothing.</strong> The big number and line show a 10-day
+          exponential average of the daily blend by default; a ~2-month (42-session) average and the raw daily blend are
+          one tap away. The zone label only changes once the score is {HYSTERESIS_PTS} points past a zone line, so it doesn’t
+          flick back and forth near a boundary. The Complacency watch note is still based on the ~2-month average.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Seasonality.</strong> This month’s historical average S&amp;P 500

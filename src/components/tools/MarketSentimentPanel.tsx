@@ -6,6 +6,7 @@ import {
   CAP_BIT,
   FLAGS_COL,
   INPUTS,
+  SCORE_COL,
   SMOOTH_OPTIONS,
   VALUATION_CAP,
   WATCH_COL,
@@ -22,7 +23,8 @@ import {
 } from "@/lib/marketSentiment";
 import { SentimentDial } from "@/components/tools/SentimentDial";
 
-const SMOOTH_KEY = "adirindin.marketSentiment.smoothing";
+/** v2 key: the default changed to 10-day, so earlier saved choices are not carried over. */
+const SMOOTH_KEY = "adirindin.marketSentiment.smoothing.v2";
 const BASE_KEY = "adirindin.marketSentiment.baseChart";
 const TFS = [
   { key: "1y", label: "1Y", years: 1 },
@@ -39,7 +41,6 @@ const BASES: Array<{ key: BaseKey; label: string }> = [
   { key: "urth", label: "URTH" },
   { key: "off", label: "Off" },
 ];
-const SCORE_COL: Record<SmoothKey, number> = { raw: 1, ema10: 2, ema42: 3 };
 
 const fmtDay = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });

@@ -230,11 +230,13 @@ export const MIN_WEIGHT = 40;
 export const SMOOTH = { raw: null, ema10: 10, ema42: 42 } as const;
 export type SmoothKey = keyof typeof SMOOTH;
 export const SMOOTH_OPTIONS: Array<{ key: SmoothKey; label: string; name: string }> = [
-  { key: "ema42", label: "2-month", name: "~2-month average (42-session EMA)" },
   { key: "ema10", label: "10-day", name: "10-day average (EMA)" },
+  { key: "ema42", label: "2-month", name: "~2-month average (42-session EMA)" },
   { key: "raw", label: "Raw", name: "Raw daily blend" },
 ];
-export const DEFAULT_SMOOTH: SmoothKey = "ema42";
+export const DEFAULT_SMOOTH: SmoothKey = "ema10";
+/** Row column of each smoothing (see MsRow). */
+export const SCORE_COL: Record<SmoothKey, number> = { raw: 1, ema10: 2, ema42: 3 };
 /** Zone label only changes once the score is this many points past a boundary. */
 export const HYSTERESIS_PTS = 5;
 
@@ -401,7 +403,7 @@ export type MsSummary = {
 export function summarize(p: MsPayload): MsSummary {
   const base = { asOf: p.asOf, generated: p.generated, error: p.error };
   const rows = p.rows ?? [];
-  const sc = rows.map((r) => cell(r, 3));
+  const sc = rows.map((r) => cell(r, SCORE_COL[DEFAULT_SMOOTH]));
   let i = rows.length - 1;
   while (i >= 0 && sc[i] == null) i--;
   if (!p.ok || i < 0) return { ...base, ok: false, score: null, raw: null, zone: null, change3m: null, season: null };
