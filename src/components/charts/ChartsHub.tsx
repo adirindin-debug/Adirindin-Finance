@@ -256,6 +256,29 @@ function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
+/** Global liquidity: momentum label + 10y composite sparkline. */
+function parseGlobalLiquidity(json: unknown): Omit<TileLive, "status"> | null {
+  const p = json as {
+    ok?: boolean;
+    stored?: boolean;
+    storedTo?: string | null;
+    rows?: Array<{ comp: number | null }>;
+    latest?: { pct: number | null; netliq12: number | null; zone: { label: string; color: string } | null };
+  };
+  const L = p?.latest;
+  if (!p?.ok || !L?.zone || L.pct == null) return null;
+  const comp = (p.rows ?? []).map((r) => r.comp).filter((v): v is number => v != null).slice(-120);
+  return {
+    headline: L.zone.label,
+    headlineColor: L.zone.color,
+    secondary: `Momentum p${Math.round(L.pct)}${L.netliq12 != null ? ` · US net liquidity ${fmtPctSigned(L.netliq12)} 12m` : ""}`,
+    spark: comp.map((v, i) => ({ t: i, v })),
+    sparkColor: "#e8eef7",
+    isLive: !p.stored,
+    storedTo: p.storedTo ?? null,
+  };
+}
+
 /** Philly Fed manufacturing survey (via FRED) — 20Y monthly sparkline. NOT ISM. */
 function parseFactoryMonitor(json: unknown): Omit<TileLive, "status"> | null {
   const data = json as FactoryPayload;
@@ -475,6 +498,14 @@ const CATEGORIES: Category[] = [
         title: "Wilshire 5000 / US M2",
         endpoint: "/api/wilshire-m2",
         parse: parseWilshireM2,
+      },
+      {
+        id: "global-liquidity",
+        href: "/charts/global-liquidity",
+        title: "Global liquidity",
+        subtitle: "Fed + ECB balance sheets · US net liquidity",
+        endpoint: "/api/global-liquidity",
+        parse: parseGlobalLiquidity,
       },
       {
         id: "commodities",
