@@ -57,7 +57,7 @@ export function GlobalLiquidityPanel() {
   const [data, setData] = useState<LiqPayload | null>(null);
   const [failed, setFailed] = useState(false);
   const [tf, setTf] = useState<Tf>("ALL");
-  const [log, setLog] = useState(false);
+  const [log, setLog] = useState(true);
   const [roc, setRoc] = useState<Roc>("g12");
   const [on, setOn] = useState<Record<LineKey, boolean>>({ cbUsd: true, netliq: true, m2: false, cbFx: false });
   const [zoom, setZoom] = useState<{ a: string; b: string } | null>(null);
