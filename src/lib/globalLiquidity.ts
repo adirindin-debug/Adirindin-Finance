@@ -7,37 +7,6 @@
  * altering content without prior permission.
  */
 
-export type Zone = { key: string; label: string; min: number; max: number; color: string };
-
-export const LIQ_ZONES: Zone[] = [
-  { key: "shrink-fast", label: "Shrinking fast", min: 0, max: 20, color: "#ef4444" },
-  { key: "shrink", label: "Shrinking", min: 20, max: 40, color: "#fb923c" },
-  { key: "flat", label: "Flat", min: 40, max: 60, color: "#60a5fa" },
-  { key: "grow", label: "Growing", min: 60, max: 80, color: "#4ade80" },
-  { key: "grow-fast", label: "Growing fast", min: 80, max: 100, color: "#10b981" },
-];
-export const LIQ_HYSTERESIS = 5;
-
-export function liqZoneFor(p: number): Zone {
-  for (const z of LIQ_ZONES) if (p < z.max) return z;
-  return LIQ_ZONES[LIQ_ZONES.length - 1]!;
-}
-
-/** Zone per point; the label only moves once the percentile is LIQ_HYSTERESIS past the line it crossed. */
-export function liqZonesWithHysteresis(ps: Array<number | null>, band = LIQ_HYSTERESIS): Array<Zone | null> {
-  let cur: Zone | null = null;
-  return ps.map((p) => {
-    if (p == null) return cur;
-    const z = liqZoneFor(p);
-    if (!cur) cur = z;
-    else if (z.key !== cur.key) {
-      const boundary = z.min >= cur.max ? cur.max : cur.min;
-      if (Math.abs(p - boundary) >= band) cur = z;
-    }
-    return cur;
-  });
-}
-
 /** FRED series used. Units as published on FRED. */
 export const SERIES = {
   WALCL: "Fed total assets (US$ m, weekly)",
@@ -72,39 +41,53 @@ export function toMonthly(obs: Array<[string, number]>): MonthSeries {
   return [...m.entries()].sort((a, b) => (a[0] < b[0] ? -1 : 1));
 }
 
+export type LineKey = "cbUsd" | "netliq" | "cbFx" | "m2";
+export const LINE_KEYS: LineKey[] = ["cbUsd", "netliq", "cbFx", "m2"];
+
 export type LiqRow = {
   /** YYYY-MM */
   d: string;
-  /** Levels, US$ trillion */
+  /** Levels, US$ trillion (null before a series starts) */
   netliq: number | null;
   cbFx: number | null;
   cbUsd: number | null;
   m2: number | null;
-  /** Growth, % (6m annualised, 12m) */
+  /** Rate of change, % (6m annualised, 12m) */
   g6: Record<LineKey, number | null>;
   g12: Record<LineKey, number | null>;
-  /** Composite score (σ) and its 10y percentile */
-  comp: number | null;
-  pct: number | null;
 };
-export type LineKey = "netliq" | "cbFx" | "cbUsd" | "m2";
+
+export type Turn = { d: string; monthsAgo: number; dir: "up" | "down" };
+
+/** Last month the 12-month rate of change crossed zero (real data only). */
+export function lastRocTurn(rows: LiqRow[], k: LineKey, view: "g6" | "g12" = "g12"): Turn | null {
+  const end = rows[rows.length - 1]?.d;
+  if (!end) return null;
+  for (let i = rows.length - 1; i > 0; i--) {
+    const a = rows[i - 1]![view][k];
+    const b = rows[i]![view][k];
+    if (a != null && b != null && a < 0 !== b < 0) {
+      return { d: rows[i]!.d, monthsAgo: monthsBetween(rows[i]!.d, end), dir: b >= 0 ? "up" : "down" };
+    }
+  }
+  return null;
+}
 
 export type LiqResult = {
   rows: LiqRow[];
   fixedEurUsd: number;
+  /** First month with data per line. */
+  starts: Record<LineKey, string | null>;
   latest: {
     d: string;
+    cbUsd: number | null;
+    cbUsd12: number | null;
     netliq: number | null;
     netliq12: number | null;
     cbFx12: number | null;
-    cbUsd: number | null;
-    cbUsd12: number | null;
+    m2: number | null;
     m2_12: number | null;
-    comp: number | null;
-    pct: number | null;
-    zone: Zone | null;
   };
-  lastTurn: { d: string; monthsAgo: number; dir: "up" | "down" } | null;
 };
 
 const monthsBetween = (a: string, b: string) =>
@@ -120,22 +103,8 @@ const nextMonth = (d: string) => {
   return `${y}-${String(m).padStart(2, "0")}`;
 };
 
-const START = "2003-01";
-const Z_WIN = 60;
-const Z_MIN = 36;
-const P_WIN = 120;
-const P_MIN = 36;
-
-function zTrailing(xs: Array<number | null>): Array<number | null> {
-  return xs.map((x, i) => {
-    if (x == null) return null;
-    const w = xs.slice(Math.max(0, i - Z_WIN + 1), i + 1).filter((v): v is number => v != null);
-    if (w.length < Z_MIN) return null;
-    const mean = w.reduce((a, b) => a + b, 0) / w.length;
-    const sd = Math.sqrt(w.reduce((a, b) => a + (b - mean) ** 2, 0) / (w.length - 1));
-    return sd > 0 ? (x - mean) / sd : null;
-  });
-}
+/** US M2 runs from 1959; Fed and ECB lines start Dec 2002 (WALCL). */
+const START = "1959-01";
 
 export function computeLiquidity(series: Record<SeriesId, MonthSeries>): LiqResult {
   const maps = Object.fromEntries(SERIES_IDS.map((id) => [id, new Map(series[id])])) as Record<SeriesId, Map<string, number>>;
@@ -174,7 +143,7 @@ export function computeLiquidity(series: Record<SeriesId, MonthSeries>): LiqResu
       m2: r.M2SL != null ? r.M2SL / 1e3 : null,
     };
   });
-  const keys: LineKey[] = ["netliq", "cbFx", "cbUsd", "m2"];
+  const keys = LINE_KEYS;
   const growth = (k: LineKey, i: number, n: number) => {
     const a = lv[i - n]?.[k];
     const b = lv[i]![k];
@@ -183,45 +152,23 @@ export function computeLiquidity(series: Record<SeriesId, MonthSeries>): LiqResu
   };
   const g6s = lv.map((_, i) => Object.fromEntries(keys.map((k) => [k, growth(k, i, 6)])) as Record<LineKey, number | null>);
   const g12s = lv.map((_, i) => Object.fromEntries(keys.map((k) => [k, growth(k, i, 12)])) as Record<LineKey, number | null>);
-  const zFx = zTrailing(g12s.map((g) => g.cbFx));
-  const zNl = zTrailing(g12s.map((g) => g.netliq));
-  const comp = zFx.map((a, i) => (a != null && zNl[i] != null ? 0.5 * a + 0.5 * zNl[i]! : null));
-  const pct = comp.map((c, i) => {
-    if (c == null) return null;
-    const w = comp.slice(Math.max(0, i - P_WIN + 1), i + 1).filter((v): v is number => v != null);
-    if (w.length < P_MIN) return null;
-    return (w.filter((v) => v <= c).length / w.length) * 100;
-  });
-  const zones = liqZonesWithHysteresis(pct);
-  const rows: LiqRow[] = lv.map((r, i) => ({ ...r, g6: g6s[i]!, g12: g12s[i]!, comp: comp[i]!, pct: pct[i]! }));
-
-  // Last zero-crossing of the composite (real data only).
-  let lastTurn: LiqResult["lastTurn"] = null;
-  for (let i = rows.length - 1; i > 0; i--) {
-    const a = rows[i - 1]!.comp;
-    const b = rows[i]!.comp;
-    if (a != null && b != null && (a < 0) !== (b < 0)) {
-      lastTurn = { d: rows[i]!.d, monthsAgo: monthsBetween(rows[i]!.d, end), dir: b >= 0 ? "up" : "down" };
-      break;
-    }
-  }
+  const rows: LiqRow[] = lv.map((r, i) => ({ ...r, g6: g6s[i]!, g12: g12s[i]! }));
+  const starts = Object.fromEntries(keys.map((k) => [k, rows.find((r) => r[k] != null)?.d ?? null])) as Record<LineKey, string | null>;
   const L = rows[rows.length - 1]!;
   return {
     rows,
     fixedEurUsd,
+    starts,
     latest: {
       d: L.d,
+      cbUsd: L.cbUsd,
+      cbUsd12: L.g12.cbUsd,
       netliq: L.netliq,
       netliq12: L.g12.netliq,
       cbFx12: L.g12.cbFx,
-      cbUsd: L.cbUsd,
-      cbUsd12: L.g12.cbUsd,
+      m2: L.m2,
       m2_12: L.g12.m2,
-      comp: L.comp,
-      pct: L.pct,
-      zone: zones[zones.length - 1] ?? null,
     },
-    lastTurn,
   };
 }
 

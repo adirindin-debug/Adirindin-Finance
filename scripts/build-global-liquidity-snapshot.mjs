@@ -13,7 +13,7 @@ for (const id of IDS) {
     m.set(d.slice(0, 7), Number(v));
     lastD = d;
   }
-  out.series[id] = [...m.entries()].filter(([d]) => d >= "2002-01");
+  out.series[id] = [...m.entries()].filter(([d]) => d >= "1959-01");
   out.lastObs[id] = lastD;
 }
 writeFileSync("src/data/global-liquidity-snapshot.json", JSON.stringify(out));

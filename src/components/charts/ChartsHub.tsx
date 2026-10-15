@@ -256,24 +256,24 @@ function parseWilshireM2(json: unknown): Omit<TileLive, "status"> | null {
   };
 }
 
-/** Global liquidity: momentum label + 10y composite sparkline. */
+/** Global liquidity: latest Fed+ECB level, 12m change and a long-term level sparkline. */
 function parseGlobalLiquidity(json: unknown): Omit<TileLive, "status"> | null {
   const p = json as {
     ok?: boolean;
     stored?: boolean;
     storedTo?: string | null;
-    rows?: Array<{ comp: number | null }>;
-    latest?: { pct: number | null; netliq12: number | null; zone: { label: string; color: string } | null };
+    rows?: Array<{ cbUsd: number | null }>;
+    latest?: { cbUsd: number | null; cbUsd12: number | null };
   };
   const L = p?.latest;
-  if (!p?.ok || !L?.zone || L.pct == null) return null;
-  const comp = (p.rows ?? []).map((r) => r.comp).filter((v): v is number => v != null).slice(-120);
+  if (!p?.ok || L?.cbUsd == null) return null;
+  const lv = (p.rows ?? []).map((r) => r.cbUsd).filter((v): v is number => v != null);
   return {
-    headline: L.zone.label,
-    headlineColor: L.zone.color,
-    secondary: `Momentum p${Math.round(L.pct)}${L.netliq12 != null ? ` · US net liquidity ${fmtPctSigned(L.netliq12)} 12m` : ""}`,
-    spark: comp.map((v, i) => ({ t: i, v })),
-    sparkColor: "#e8eef7",
+    headline: `US$${L.cbUsd.toFixed(1)}tn`,
+    headlineColor: "#60a5fa",
+    secondary: `Fed + ECB balance sheets${L.cbUsd12 != null ? ` · ${fmtPctSigned(L.cbUsd12)} over 12m` : ""}`,
+    spark: lv.map((v, i) => ({ t: i, v })),
+    sparkColor: "#60a5fa",
     isLive: !p.stored,
     storedTo: p.storedTo ?? null,
   };
@@ -503,7 +503,7 @@ const CATEGORIES: Category[] = [
         id: "global-liquidity",
         href: "/charts/global-liquidity",
         title: "Global liquidity",
-        subtitle: "Fed + ECB balance sheets · US net liquidity",
+        subtitle: "How much money the big central banks are putting into the system",
         endpoint: "/api/global-liquidity",
         parse: parseGlobalLiquidity,
       },

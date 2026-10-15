@@ -15,29 +15,12 @@ const arc = (a: number, b: number, r = R) => {
 };
 
 /** Coloured half-dial: zone arcs, the live zone lit, a soft inner track and a glowing needle tip. Display only. */
-type DialZone = { key: string; min: number; max: number; color: string; label: string };
-
-export function SentimentDial({
-  score,
-  className = "h-[130px] w-[220px]",
-  zones = ZONES,
-  zone: zoneOverride,
-  ariaLabel,
-}: {
-  score: number | null;
-  className?: string;
-  /** Optional custom scale (defaults to the Market sentiment zones). */
-  zones?: DialZone[];
-  /** Optional lit zone (e.g. after hysteresis); defaults to the zone the score falls in. */
-  zone?: DialZone | null;
-  ariaLabel?: string;
-}) {
-  const zone: DialZone | null =
-    zoneOverride ?? (score != null ? (zones === ZONES ? zoneFor(score) : zones.find((z) => score < z.max) ?? zones[zones.length - 1]!) : null);
+export function SentimentDial({ score, className = "h-[130px] w-[220px]" }: { score: number | null; className?: string }) {
+  const zone = score != null ? zoneFor(score) : null;
   const tip = score != null ? pt(score, R - 20) : null;
   const uid = "sd";
   return (
-    <svg viewBox="0 0 240 140" className={`shrink-0 ${className}`} role="img" aria-label={ariaLabel ?? (score != null ? `Market sentiment score ${score.toFixed(0)} of 100, ${zone!.label}` : "Market sentiment gauge")}>
+    <svg viewBox="0 0 240 140" className={`shrink-0 ${className}`} role="img" aria-label={score != null ? `Market sentiment score ${score.toFixed(0)} of 100, ${zone!.label}` : "Market sentiment gauge"}>
       <defs>
         <filter id={`${uid}-glow`} x="-100%" y="-100%" width="300%" height="300%">
           <feGaussianBlur stdDeviation="3.2" />
@@ -45,7 +28,7 @@ export function SentimentDial({
       </defs>
       {/* faint inner track */}
       <path d={arc(0, 100, R - 14)} stroke="#1a2230" strokeWidth="2" fill="none" />
-      {zones.map((z) => {
+      {ZONES.map((z) => {
         const lit = zone?.key === z.key;
         return (
           <path
