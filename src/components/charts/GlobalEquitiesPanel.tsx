@@ -643,7 +643,7 @@ export function GlobalEquitiesPanel() {
                   {v.toFixed(0)}
                 </text>
               ))}
-              <text x={W - PAD_R + 4} y={BOT.y - 4} fill={VIX_COLOR} fontSize={9} fontWeight={600}>
+              <text x={W - 2} y={BOT.y - 4} textAnchor="end" fill={VIX_COLOR} fontSize={9} fontWeight={600}>
                 {volMode === "smoothed" ? "OFR vol pctile (1m avg)" : "OFR vol pctile"}
               </text>
               <text x={PAD_L} y={BOT.y - 4} fill="#9aa8b5" fontSize={9} fontWeight={600}>
