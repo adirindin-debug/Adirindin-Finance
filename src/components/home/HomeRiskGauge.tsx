@@ -61,6 +61,10 @@ export function HomeRiskGauge() {
                 </span>
               ) : null}
             </p>
+            {data.season ? <p className="mt-1 text-[11px] text-muted">Month tag: past monthly averages only, not a forecast.</p> : null}
+            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+              General information only, not a recommendation. It describes current conditions and does not forecast prices. It does not consider your objectives, financial situation or needs.
+            </p>
             <p className="mt-2 text-xs text-muted/80">
               <span className="font-medium text-foreground/80">How it’s drawn:</span> 0–100 blend of public
               stress and conditions data — OFR Financial Stress Index (overall, volatility, equity valuation, credit),

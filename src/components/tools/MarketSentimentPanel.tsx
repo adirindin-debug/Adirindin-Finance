@@ -262,6 +262,7 @@ export function MarketSentimentPanel() {
               <span className="rounded-full border px-2 py-0.5 font-medium" style={{ borderColor: `${tag.color}55`, background: `${tag.color}14`, color: tag.color }}>
                 {tag.label}
               </span>
+            {tag ? <span className="text-[11px] text-muted">Past monthly averages only, not a forecast.</span> : null}
             ) : null}
             {watchOn ? (
               <span className="text-[#94a3b8]" title={`Conditions met: ${watchWhy.join("; ")}`}>
@@ -406,7 +407,7 @@ export function MarketSentimentPanel() {
         </div>
       </div>
       <p className="mt-2 text-[11px] text-muted">
-        Score line: {smoothName.toLowerCase()}. Zone label changes only once the score is 5 points past a zone line.
+        Zones describe conditions, not signals to buy or sell. Score line: {smoothName.toLowerCase()}. Zone label changes only once the score is 5 points past a zone line.
         {base !== "off" ? ` Faint line: ${baseLabel} on its own log scale for context (not part of the score).` : ""}
       </p>
 

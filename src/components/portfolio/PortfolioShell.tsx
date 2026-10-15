@@ -500,6 +500,9 @@ export function PortfolioShell({ seed }: Props) {
         onEditName={openMeta}
         onAdd={openAdd}
       />
+      <p className="mt-2 text-[11px] leading-relaxed text-muted">
+        My personal holdings, shown for transparency. Not a recommendation. Past performance is not a reliable indicator of future performance.
+      </p>
       <PerformanceChart
         portfolio={portfolio}
         hasHoldings={hasHoldings}
@@ -531,7 +534,7 @@ export function PortfolioShell({ seed }: Props) {
 
 
       <p className="mt-10 text-center text-[11px] leading-relaxed text-zinc-600">
-        Educational tracker only · not an AFSL product. Security quotes
+        Educational tracker only. Security quotes
         and AUD FX via Yahoo Finance (may be delayed). Spot-crypto logos via{" "}
         <a
           href="https://www.coingecko.com"

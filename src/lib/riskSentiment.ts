@@ -886,9 +886,9 @@ export type SeasonStat = {
 export type SeasonTag = { key: "tailwind" | "headwind" | "neutral"; label: string; color: string };
 
 export function seasonTag(score: number): SeasonTag {
-  if (score >= SEASON_TAILWIND_AT) return { key: "tailwind", label: "Seasonal tailwind", color: "#4ade80" };
-  if (score <= SEASON_HEADWIND_AT) return { key: "headwind", label: "Seasonal headwind", color: "#d4a24c" };
-  return { key: "neutral", label: "Seasonally neutral", color: "#94a3b8" };
+  if (score >= SEASON_TAILWIND_AT) return { key: "tailwind", label: "Historically stronger month", color: "#4ade80" };
+  if (score <= SEASON_HEADWIND_AT) return { key: "headwind", label: "Historically weaker month", color: "#d4a24c" };
+  return { key: "neutral", label: "Historically average month", color: "#94a3b8" };
 }
 
 function prevMonthOf(key: string): string {

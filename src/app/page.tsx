@@ -50,7 +50,7 @@ export default function HomePage() {
 
       <section className="mt-12">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Where are we in the cycle?</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Cycle theories for context (not forecasts)</h2>
           <Link href="/cycles" className="text-xs font-medium text-accent hover:underline">
             Open cycles hub →
           </Link>

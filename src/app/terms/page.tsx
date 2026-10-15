@@ -25,10 +25,7 @@ export default function TermsPage() {
       <div className="mt-8 space-y-5 text-sm leading-relaxed text-muted sm:text-base">
         <p>
           Adirindin Finance publishes markets commentary, charts, cycle framing, and
-          trackers for general information. It is a sole-trader research journal, not a
-          licensed Australian financial services business. Nothing on this site is personal
-          financial product advice, an AFSL product, a recommendation, or a solicitation to
-          buy or sell any security, cryptoasset, property, or other product.
+          trackers for general information. Adirindin Finance is run by a sole trader who does not hold an Australian financial services licence. Content is general information and education only. It is not financial product advice, a recommendation or an offer, and it does not consider your personal circumstances.
         </p>
         <p>
           <strong className="font-medium text-foreground">No reliance.</strong> Past market

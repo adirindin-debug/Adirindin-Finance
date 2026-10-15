@@ -28,8 +28,9 @@ export default function RiskSentimentPage() {
       </p>
       <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted">
         <strong className="font-medium text-foreground">Study aid only.</strong> In past testing it showed no edge for
-        calling market direction — it describes a rough versus calm backdrop. 
+        calling market direction — it describes a rough versus calm backdrop.
       </p>
+      <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted">This information is general in nature and does not take into account your objectives, financial situation or needs. Consider whether it is appropriate for you and seek independent advice before acting.</p>
 
       <div className="mt-8">
         <MarketSentimentPanel />
@@ -56,8 +57,8 @@ export default function RiskSentimentPage() {
         <p className="mt-2 text-sm leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Seasonality.</strong> This month’s historical average S&amp;P 500
           return and green-month odds versus an average month, in standard errors, using only months completed before the
-          date. The tag reads Seasonal tailwind at {SEASON_TAILWIND_AT}+ and Seasonal headwind at {SEASON_HEADWIND_AT} or
-          below.
+          date. The tag reads Historically stronger month at {SEASON_TAILWIND_AT}+ and Historically weaker month at {SEASON_HEADWIND_AT} or
+          below (Historically average month in between). Past monthly averages only, not a forecast.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Valuation cap.</strong> Rich equity valuations on their own
@@ -93,7 +94,8 @@ export default function RiskSentimentPage() {
             </tbody>
           </table>
         </div>
-        <ul className="mt-4 grid gap-1.5 text-xs text-muted sm:grid-cols-2">
+        <p className="mt-4 text-xs text-muted">Zones describe conditions, not signals to buy or sell.</p>
+        <ul className="mt-2 grid gap-1.5 text-xs text-muted sm:grid-cols-2">
           {ZONES.map((z) => (
             <li key={z.key} className="flex items-start gap-2">
               <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: z.color }} aria-hidden />

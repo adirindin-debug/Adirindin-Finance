@@ -15,8 +15,7 @@ export function Footer() {
           <div className="space-y-1.5">
             <p>Adirindin Finance — educational content only.</p>
             <p className="text-xs leading-relaxed">
-              Not a licensed Australian financial services
-              business; nothing here is an AFSL product, recommendation, or solicitation. Index
+              Adirindin Finance is run by a sole trader who does not hold an Australian financial services licence. Content is general information and education only. It is not financial product advice, a recommendation or an offer, and it does not consider your personal circumstances. Index
               names, logos and trademarks remain with their owners. Chart data is attributed on
               each panel.{" "}
               <Link href="/disclaimer" className="text-foreground/90 hover:text-accent">

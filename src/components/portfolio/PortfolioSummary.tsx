@@ -109,8 +109,9 @@ export function PortfolioSummary({
     if (quotesError) return "quotes unavailable";
     if (!useCostBasis && returnsError) return "returns unavailable";
     if (!hasHoldings) return "empty";
-    if (useCostBasis) return returnWindowHintVsCost();
-    return returnWindowHint(returnWindow);
+    if (useCostBasis)
+      return `${returnWindowHintVsCost()} · since each purchase · ${effectiveDisplay} · before tax; fees only if included in the cost entered`;
+    return `${returnWindowHint(returnWindow)} · ${effectiveDisplay} · adjusted closes where available · before fees and tax`;
   })();
 
   const [menuOpen, setMenuOpen] = useState(false);

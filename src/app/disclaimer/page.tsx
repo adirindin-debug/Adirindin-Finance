@@ -29,9 +29,7 @@ export default function DisclaimerPage() {
           security, cryptoasset, property, or other product.
         </p>
         <p>
-          We are not a licensed Australian financial services business. Nothing here is an
-          AFSL product, and no Australian financial services licence (AFSL) authorises the
-          content on this site.
+          Adirindin Finance is run by a sole trader who does not hold an Australian financial services licence. Content is general information and education only. It is not financial product advice, a recommendation or an offer, and it does not consider your personal circumstances.
         </p>
         <p>
           Past market patterns, cycle maps, relative returns, and illustrative holdings are
@@ -41,9 +39,10 @@ export default function DisclaimerPage() {
         </p>
         <p>
           Index names, logos, and trademarks remain with their owners. Chart and data
-          sources are attributed on each panel. Content is written in Australian English and
-          aligned with the public closer used on X: educational framing only — not advice.
+          sources are attributed on each panel. Content is written in Australian English.
         </p>
+        <p>Posts on X (@Dirindin533) are covered by this disclaimer.</p>
+        <p>This information is general in nature and does not take into account your objectives, financial situation or needs. Consider whether it is appropriate for you and seek independent advice before acting.</p>
       </div>
 
       <p className="mt-10 text-sm text-muted">
