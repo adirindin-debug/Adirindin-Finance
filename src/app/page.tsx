@@ -36,19 +36,7 @@ export default function HomePage() {
 
       <HomeRiskGauge />
 
-      {/* Centrepiece: relative price chart */}
-      <div className="mt-12 rounded-2xl border border-border bg-[#0d1218] p-4 sm:p-6">
-        <BtcFourYearChart />
-        <HowDrawn>
-          each line is close ÷ close at the window start − 1, so every line starts at 0%. Daily
-          closes. Sources: BTC from Coinbase Exchange; S&amp;P 500, Nasdaq 100, All Ords and MSCI World from
-          Yahoo Finance; US house prices (FHFA), AU house prices (BIS) and US M2 from FRED®, Federal Reserve
-          Bank of St. Louis (quarterly or monthly, stepped forward).
-        </HowDrawn>
-        <MarketStrip />
-      </div>
-
-      <section className="mt-12">
+      <section className="mt-10">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-accent">Cycle theories for context (not forecasts)</h2>
           <Link href="/cycles" className="text-xs font-medium text-accent hover:underline">
@@ -61,6 +49,18 @@ export default function HomePage() {
           dot marks today’s date on its calendar — it isn’t read from prices.
         </HowDrawn>
       </section>
+
+      {/* Centrepiece: relative price chart */}
+      <div className="mt-12 rounded-2xl border border-border bg-[#0d1218] p-4 sm:p-6">
+        <BtcFourYearChart />
+        <HowDrawn>
+          each line is close ÷ close at the window start − 1, so every line starts at 0%. Daily
+          closes. Sources: BTC from Coinbase Exchange; S&amp;P 500, Nasdaq 100, All Ords and MSCI World from
+          Yahoo Finance; US house prices (FHFA), AU house prices (BIS) and US M2 from FRED®, Federal Reserve
+          Bank of St. Louis (quarterly or monthly, stepped forward).
+        </HowDrawn>
+        <MarketStrip />
+      </div>
 
       <p className="mt-10 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         <span className="text-muted">More on the desk:</span>
