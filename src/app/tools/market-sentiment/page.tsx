@@ -30,7 +30,7 @@ export default function RiskSentimentPage() {
         <strong className="font-medium text-foreground">Study aid only.</strong> In past testing it showed no edge for
         calling market direction — it describes a rough versus calm backdrop.
       </p>
-      <p className="mt-2 max-w-3xl text-xs leading-relaxed text-muted">This information is general in nature and does not take into account your objectives, financial situation or needs. Consider whether it is appropriate for you and seek independent advice before acting.</p>
+      <p id="disclaimer" className="mt-2 max-w-3xl scroll-mt-24 text-xs leading-relaxed text-muted">This information is general in nature and does not take into account your objectives, financial situation or needs. Consider whether it is appropriate for you and seek independent advice before acting.</p>
 
       <div className="mt-8">
         <MarketSentimentPanel />

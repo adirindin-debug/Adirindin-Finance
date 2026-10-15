@@ -61,27 +61,25 @@ export function HomeRiskGauge() {
                 </span>
               ) : null}
             </p>
-            {data.season ? <p className="mt-1 text-[11px] text-muted">Month tag: past monthly averages only, not a forecast.</p> : null}
-            <p className="mt-1 text-[11px] leading-relaxed text-muted">
-              General information only, not a recommendation. It describes current conditions and does not forecast prices. It does not consider your objectives, financial situation or needs.
-            </p>
-            <p className="mt-2 text-xs text-muted/80">
-              <span className="font-medium text-foreground/80">How it’s drawn:</span> 0–100 blend of public
-              stress and conditions data — OFR Financial Stress Index (overall, volatility, equity valuation, credit),
-              Chicago Fed NFCI, St. Louis Fed stress index (via FRED), Crypto Fear &amp; Greed (Alternative.me), OECD global breadth and S&amp;P 500 monthly
-              seasonality · ~2-month average · as of {fmtAsOf(data.asOf!)}
+            <p className="relative z-10 mt-2 text-[11px] text-muted">
+              General information only, not a forecast ·{" "}
+              <Link href="/tools/market-sentiment#disclaimer" className="text-accent hover:underline">
+                Full disclaimer
+              </Link>
             </p>
           </>
         ) : (
           <p className="mt-2 text-sm text-muted">{failed ? "Live reading unavailable right now." : "Loading the latest reading…"}</p>
         )}
-        <p className="relative z-10 mt-2 text-xs text-muted/80">
-          <span className="font-medium text-foreground/80">Sources:</span> OFR · Chicago Fed · St. Louis Fed (FRED) · OECD ·
-          Alternative.me · Yahoo Finance (S&amp;P 500 monthly, seasonality) ·{" "}
-          <Link href="/tools/market-sentiment#sources" className="text-accent hover:underline">
-            full citations
-          </Link>
-        </p>
+        {data && score != null ? (
+          <p className="relative z-10 mt-1 text-[11px] text-muted">
+            Sources: OFR · Fed · Alternative.me · OECD ·{" "}
+            <Link href="/tools/market-sentiment#sources" className="text-accent hover:underline">
+              more
+            </Link>
+            {data.asOf ? ` · as of ${fmtAsOf(data.asOf)}` : ""}
+          </p>
+        ) : null}
         <Link
           href="/tools/market-sentiment"
           className="mt-3 inline-flex text-sm font-medium text-accent after:absolute after:inset-0 after:rounded-xl after:content-[''] group-hover:underline"
