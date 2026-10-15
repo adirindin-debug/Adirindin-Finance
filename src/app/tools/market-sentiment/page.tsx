@@ -62,7 +62,7 @@ export default function RiskSentimentPage() {
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Valuation cap.</strong> Rich equity valuations on their own
-          should not push the score toward Euphoria-leaning. The equity-valuation sub-score is capped at {VALUATION_CAP} unless
+          should not push the score toward Extreme greed. The equity-valuation sub-score is capped at {VALUATION_CAP} unless
           at least {STRETCH_NEEDED} of volatility, credit, NFCI and breadth also read {STRETCH_AT} or more.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">

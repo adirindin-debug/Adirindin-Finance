@@ -262,18 +262,18 @@ export type Zone = { key: string; label: string; min: number; max: number; color
 export const ZONES: Zone[] = [
   {
     key: "washout",
-    label: "Washout",
+    label: "Extreme fear",
     min: 0,
     max: 20,
-    color: "#fb923c",
+    color: "#ef4444",
     blurb: "Deep drawdown, stretched-low momentum, vol spiking, fear readings pinned low.",
   },
   {
     key: "repair",
-    label: "Repair",
+    label: "Fear",
     min: 20,
     max: 40,
-    color: "#facc15",
+    color: "#fb923c",
     blurb: "Still bruised. Readings off the floor but well below average.",
   },
   {
@@ -286,7 +286,7 @@ export const ZONES: Zone[] = [
   },
   {
     key: "hot",
-    label: "Hot market",
+    label: "Greed",
     min: 60,
     max: 80,
     color: "#4ade80",
@@ -294,7 +294,7 @@ export const ZONES: Zone[] = [
   },
   {
     key: "euphoria",
-    label: "Euphoria-leaning",
+    label: "Extreme greed",
     min: 80,
     max: 100,
     color: "#10b981",
@@ -318,12 +318,12 @@ export type ArcStage = { label: string; side: "up" | "down" | "floor" | "top" };
 
 /** Stage name from score level + whether the score is above its level ~3 months ago. */
 export function arcStage(score: number, rising: boolean): ArcStage {
-  if (score >= 80) return { label: "Euphoria-leaning", side: "top" };
-  if (score < 20) return { label: "Washout", side: "floor" };
+  if (score >= 80) return { label: "Extreme greed", side: "top" };
+  if (score < 20) return { label: "Extreme fear", side: "floor" };
   if (rising) {
-    if (score < 40) return { label: "Repair", side: "up" };
+    if (score < 40) return { label: "Fear", side: "up" };
     if (score < 60) return { label: "Grind higher", side: "up" };
-    return { label: "Hot market", side: "up" };
+    return { label: "Greed", side: "up" };
   }
   if (score >= 60) return { label: "Cracks show", side: "down" };
   if (score >= 40) return { label: "Cooling", side: "down" };

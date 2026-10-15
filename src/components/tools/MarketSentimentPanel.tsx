@@ -329,11 +329,11 @@ export function MarketSentimentPanel() {
           ref={svgRef}
           viewBox={`0 0 ${W} ${H}`}
           className="block h-auto w-full"
-          style={{ aspectRatio: `${W} / ${H}` }}
           role="img"
           aria-label="Market sentiment score history with zone bands"
           onMouseMove={onMove}
           onMouseLeave={() => setHover(null)}
+          style={{ aspectRatio: `${W} / ${H}`, WebkitTapHighlightColor: "transparent" }}
         >
           <defs>
             <linearGradient id="ms-zone-grad" gradientUnits="userSpaceOnUse" x1="0" x2="0" y1={view.yOf(100)} y2={view.yOf(0)}>
@@ -361,7 +361,9 @@ export function MarketSentimentPanel() {
           <rect x={PAD.left + view.iw + 6} y={view.yOf(100)} width={6} height={view.yOf(0) - view.yOf(100)} rx={3} fill="url(#ms-zone-grad)" />
           {view.basePath ? <path d={view.basePath} fill="none" stroke="#c8d0dc" strokeOpacity={0.28} strokeWidth={1.2} vectorEffect="non-scaling-stroke" /> : null}
           <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeOpacity={0.5} strokeWidth={6} filter="url(#ms-line-glow)" />
-          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeWidth={2.8} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          {/* No vector-effect here: WebKit (iOS Safari) resolves a userSpaceOnUse gradient in screen space on a
+              non-scaling stroke, so after a tap re-render the whole line clamped to the last (lowest-zone) stop. */}
+          <path d={view.scorePath} fill="none" stroke="url(#ms-zone-grad)" strokeWidth={2.8} strokeLinejoin="round" strokeLinecap="round" />
           {view.ticks.map((t, i) => (
             <text
               key={i}
