@@ -44,6 +44,8 @@ const BOT = { y: 292, h: 165 };
 const H = 485;
 const LINE = "#22d3ee";
 const VIX_COLOR = "#c4b5fd";
+/** Trailing average for the OFR volatility percentile in Smoothed mode (~1 month of sessions). */
+const VOL_SMOOTH = 21;
 const DD_COLOR = "#f87171";
 const LEVEL_COLORS = ["#fbbf24", "#fb923c", "#a78bfa", "#e879f9"];
 
@@ -101,7 +103,28 @@ export function GlobalEquitiesPanel() {
     setSel(null);
   }, [tf]);
 
-  const all = useMemo(() => (data?.ok && data.rows ? enrich(data.rows) : []), [data]);
+  const [volMode, setVolMode] = useState<"smoothed" | "raw">("smoothed");
+  /** Smoothed mode: OFR volatility percentile as a trailing VOL_SMOOTH-session average (no look-ahead). */
+  const all = useMemo(() => {
+    if (!data?.ok || !data.rows) return [];
+    if (volMode === "raw") return enrich(data.rows);
+    const rows = data.rows.map((r, i, arr) => {
+      if (r[3] == null) return r;
+      let sum = 0;
+      let n = 0;
+      for (let k = Math.max(0, i - VOL_SMOOTH + 1); k <= i; k++) {
+        const v = arr[k]![3];
+        if (v != null) {
+          sum += v;
+          n++;
+        }
+      }
+      const out = [...r] as typeof r;
+      out[3] = n ? Math.round((sum / n) * 10) / 10 : null;
+      return out;
+    });
+    return enrich(rows);
+  }, [data, volMode]);
   const summary = useMemo(() => summarise(all), [all]);
 
   const rangePts = useMemo(() => {
@@ -416,6 +439,24 @@ export function GlobalEquitiesPanel() {
                 </button>
               ))}
             </div>
+            <div className="inline-flex gap-1 rounded-lg border border-border/90 bg-[#11161d] p-1" role="group" aria-label="Volatility line">
+              {(
+                [
+                  { key: "smoothed", label: "Smoothed (1m avg)" },
+                  { key: "raw", label: "Raw" },
+                ] as const
+              ).map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${volMode === m.key ? toggleOn : toggleOff}`}
+                  aria-pressed={volMode === m.key}
+                  onClick={() => setVolMode(m.key)}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
             {zoom && (
               <button
                 type="button"
@@ -501,7 +542,7 @@ export function GlobalEquitiesPanel() {
             ["vs 200-day MA", fmtPct(summary.dist200d)],
             ["vs 200-week MA", fmtPct(summary.dist200w)],
             [
-              "OFR volatility (5y pctile)",
+              volMode === "smoothed" ? "OFR volatility (5y pctile, 1m avg)" : "OFR volatility (5y pctile)",
               summary.vixPct != null ? `p${Math.round(summary.vixPct)}` : "—",
             ],
           ].map(([k, v]) => (
@@ -603,7 +644,7 @@ export function GlobalEquitiesPanel() {
                 </text>
               ))}
               <text x={W - PAD_R + 4} y={BOT.y - 4} fill={VIX_COLOR} fontSize={9} fontWeight={600}>
-                OFR vol pctile
+                {volMode === "smoothed" ? "OFR vol pctile (1m avg)" : "OFR vol pctile"}
               </text>
               <text x={PAD_L} y={BOT.y - 4} fill="#9aa8b5" fontSize={9} fontWeight={600}>
                 Drawdown from ATH
@@ -651,7 +692,7 @@ export function GlobalEquitiesPanel() {
                   ["ATH to date", `US$${fmtPx(hp.ath)}`, "#c5d0de"],
                   ["Drawdown", fmtPct(hp.dd), DD_COLOR],
                   [
-                    "OFR volatility",
+                    volMode === "smoothed" ? "OFR volatility (1m avg)" : "OFR volatility",
                     hp.vixPct != null ? `5y p${Math.round(hp.vixPct)}` : "—",
                     VIX_COLOR,
                   ],
@@ -702,7 +743,9 @@ export function GlobalEquitiesPanel() {
           Label = drawdown of URTH adjusted close from its all-time high (series starts 12 Jan 2012,
           so ranges longer than that aren&apos;t offered). Recovering: still more than 12% below the high, at
           least 5% off the low since that high, and higher than three months ago. Volatility note, from
-          the OFR Financial Stress Index volatility category against its own prior 5 years: &quot;volatility
+          the OFR Financial Stress Index volatility category against its own prior 5 years (by default a trailing
+          21-session, about 1-month, average of that percentile, which the header stat, the volatility note and the
+          lower-panel line all use; switch to Raw for the daily reading): &quot;volatility
           very low&quot; (bottom 10%) or &quot;volatility elevated&quot; (75th percentile or above) near highs,
           &quot;volatility rising&quot; in a pullback, &quot;volatility high&quot; (90th percentile or above) in a
           deep drawdown. Context only — no top or bottom dates.
