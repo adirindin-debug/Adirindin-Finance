@@ -15,7 +15,7 @@ export default function MarketVolumeChartPage() {
       <MobileViewHint />
       <ChartsBackLink category="Crypto markets" />
       <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-        Market volume
+        Crypto market volume
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
         Total crypto market volume (7-day moving average when available).

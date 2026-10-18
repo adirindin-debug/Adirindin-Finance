@@ -532,7 +532,7 @@ const CATEGORIES: Category[] = [
       {
         id: "market-volume",
         href: "/charts/market-volume",
-        title: "Market volume",
+        title: "Crypto market volume",
         endpoint: "/api/market-volume",
         parse: parseMarketVolume,
       },

@@ -254,7 +254,7 @@ export function MarketVolumePanel() {
               <div
                 className="inline-flex flex-wrap gap-1 rounded-lg border border-border/90 bg-[#1a222d] p-1 shadow-sm"
                 role="group"
-                aria-label="Market volume timeframe"
+                aria-label="Crypto market volume timeframe"
               >
                 {TIMEFRAMES.map((w) => (
                   <button
