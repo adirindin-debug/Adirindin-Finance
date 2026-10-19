@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 
+/**
+ * Portfolio quotes from public, displayable sources only.
+ *  - FX (AUD/USD): FRED DEXUSAL — Federal Reserve H.10 noon buying rate, US dollars per
+ *    Australian dollar (daily, public domain; lags by a few days).
+ *  - Crypto pairs (e.g. BTC-USD, ETH-USD): Coinbase Exchange public ticker.
+ *  - Shares / ETFs: not priced. Yahoo Finance was removed (not licensed for public
+ *    display) and there is no free licensed source. Those tickers come back in `unpriced`.
+ */
+
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-type YahooQuote = {
-  symbol?: string;
-  shortName?: string;
-  longName?: string;
-  regularMarketPrice?: number;
-  postMarketPrice?: number;
-  preMarketPrice?: number;
-  currency?: string;
-};
+const UA = "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
+const FETCH_MS = 8_000;
 
 type QuoteOut = {
   ticker: string;
@@ -19,109 +21,46 @@ type QuoteOut = {
   currency: string;
   priceAud: number;
   name?: string;
+  source: string;
 };
 
-function pickPrice(q: YahooQuote): number | null {
-  const candidates = [q.regularMarketPrice, q.postMarketPrice, q.preMarketPrice];
-  for (const c of candidates) {
-    if (typeof c === "number" && Number.isFinite(c) && c > 0) return c;
+/** Latest DEXUSAL observation (USD per 1 AUD) from FRED's public CSV. */
+async function fetchAudUsd(): Promise<{ audUsd: number; date: string }> {
+  const res = await fetch("https://fred.stlouisfed.org/graph/fredgraph.csv?id=DEXUSAL", {
+    headers: { "User-Agent": UA, Accept: "text/csv,text/plain,*/*" },
+    signal: AbortSignal.timeout(FETCH_MS),
+    next: { revalidate: 3600 },
+  });
+  if (!res.ok) throw new Error(`FRED DEXUSAL: HTTP ${res.status}`);
+  const lines = (await res.text()).trim().split(/\r?\n/).slice(1);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const [date, raw] = lines[i]!.split(",");
+    const v = Number(raw);
+    if (date && Number.isFinite(v) && v > 0) return { audUsd: v, date };
   }
-  return null;
+  throw new Error("FRED DEXUSAL: no observations");
 }
 
-/** Heuristic: ASX tickers are AUD; *-USD / crypto pairs and plain US tickers are USD. */
-function inferCurrency(ticker: string, yahooCurrency?: string): string {
-  if (yahooCurrency) return yahooCurrency.toUpperCase();
-  const t = ticker.toUpperCase();
-  if (t.endsWith(".AX")) return "AUD";
-  if (t.includes("AUD")) return "AUD";
-  return "USD";
+/** Crypto pair like BTC-USD / ETH-AUD → Coinbase product id, else null. */
+function coinbaseProduct(ticker: string): string | null {
+  const m = /^([A-Z0-9]{2,10})-(USD|AUD)$/.exec(ticker);
+  return m ? `${m[1]}-${m[2]}` : null;
 }
 
-async function fetchYahooQuotes(symbols: string[]): Promise<Map<string, YahooQuote>> {
-  const map = new Map<string, YahooQuote>();
-  if (symbols.length === 0) return map;
-
-  const unique = [...new Set(symbols.map((s) => s.trim()).filter(Boolean))];
-  const query = unique.map(encodeURIComponent).join(",");
-
-  const urls = [
-    `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${query}`,
-    `https://query2.finance.yahoo.com/v7/finance/quote?symbols=${query}`,
-  ];
-
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; AdirindinFinance/1.0)",
-          Accept: "application/json",
-        },
-        next: { revalidate: 0 },
-      });
-      if (!res.ok) continue;
-      const data = (await res.json()) as {
-        quoteResponse?: { result?: YahooQuote[] };
-      };
-      const results = data.quoteResponse?.result ?? [];
-      for (const q of results) {
-        if (q.symbol) map.set(q.symbol.toUpperCase(), q);
-      }
-      if (map.size > 0) return map;
-    } catch {
-      /* try next */
-    }
+async function coinbasePrice(product: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://api.exchange.coinbase.com/products/${product}/ticker`, {
+      headers: { "User-Agent": UA, Accept: "application/json" },
+      signal: AbortSignal.timeout(FETCH_MS),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { price?: string };
+    const p = Number(j.price);
+    return Number.isFinite(p) && p > 0 ? p : null;
+  } catch {
+    return null;
   }
-
-  // Fallback: per-symbol chart endpoint
-  await Promise.all(
-    unique.map(async (sym) => {
-      if (map.has(sym.toUpperCase())) return;
-      try {
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=1d&range=1d`;
-        const res = await fetch(url, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; AdirindinFinance/1.0)",
-            Accept: "application/json",
-          },
-          next: { revalidate: 0 },
-        });
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          chart?: {
-            result?: Array<{
-              meta?: {
-                symbol?: string;
-                regularMarketPrice?: number;
-                currency?: string;
-                shortName?: string;
-              };
-            }>;
-          };
-        };
-        const meta = data.chart?.result?.[0]?.meta;
-        if (!meta?.regularMarketPrice) return;
-        map.set((meta.symbol ?? sym).toUpperCase(), {
-          symbol: meta.symbol ?? sym,
-          regularMarketPrice: meta.regularMarketPrice,
-          currency: meta.currency,
-          shortName: meta.shortName,
-        });
-      } catch {
-        /* skip */
-      }
-    }),
-  );
-
-  return map;
-}
-
-function toAud(price: number, currency: string, audPerUsd: number): number {
-  const c = currency.toUpperCase();
-  if (c === "AUD") return price;
-  if (c === "USD") return price * audPerUsd;
-  // Unknown: assume USD-like
-  return price * audPerUsd;
 }
 
 export async function GET(req: NextRequest) {
@@ -137,53 +76,50 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ quotes: [], audUsd: null, audPerUsd: null, error: null });
   }
 
+  let audUsd: number;
+  let fxDate: string;
   try {
-    const symbols = [...tickers, "AUDUSD=X"];
-    const map = await fetchYahooQuotes(symbols);
+    ({ audUsd, date: fxDate } = await fetchAudUsd());
+  } catch (e) {
+    return NextResponse.json(
+      { quotes: [], audUsd: null, error: e instanceof Error ? e.message : "Could not fetch AUD/USD rate" },
+      { status: 502 },
+    );
+  }
+  // DEXUSAL = USD per 1 AUD → AUD per 1 USD = 1 / DEXUSAL
+  const audPerUsd = 1 / audUsd;
 
-    const fx = map.get("AUDUSD=X");
-    const audUsd = fx ? pickPrice(fx) : null;
-    // AUDUSD = USD per 1 AUD → AUD per 1 USD = 1 / AUDUSD
-    const audPerUsd = audUsd && audUsd > 0 ? 1 / audUsd : null;
-
-    if (!audPerUsd) {
-      return NextResponse.json(
-        { quotes: [], audUsd: null, error: "Could not fetch AUDUSD rate" },
-        { status: 502 },
-      );
-    }
-
-    const quotes: QuoteOut[] = [];
-    for (const ticker of tickers) {
-      const q = map.get(ticker);
-      if (!q) continue;
-      const price = pickPrice(q);
-      if (price == null) continue;
-      const currency = inferCurrency(ticker, q.currency);
+  const quotes: QuoteOut[] = [];
+  const unpriced: string[] = [];
+  await Promise.all(
+    tickers.map(async (ticker) => {
+      const product = coinbaseProduct(ticker);
+      const price = product ? await coinbasePrice(product) : null;
+      if (price == null) {
+        unpriced.push(ticker);
+        return;
+      }
+      const currency = ticker.endsWith("-AUD") ? "AUD" : "USD";
       quotes.push({
         ticker,
         price,
         currency,
-        priceAud: toAud(price, currency, audPerUsd),
-        name: q.longName || q.shortName,
+        priceAud: currency === "AUD" ? price : price * audPerUsd,
+        source: "Coinbase Exchange",
       });
-    }
+    }),
+  );
 
-    return NextResponse.json({
-      quotes,
-      audUsd,
-      audPerUsd,
-      fetchedAt: new Date().toISOString(),
-      error: null,
-    });
-  } catch (e) {
-    return NextResponse.json(
-      {
-        quotes: [],
-        audUsd: null,
-        error: e instanceof Error ? e.message : "Quote fetch failed",
-      },
-      { status: 502 },
-    );
-  }
+  return NextResponse.json({
+    quotes,
+    unpriced: unpriced.sort(),
+    unpricedReason: unpriced.length
+      ? "No free licensed price source for shares and ETFs, so no live value is shown for them."
+      : undefined,
+    audUsd,
+    audPerUsd,
+    fxSource: `FRED DEXUSAL (Federal Reserve H.10), ${fxDate}`,
+    fetchedAt: new Date().toISOString(),
+    error: null,
+  });
 }

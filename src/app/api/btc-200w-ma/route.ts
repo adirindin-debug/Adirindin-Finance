@@ -1,11 +1,9 @@
 /**
  * Bitcoin price vs 200-week simple moving average.
- * Modern history: Yahoo Finance BTC-USD weekly closes (from ~Sep 2014). Fallback:
- * Coinbase Exchange BTC-USD daily candles → weekly closes when Yahoo is unavailable.
- * Pre-2014 extension: Blockchain.com Charts `market-price` (daily average USD across
- * major exchanges) resampled to weekly closes, stitched before Yahoo/Coinbase without
- * double-counting overlap (modern source wins). Soft-fails to Yahoo-era chart if the
- * pre-history fetch fails. Live spot prefers Coinbase ticker.
+ * Modern history: Coinbase Exchange BTC-USD daily candles → weekly closes (from mid 2015).
+ * Earlier extension: Blockchain.com Charts `market-price` (daily average USD across
+ * major exchanges) resampled to weekly closes, stitched before Coinbase without
+ * double-counting overlap (modern source wins). Live spot prefers Coinbase ticker.
  */
 
 export const runtime = "nodejs";
@@ -14,8 +12,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const CB = "https://api.exchange.coinbase.com";
-const YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD";
-const YAHOO_CHART_2 = "https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD";
 /** Blockchain.com Charts — composite average USD market price (daily). */
 const BLOCKCHAIN_MARKET_PRICE =
   "https://api.blockchain.info/charts/market-price?timespan=all&format=json&sampled=false";
@@ -24,8 +20,6 @@ const UA =
 
 /** Coinbase BTC-USD daily history starts ~2015-07-20; pad slightly earlier. */
 const COINBASE_START_MS = Date.UTC(2015, 6, 1);
-/** Yahoo BTC-USD weekly reliably from mid-Sep 2014. */
-const YAHOO_PERIOD1 = Math.floor(Date.UTC(2014, 8, 1) / 1000);
 /** Coinbase candles max ~300 per request; stay under. */
 const CHUNK_DAYS = 280;
 const CHUNK_PAUSE_MS = 320;
@@ -178,78 +172,10 @@ function isoWeekKey(tSec: number): string {
   return `${thu.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-/** Yahoo chart weekly closes (period1/period2 — range=max undersamples). */
-async function fetchYahooWeeklyCloses(): Promise<WeeklyClose[]> {
-  const period2 = Math.floor(Date.now() / 1000);
-  const urls = [YAHOO_CHART, YAHOO_CHART_2].map(
-    (base) =>
-      `${base}?interval=1wk&period1=${YAHOO_PERIOD1}&period2=${period2}`,
-  );
-  let lastErr: Error | null = null;
-
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        headers: { Accept: "application/json", "User-Agent": UA },
-        signal: AbortSignal.timeout(TIMEOUT_MS),
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        lastErr = new Error(`Yahoo BTC-USD HTTP ${res.status}`);
-        continue;
-      }
-      const data = (await res.json()) as {
-        chart?: {
-          result?: Array<{
-            timestamp?: number[];
-            indicators?: { quote?: Array<{ close?: Array<number | null> }> };
-          }>;
-          error?: { description?: string };
-        };
-      };
-      const result = data.chart?.result?.[0];
-      const ts = result?.timestamp ?? [];
-      const closes = result?.indicators?.quote?.[0]?.close ?? [];
-      const weeks: WeeklyClose[] = [];
-      for (let i = 0; i < ts.length; i++) {
-        const t = ts[i];
-        const c = closes[i];
-        if (
-          typeof t !== "number" ||
-          typeof c !== "number" ||
-          !Number.isFinite(t) ||
-          !Number.isFinite(c) ||
-          c <= 0
-        ) {
-          continue;
-        }
-        weeks.push({ t, price: c });
-      }
-      weeks.sort((a, b) => a.t - b.t);
-      // Dedupe same-week stamps if any
-      const deduped: WeeklyClose[] = [];
-      for (const w of weeks) {
-        const prev = deduped[deduped.length - 1];
-        if (prev && isoWeekKey(prev.t) === isoWeekKey(w.t)) {
-          deduped[deduped.length - 1] = w;
-        } else {
-          deduped.push(w);
-        }
-      }
-      if (deduped.length >= MA_WEEKS) return deduped;
-      lastErr = new Error(
-        `Yahoo BTC-USD: insufficient weekly history (${deduped.length})`,
-      );
-    } catch (err) {
-      lastErr = err instanceof Error ? err : new Error(String(err));
-    }
-  }
-  throw lastErr ?? new Error("Yahoo BTC-USD weekly feed unavailable");
-}
 
 /**
  * Blockchain.com Charts market-price: daily average USD across major exchanges.
- * Early years are a composite/index USD print — not the same as Yahoo BTC-USD.
+ * Early years are a composite/index USD print — not the same as an exchange BTC-USD close.
  */
 async function fetchBlockchainDailyCloses(): Promise<DailyClose[]> {
   const res = await fetch(BLOCKCHAIN_MARKET_PRICE, {
@@ -291,7 +217,7 @@ async function fetchBlockchainDailyCloses(): Promise<DailyClose[]> {
 }
 
 /**
- * Prefer modern (Yahoo/Coinbase) weeks on overlap; keep Blockchain weeks strictly
+ * Prefer modern (Coinbase) weeks on overlap; keep Blockchain weeks strictly
  * before the first modern week (by ISO week key + timestamp).
  */
 function stitchWeeklyPrehistory(
@@ -365,12 +291,12 @@ export async function GET() {
   const warnings: string[] = [];
   let modernWeeks: WeeklyClose[] = [];
   let dailyCount = 0;
-  let modernSource: "yahoo-weekly" | "coinbase-daily" | null = null;
+  let modernSource: "coinbase-daily" | null = null;
   let prehistorySource: "blockchain-market-price" | null = null;
   let prehistoryWeeklyCount = 0;
   let stitchSeamDate: string | null = null;
 
-  // Coinbase Exchange first (public market data); Yahoo only as a last-resort fallback.
+  // Coinbase Exchange public market data.
   try {
     const { dailies, chunkErrors } = await fetchCoinbaseDailyCloses();
     dailyCount = dailies.length;
@@ -381,14 +307,6 @@ export async function GET() {
     warnings.push(
       e instanceof Error ? `Coinbase daily: ${e.message}` : "Coinbase daily failed",
     );
-    try {
-      modernWeeks = await fetchYahooWeeklyCloses();
-      modernSource = "yahoo-weekly";
-    } catch (e2) {
-      warnings.push(
-        e2 instanceof Error ? `Yahoo weekly: ${e2.message}` : "Yahoo weekly failed",
-      );
-    }
   }
 
   let weeks = modernWeeks;
@@ -467,18 +385,10 @@ export async function GET() {
 
     let source: string;
     let sourceUrl: string;
-    if (prehistorySource && modernSource === "yahoo-weekly") {
-      source =
-        "Stitched weekly closes: Blockchain.com Charts market-price (pre-seam composite USD average) + Yahoo Finance BTC-USD; live spot via Coinbase when available";
-      sourceUrl = "https://www.blockchain.com/explorer/charts/market-price";
-    } else if (prehistorySource && modernSource === "coinbase-daily") {
+    if (prehistorySource && modernSource === "coinbase-daily") {
       source =
         "Stitched weekly closes: Blockchain.com Charts market-price (pre-seam composite USD average) + Coinbase Exchange BTC-USD daily→weekly";
       sourceUrl = "https://www.blockchain.com/explorer/charts/market-price";
-    } else if (modernSource === "yahoo-weekly") {
-      source =
-        "Yahoo Finance BTC-USD (weekly closes → SMA 200); live spot via Coinbase when available";
-      sourceUrl = "https://finance.yahoo.com/quote/BTC-USD";
     } else {
       source =
         "Coinbase Exchange BTC-USD (daily candles → weekly closes → SMA 200)";
@@ -488,7 +398,7 @@ export async function GET() {
     const noteParts = [
       "200-week simple moving average of weekly closes.",
       prehistorySource
-        ? "Early years before the Yahoo/Coinbase seam use Blockchain.com's composite average USD market price (not Yahoo BTC-USD)."
+        ? "Early years before the Coinbase seam use Blockchain.com's composite average USD market price (not Coinbase BTC-USD)."
         : null,
       "",
     ].filter(Boolean);

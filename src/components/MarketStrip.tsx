@@ -150,9 +150,7 @@ export function MarketStrip() {
 
   const sourceHint =
     state.status === "ready"
-      ? state.source === "yahoo"
-        ? "Yahoo chart (Coinbase unavailable)"
-        : "Live Coinbase ticker"
+      ? "Live Coinbase ticker"
       : state.status === "error"
         ? "Unavailable"
         : "Loading";
@@ -219,7 +217,7 @@ export function MarketStrip() {
         </p>
       )}
       <p className="mt-2 text-xs text-muted">
-        BTC price: Coinbase (Yahoo Finance backup). Drawdown uses recent daily closes. Halving dates are estimates.
+        BTC price: Coinbase Exchange. Drawdown uses recent daily closes. Halving dates are estimates.
       </p>
     </section>
   );

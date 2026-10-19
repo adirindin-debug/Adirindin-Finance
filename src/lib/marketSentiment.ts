@@ -126,7 +126,7 @@ export const INPUTS: InputMeta[] = [
     how: "This calendar month's average S&P 500 return and green-month odds vs an average month (in standard errors), using only months completed before the date. 50 = an average month.",
     source: "Adirindin calculation from monthly S&P 500 index returns (month-end closes originally sourced from Yahoo Finance)",
     sourceUrl: "/charts/seasonality/equities",
-    licence: "Derived monthly statistic only — no prices are shown.",
+    licence: "Derived monthly statistic only — no prices are shown. Underlying price data licence under review.",
     credit: "Seasonality: Adirindin calculation from monthly S&P 500 returns; underlying price data: Yahoo Finance.",
   },
   {

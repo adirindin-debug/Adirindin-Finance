@@ -45,8 +45,9 @@ export default function CompoundInterestPage() {
           <div>
             <h3 className="text-sm font-semibold text-foreground">Asset ticker (historical CAGR)</h3>
             <p className="mt-1 text-sm leading-relaxed text-muted">
-              Daily adjusted closes from Yahoo Finance (dividends and splits included where Yahoo provides them; indices
-              such as ^GSPC are price-only). CAGR = (last close ÷ first close in the window)
+              Crypto pairs only (for example BTC-USD, ETH-USD): daily closes from Coinbase Exchange, from mid 2015.
+              Shares, ETFs and indices aren&apos;t available because there is no free price source licensed for
+              public display, so enter your own rate for those. CAGR = (last close ÷ first close in the window)
               <sup>1 ÷ years</sup> − 1. The lookback can&apos;t reach past the first date with real data for that ticker.
               The CAGR is applied as an effective yearly rate, so monthly compounding doesn&apos;t inflate it. Rates are in
               the asset&apos;s own currency.
@@ -82,7 +83,7 @@ export default function CompoundInterestPage() {
           </li>
           <li>
             Fees, taxes, currency moves, inflation (unless switched on) and the timing of contributions are simplified or
-            not modelled. Ticker data is delayed, third-party and may contain errors.
+            not modelled. Ticker data is third-party and may contain errors.
           </li>
           <li>
             It does not tell anyone to buy, sell or hold anything and does not consider your objectives, financial

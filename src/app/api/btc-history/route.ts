@@ -1,9 +1,8 @@
 /**
  * Same-origin BTC history for the cycle map (weekly + daily + spot).
- * Browser→Yahoo hits CORS; browser→Coinbase candles often 429; public CORS
- * proxies 403. Fetches server-side: Yahoo first, then splices pre-Yahoo
- * closes from blockchain.info (fills ~2010–Sep 2014 gap Yahoo skips),
- * Coinbase (chunked + 429 backoff) / Kraken fallbacks. Soft-fails to
+ * Browser→Coinbase candles often 429; fetches server-side: Coinbase Exchange
+ * daily candles (chunked + 429 backoff), splices earlier closes from
+ * blockchain.info (~2010–mid 2015), Kraken fallback. Soft-fails to
  * last-good in-memory cache. Educational — NFA.
  */
 
@@ -14,9 +13,6 @@ export const maxDuration = 60;
 const UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
 const CB = "https://api.exchange.coinbase.com";
-const YAHOO_1 = "https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD";
-const YAHOO_2 = "https://query2.finance.yahoo.com/v8/finance/chart/BTC-USD";
-const YAHOO_PERIOD1 = Math.floor(Date.UTC(2014, 8, 1) / 1000);
 const BC_MARKET_PRICE =
   "https://api.blockchain.info/charts/market-price?timespan=all&format=json&sampled=false";
 const COINBASE_START_MS = Date.UTC(2015, 6, 1);
@@ -69,70 +65,6 @@ async function fetchJson(url: string, timeoutMs = FETCH_MS): Promise<unknown> {
   return res.json();
 }
 
-async function yahooBars(
-  interval: "1d" | "1wk",
-): Promise<{ bars: Bar[]; spot: number | null }> {
-  const period2 = Math.floor(Date.now() / 1000);
-  const urls = [YAHOO_1, YAHOO_2].map(
-    (base) =>
-      `${base}?interval=${interval}&period1=${YAHOO_PERIOD1}&period2=${period2}`,
-  );
-  let lastErr: Error | null = null;
-  for (const url of urls) {
-    try {
-      const json = (await fetchJson(url)) as {
-        chart?: {
-          result?: Array<{
-            timestamp?: number[];
-            meta?: { regularMarketPrice?: number };
-            indicators?: {
-              quote?: Array<{
-                open?: (number | null)[];
-                high?: (number | null)[];
-                low?: (number | null)[];
-                close?: (number | null)[];
-              }>;
-            };
-          }>;
-        };
-      };
-      const result = json.chart?.result?.[0];
-      const ts = result?.timestamp ?? [];
-      const q = result?.indicators?.quote?.[0] ?? {};
-      const bars: Bar[] = [];
-      for (let i = 0; i < ts.length; i++) {
-        const c = q.close?.[i];
-        if (typeof c !== "number" || !Number.isFinite(c) || c <= 0) continue;
-        const o =
-          typeof q.open?.[i] === "number" && (q.open![i] as number) > 0
-            ? (q.open![i] as number)
-            : c;
-        const h =
-          typeof q.high?.[i] === "number" && (q.high![i] as number) > 0
-            ? (q.high![i] as number)
-            : c;
-        const l =
-          typeof q.low?.[i] === "number" && (q.low![i] as number) > 0
-            ? (q.low![i] as number)
-            : c;
-        bars.push({ t: ts[i]!, o, h, l, c });
-      }
-      if (bars.length < 50) {
-        lastErr = new Error(`Yahoo BTC ${interval}: too short (${bars.length})`);
-        continue;
-      }
-      const spotRaw = result?.meta?.regularMarketPrice;
-      const spot =
-        spotRaw != null && Number.isFinite(spotRaw) && spotRaw > 0
-          ? spotRaw
-          : bars[bars.length - 1]!.c;
-      return { bars, spot };
-    } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-    }
-  }
-  throw lastErr ?? new Error(`Yahoo BTC ${interval} unavailable`);
-}
 
 async function fetchCandlesChunk(url: string): Promise<number[][]> {
   let lastErr: Error | null = null;
@@ -302,7 +234,7 @@ async function krakenBars(interval: 1440 | 10080): Promise<Bar[]> {
 }
 
 
-/** Close-only daily bars from blockchain.info (covers pre-Yahoo BTC). */
+/** Close-only daily bars from blockchain.info (covers BTC before Coinbase history). */
 async function blockchainDailyBars(): Promise<Bar[]> {
   const json = (await fetchJson(BC_MARKET_PRICE, 20_000)) as {
     values?: Array<{ x?: number; y?: number }>;
@@ -366,7 +298,7 @@ export async function GET() {
   let spot: number | null = null;
   const sourceParts: string[] = [];
 
-  // Coinbase Exchange daily first (public market data); Yahoo only as a fallback.
+  // Coinbase Exchange daily (public market data).
   try {
     const { bars, warnings: w } = await coinbaseDailyBars();
     daily = bars;
@@ -375,19 +307,6 @@ export async function GET() {
     sourceParts.push("Coinbase daily");
   } catch (e) {
     warnings.push(e instanceof Error ? `Coinbase daily: ${e.message}` : "Coinbase daily failed");
-  }
-
-  if (daily.length < 200) {
-    try {
-      const w = await yahooBars("1wk");
-      weekly = w.bars;
-      spot = w.spot;
-      const d = await yahooBars("1d");
-      daily = d.bars;
-      sourceParts.push("Yahoo fallback");
-    } catch (e) {
-      warnings.push(e instanceof Error ? `Yahoo fallback: ${e.message}` : "Yahoo fallback failed");
-    }
   }
 
   try {

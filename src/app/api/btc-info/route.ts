@@ -1,6 +1,6 @@
 /**
  * Homepage BTC info strip — server-side so browsers avoid Coinbase CORS/429.
- * Coinbase Exchange first; Yahoo chart fallback. Cached briefly. Educational — NFA.
+ * Coinbase Exchange public market data only. Cached briefly. Educational — NFA.
  */
 
 import { daysSinceHalving, daysUntilNextHalving } from "@/lib/bitcoinHalving";
@@ -57,30 +57,6 @@ async function coinbaseDailyCloses(daysBack: number): Promise<number[]> {
   return closes;
 }
 
-async function yahooBtc(): Promise<{ price: number; ath: number }> {
-  const period2 = Math.floor(Date.now() / 1000);
-  const period1 = period2 - 400 * 86400;
-  const url =
-    `https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD` +
-    `?period1=${period1}&period2=${period2}&interval=1d&includeAdjustedClose=true`;
-  const json = await fetchJson(url);
-  const result = json?.chart?.result?.[0];
-  const meta = result?.meta;
-  const quote = result?.indicators?.quote?.[0]?.close as (number | null)[] | undefined;
-  const adj = result?.indicators?.adjclose?.[0]?.adjclose as (number | null)[] | undefined;
-  const spot =
-    Number(meta?.regularMarketPrice) ||
-    Number(meta?.previousClose) ||
-    NaN;
-  let ath = Number.isFinite(spot) ? spot : 0;
-  const series = adj?.length ? adj : quote ?? [];
-  for (const v of series) {
-    if (v != null && Number.isFinite(v) && v > ath) ath = v;
-  }
-  if (!Number.isFinite(spot) || spot <= 0) throw new Error("Yahoo BTC empty");
-  return { price: spot, ath: ath > 0 ? ath : spot };
-}
-
 export async function GET() {
   const halvingDays = daysSinceHalving();
   const daysToHalving = daysUntilNextHalving();
@@ -112,34 +88,6 @@ export async function GET() {
     );
   } catch (e) {
     errors.push(e instanceof Error ? e.message : "coinbase failed");
-  }
-
-  // Brief backoff before alternate source (rate-limit hygiene).
-  await new Promise((r) => setTimeout(r, 250));
-
-  try {
-    const { price, ath } = await yahooBtc();
-    const drawdownPct = ath > 0 ? ((price - ath) / ath) * 100 : null;
-    return Response.json(
-      {
-        ok: true,
-        source: "yahoo",
-        btcPrice: price,
-        ath,
-        drawdownPct,
-        daysSinceHalving: halvingDays,
-        daysUntilNextHalving: daysToHalving,
-        asOf: new Date().toISOString(),
-        note: errors.length ? `Coinbase unavailable (${errors.join("; ")})` : undefined,
-      },
-      {
-        headers: {
-          "Cache-Control": "public, s-maxage=90, stale-while-revalidate=300",
-        },
-      },
-    );
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : "yahoo failed");
   }
 
   return Response.json(

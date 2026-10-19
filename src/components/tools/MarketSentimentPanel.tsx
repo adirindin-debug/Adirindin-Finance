@@ -35,12 +35,11 @@ const TFS = [
 ] as const;
 type TfKey = (typeof TFS)[number]["key"];
 type BaseKey = "spx" | "ixic" | "urth" | "off";
-const BASES: Array<{ key: BaseKey; label: string }> = [
-  { key: "spx", label: "S&P 500" },
-  { key: "ixic", label: "Nasdaq" },
-  { key: "urth", label: "URTH" },
-  { key: "off", label: "Off" },
-];
+/**
+ * Base chart overlays (S&P 500 / Nasdaq / URTH) removed: they came from Yahoo Finance and
+ * have no free source licensed for public display. Only "Off" remains, so the control is hidden.
+ */
+const BASES: Array<{ key: BaseKey; label: string }> = [{ key: "off", label: "Off" }];
 
 const fmtDay = (d: string) =>
   new Date(`${d}T12:00:00Z`).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
@@ -102,7 +101,7 @@ export function MarketSentimentPanel() {
       const s = localStorage.getItem(SMOOTH_KEY);
       if (s === "raw" || s === "ema10" || s === "ema42") setSmooth(s);
       const b = localStorage.getItem(BASE_KEY);
-      if (b === "spx" || b === "ixic" || b === "urth" || b === "off") setBase(b);
+      if (BASES.some((x) => x.key === b)) setBase(b as BaseKey);
     } catch {
       /* storage blocked */
     }
@@ -303,6 +302,7 @@ export function MarketSentimentPanel() {
             </button>
           ))}
         </div>
+        {BASES.length > 1 && (
         <div className="flex items-center gap-2">
           <span className="text-[11px] text-muted">Base chart</span>
           <div className="flex gap-0.5 rounded-lg border border-border/90 bg-[#141b24] p-0.5" role="group" aria-label="Base chart">
@@ -322,6 +322,7 @@ export function MarketSentimentPanel() {
             ))}
           </div>
         </div>
+        )}
       </div>
 
       {/* Chart */}

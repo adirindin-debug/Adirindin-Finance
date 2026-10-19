@@ -443,7 +443,7 @@ export function CompoundInterestPanel() {
                     autoComplete="off"
                     spellCheck={false}
                     value={tickerText}
-                    placeholder="Search a ticker, e.g. SPY, VAS.AX, BTC-USD"
+                    placeholder="Search a crypto pair, e.g. BTC-USD, ETH-USD"
                     aria-label="Asset ticker"
                     aria-autocomplete="list"
                     aria-expanded={suggestOpen && suggestions.length > 0}

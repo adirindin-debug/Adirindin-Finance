@@ -9,8 +9,9 @@
  *  - Seasonality — derived from the stored S&P 500 month-end dataset
  *  - Global breadth — 17 OECD country share-price indices via FRED (monthly),
  *    with a bundled stored copy if fewer than 10 countries load
- * Base chart overlay only (never feeds the score): S&P 500 / Nasdaq / URTH daily
- * closes from Yahoo Finance's chart API — see the page note on display terms.
+ * Base chart overlays (S&P 500 / Nasdaq / URTH) removed: they came from Yahoo Finance
+ * and have no free source licensed for public display.
+ * Seasonality: stored S&P 500 month-ends originally from Yahoo Finance — flagged for review.
  * A failed source is reported and dropped, never invented. Educational only.
  */
 
@@ -40,9 +41,6 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const FRED_UA =
   "Mozilla/5.0 (compatible; AdirindinFinance/1.0; educational; +https://adirindinfinance.com)";
-/** Overlay history start. */
-const EQ_FROM = Date.UTC(2004, 0, 1) / 1000;
-const URTH_FROM = 1325376000;
 /** First date the score is shown (5 years of OFR history before it for ranking). */
 const DISPLAY_FROM = "2005-01-03";
 /** Daily rows for the last ~10 years; weekly (Fridays) before that to keep the payload small. */
@@ -55,92 +53,9 @@ const SPX_MONTHS = ((seasonSnapshot as unknown as { spx?: { months?: MonthClose[
 let lastGood: { at: number; body: MsPayload } | null = null;
 const MEMO_MS = 30 * 60 * 1000;
 
-async function fetchYahooDaily(symbol: string, minRows = 4000): Promise<Series> {
-  const errors: string[] = [];
-  for (const host of ["query1", "query2"]) {
-    try {
-      const url = `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?period1=${EQ_FROM}&period2=${Math.floor(Date.now() / 1000)}&interval=1d`;
-      const res = await fetch(url, {
-        headers: { "User-Agent": UA, Accept: "application/json" },
-        next: { revalidate: 3600 },
-        signal: AbortSignal.timeout(FETCH_MS),
-      });
-      if (!res.ok) throw new Error(`Yahoo ${host}: HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        chart?: {
-          result?: Array<{ timestamp?: number[]; indicators?: { quote?: Array<{ close?: (number | null)[] }> } }>;
-        };
-      };
-      const r = json.chart?.result?.[0];
-      const ts = r?.timestamp ?? [];
-      const close = r?.indicators?.quote?.[0]?.close ?? [];
-      const out: Series = [];
-      const seen = new Set<string>();
-      for (let i = 0; i < ts.length; i++) {
-        const v = close[i];
-        if (v == null || !Number.isFinite(v) || v <= 0) continue;
-        const d = new Date(ts[i]! * 1000).toISOString().slice(0, 10);
-        if (seen.has(d)) continue;
-        seen.add(d);
-        out.push([d, Math.round(v * 100) / 100]);
-      }
-      if (out.length < minRows) throw new Error(`Yahoo ${host}: short history (${out.length})`);
-      return out;
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : `Yahoo ${host} failed`);
-    }
-  }
-  throw new Error(errors.join("; "));
-}
 
-/** URTH adjusted close — same pattern as /api/global-equities (dividends reinvested). */
-async function fetchUrth(): Promise<Series> {
-  const errors: string[] = [];
-  for (const host of ["query1", "query2"]) {
-    try {
-      const url = `https://${host}.finance.yahoo.com/v8/finance/chart/URTH?period1=${URTH_FROM}&period2=${Math.floor(Date.now() / 1000)}&interval=1d&events=div%7Csplit`;
-      const res = await fetch(url, {
-        headers: { "User-Agent": UA, Accept: "application/json" },
-        next: { revalidate: 3600 },
-        signal: AbortSignal.timeout(FETCH_MS),
-      });
-      if (!res.ok) throw new Error(`Yahoo ${host}: HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        chart?: {
-          result?: Array<{
-            timestamp?: number[];
-            indicators?: {
-              adjclose?: Array<{ adjclose?: (number | null)[] }>;
-              quote?: Array<{ close?: (number | null)[] }>;
-            };
-          }>;
-        };
-      };
-      const r = json.chart?.result?.[0];
-      const ts = r?.timestamp ?? [];
-      const adj = r?.indicators?.adjclose?.[0]?.adjclose ?? r?.indicators?.quote?.[0]?.close ?? [];
-      const out: Series = [];
-      const seen = new Set<string>();
-      for (let i = 0; i < ts.length; i++) {
-        const v = adj[i];
-        if (v == null || !Number.isFinite(v) || v <= 0) continue;
-        const d = new Date(ts[i]! * 1000).toISOString().slice(0, 10);
-        if (seen.has(d)) continue;
-        seen.add(d);
-        out.push([d, Math.round(v * 100) / 100]);
-      }
-      if (out.length < 1000) throw new Error(`Yahoo ${host}: short history (${out.length})`);
-      return out;
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : `Yahoo ${host} failed`);
-    }
-  }
-  throw new Error(errors.join("; "));
-}
 
-const fetchSpx = () => fetchYahooDaily("^GSPC");
 /** Nasdaq Composite — base chart overlay only (never feeds the score). */
-const fetchIxic = () => fetchYahooDaily("^IXIC");
 
 /** OFR FSI daily CSV: Date, OFR FSI, Credit, Equity valuation, Safe assets, Funding, Volatility, … */
 async function fetchOfr(): Promise<OfrCols> {
@@ -269,16 +184,12 @@ export async function GET(req: Request) {
   if (lastGood && Date.now() - lastGood.at < MEMO_MS) return respond(lastGood.body, 1800, summary);
 
   const warnings: string[] = [];
-  const [ofr, nfci, stl, cfg, br, spx, ixic, urth] = await Promise.all([
+  const [ofr, nfci, stl, cfg, br] = await Promise.all([
     attempt("OFR Financial Stress Index", "ofr", fetchOfr, warnings),
     attempt("Chicago Fed NFCI (FRED)", "nfci", () => fetchFred("NFCI", 1500), warnings),
     attempt("St. Louis Fed STLFSI4 (FRED)", "stlfsi", () => fetchFred("STLFSI4", 1000), warnings),
     attempt("Crypto Fear & Greed (Alternative.me)", "cryptoFng", fetchCryptoFng, warnings),
     attempt("Global breadth (OECD via FRED)", "breadth", fetchBreadth, warnings),
-    // Base chart only — not part of the score.
-    summary ? Promise.resolve({ value: null, ok: false as const, key: "spx", label: "S&P 500" }) : attempt("S&P 500 base chart (Yahoo Finance)", "spx", fetchSpx, warnings),
-    summary ? Promise.resolve({ value: null, ok: false as const, key: "ixic", label: "Nasdaq" }) : attempt("Nasdaq Composite base chart (Yahoo Finance)", "ixic", fetchIxic, warnings),
-    summary ? Promise.resolve({ value: null, ok: false as const, key: "urth", label: "URTH" }) : attempt("URTH base chart (Yahoo Finance)", "urth", fetchUrth, warnings),
   ]);
 
   const c = computeMs({
@@ -311,13 +222,8 @@ export async function GET(req: Request) {
     return v == null ? null : Math.round(v * 10) / 10;
   }), flags[i]!, watch[i]!]);
   const keptDates = keep.map((i) => dates[i]!);
-  const overlay = summary
-    ? undefined
-    : {
-        spx: spx.value ? alignStep(keptDates, spx.value, 5) : undefined,
-        ixic: ixic.value ? alignStep(keptDates, ixic.value, 5) : undefined,
-        urth: urth.value ? alignStep(keptDates, urth.value, 5) : undefined,
-      };
+  // Base chart overlays removed (Yahoo Finance; no licensed free source).
+  const overlay = undefined;
   const curMonth = keptDates[keptDates.length - 1]?.slice(0, 7);
   const st = curMonth ? season.get(curMonth) : null;
 

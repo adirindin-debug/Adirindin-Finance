@@ -1,11 +1,10 @@
 /**
- * Historical CAGR for one Yahoo Finance ticker, for /tools/compound-interest.
- * GET /api/asset-cagr?ticker=SPY&years=10   (years = integer lookback, or "max")
+ * Historical CAGR for one crypto pair, for /tools/compound-interest.
+ * GET /api/asset-cagr?ticker=BTC-USD&years=10   (years = integer lookback, or "max")
  *
- * Uses Yahoo daily adjusted closes (dividends + splits reinvested where Yahoo provides them;
- * indices like ^GSPC are price-only) in the asset's own quote currency. Lookback is clamped to
- * the history that actually exists for the ticker. query1 → query2 fallback, short in-memory
- * cache per ticker, soft-fails with ok:false.
+ * Coinbase Exchange daily closes (public market data, from mid 2015). Shares, ETFs and
+ * indices are not supported: Yahoo Finance was removed and there is no free licensed
+ * source. Lookback is clamped to the history that exists. Soft-fails with ok:false.
  * Educational — illustrative only, NFA.
  */
 
@@ -21,82 +20,66 @@ const UA =
 const FETCH_MS = 12_000;
 const CACHE_MS = 60 * 60 * 1000;
 const MIN_YEARS = 1;
-/** 1 Jan 1900 — Yahoo returns from the first real bar (e.g. ^GSPC 1927); period1=0 would cut at 1970. */
-const EARLIEST = -2208988800;
+/** Coinbase Exchange daily history starts mid-2015 (BTC-USD). */
+const EARLIEST_CB = Math.floor(Date.UTC(2015, 0, 1) / 1000);
 
 type Series = { points: PricePoint[]; currency: string | null; name: string | null; fetchedAt: number };
 const cache = new Map<string, Series>();
 
-function pickClose(
-  close: (number | null | undefined)[] | undefined,
-  adj: (number | null | undefined)[] | undefined,
-  i: number,
-): number | null {
-  const a = adj?.[i];
-  if (a != null && Number.isFinite(a) && a > 0) return a;
-  const c = close?.[i];
-  if (c != null && Number.isFinite(c) && c > 0) return c;
-  return null;
+
+/** Crypto pair like BTC-USD / ETH-AUD, else null (shares / ETFs have no licensed free source). */
+function coinbaseProduct(ticker: string): string | null {
+  const m = /^([A-Z0-9]{2,10})-(USD|AUD)$/.exec(ticker);
+  return m ? `${m[1]}-${m[2]}` : null;
 }
 
+/** Coinbase Exchange daily candles, chunked (max ~300 per call), oldest first. */
 async function fetchHistory(symbol: string): Promise<Series> {
   const hit = cache.get(symbol);
   if (hit && Date.now() - hit.fetchedAt < CACHE_MS) return hit;
-
-  const errors: string[] = [];
-  const period2 = Math.floor(Date.now() / 1000);
-  for (const host of ["query1", "query2"]) {
-    try {
+  const product = coinbaseProduct(symbol);
+  if (!product) {
+    throw new Error(
+      `No free licensed price history for ${symbol}. Only crypto pairs (e.g. BTC-USD) are supported; enter your own rate for shares and ETFs.`,
+    );
+  }
+  try {
+    const DAY = 86400;
+    const CHUNK = 290 * DAY;
+    const end = Math.floor(Date.now() / 1000);
+    const byT = new Map<number, number>();
+    let emptyRuns = 0;
+    for (let stop = end; stop > EARLIEST_CB && emptyRuns < 2; stop -= CHUNK) {
+      const start = Math.max(EARLIEST_CB, stop - CHUNK);
       const url =
-        `https://${host}.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
-        `?period1=${EARLIEST}&period2=${period2}&interval=1d&events=history&includeAdjustedClose=true`;
+        `https://api.exchange.coinbase.com/products/${product}/candles?granularity=86400` +
+        `&start=${new Date(start * 1000).toISOString()}&end=${new Date(stop * 1000).toISOString()}`;
       const res = await fetch(url, {
         headers: { "User-Agent": UA, Accept: "application/json" },
-        cache: "no-store", // full histories can exceed the 2 MB data-cache limit; cached in memory instead
+        cache: "no-store",
         signal: AbortSignal.timeout(FETCH_MS),
       });
-      if (!res.ok) throw new Error(`Yahoo ${host}: HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        chart?: {
-          result?: Array<{
-            meta?: { currency?: string; longName?: string; shortName?: string };
-            timestamp?: number[];
-            indicators?: {
-              quote?: Array<{ close?: (number | null)[] }>;
-              adjclose?: Array<{ adjclose?: (number | null)[] }>;
-            };
-          }>;
-          error?: { description?: string } | null;
-        };
-      };
-      const r = json.chart?.result?.[0];
-      if (!r?.timestamp?.length) throw new Error(json.chart?.error?.description || `No data for ${symbol}`);
-      const close = r.indicators?.quote?.[0]?.close;
-      const adj = r.indicators?.adjclose?.[0]?.adjclose;
-      const points: PricePoint[] = [];
-      for (let i = 0; i < r.timestamp.length; i++) {
-        const c = pickClose(close, adj, i);
-        if (c == null) continue;
-        points.push({ t: r.timestamp[i]!, c });
+      if (res.status === 404) throw new Error(`${symbol} is not listed on Coinbase Exchange`);
+      if (!res.ok) throw new Error(`Coinbase ${product}: HTTP ${res.status}`);
+      const rows = (await res.json()) as Array<[number, number, number, number, number, number]>;
+      if (!Array.isArray(rows) || !rows.length) {
+        emptyRuns++;
+        continue;
       }
-      points.sort((a, b) => a.t - b.t);
-      if (points.length < 2) throw new Error(`Not enough price history for ${symbol}`);
-      const series: Series = {
-        points,
-        currency: r.meta?.currency ?? null,
-        name: r.meta?.longName ?? r.meta?.shortName ?? null,
-        fetchedAt: Date.now(),
-      };
-      cache.set(symbol, series);
-      if (cache.size > 200) cache.delete(cache.keys().next().value as string);
-      return series;
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : `Yahoo ${host} failed`);
+      emptyRuns = 0;
+      for (const r of rows) if (Number.isFinite(r[4]) && r[4] > 0) byT.set(r[0], r[4]);
+      await new Promise((r) => setTimeout(r, 120));
     }
+    const points: PricePoint[] = [...byT.entries()].sort((a, b) => a[0] - b[0]).map(([t, c]) => ({ t, c }));
+    if (points.length < 2) throw new Error(`Not enough price history for ${symbol}`);
+    const series: Series = { points, currency: product.endsWith("-AUD") ? "AUD" : "USD", name: product, fetchedAt: Date.now() };
+    cache.set(symbol, series);
+    if (cache.size > 200) cache.delete(cache.keys().next().value as string);
+    return series;
+  } catch (e) {
+    if (hit) return hit;
+    throw e;
   }
-  // Serve stale on failure rather than nothing.
-  if (hit) return hit;
-  throw new Error(errors.join("; "));
 }
 
 const isoDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10);
@@ -144,7 +127,7 @@ export async function GET(req: NextRequest) {
         clamped: out.clamped,
         firstAvailableDate: isoDay(first.t),
         availableYears: out.availableYears,
-        source: "Yahoo Finance daily adjusted close (delayed, third-party)",
+        source: "Coinbase Exchange daily closes (UTC)",
         asOf: new Date().toISOString(),
       },
       { headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=21600" } },

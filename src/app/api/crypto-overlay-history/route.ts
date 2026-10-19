@@ -1,8 +1,8 @@
 /**
  * ETH / SOL overlay history for the BTC cycle map.
  * Query: ?symbol=ETH|SOL (also accepts ETH-USD / SOL-USD).
- * Yahoo chart primary; Kraken early splice for ETH (~2015-08 before
- * Yahoo ETH-USD ~2017-11); Coinbase / Kraken fallbacks. Returns
+ * Coinbase Exchange daily candles primary; Kraken weekly splice for ETH
+ * before Coinbase history (~2016); Kraken fallback. Returns
  * weekly + daily close pairs like /api/mstr-history.
  */
 
@@ -21,10 +21,9 @@ type SymbolKey = "ETH" | "SOL";
 type SymbolCfg = {
   key: SymbolKey;
   name: string;
-  yahoo: string;
   coinbase: string;
   kraken: string;
-  /** Prefer Kraken weekly splice before this ISO date when Yahoo starts later. */
+  /** Splice Kraken weekly closes before Coinbase history starts. */
   earlySplice?: boolean;
 };
 
@@ -32,7 +31,6 @@ const SYMBOLS: Record<SymbolKey, SymbolCfg> = {
   ETH: {
     key: "ETH",
     name: "Ethereum",
-    yahoo: "ETH-USD",
     coinbase: "ETH-USD",
     kraken: "ETHUSD",
     earlySplice: true,
@@ -40,7 +38,6 @@ const SYMBOLS: Record<SymbolKey, SymbolCfg> = {
   SOL: {
     key: "SOL",
     name: "Solana",
-    yahoo: "SOL-USD",
     coinbase: "SOL-USD",
     kraken: "SOLUSD",
   },
@@ -97,67 +94,6 @@ function pickClose(
   return null;
 }
 
-async function yahoo(
-  ticker: string,
-  interval: "1d" | "1wk",
-): Promise<{ rows: Pair[]; last: number | null }> {
-  const period2 = Math.floor(Date.now() / 1000);
-  const bases = [
-    "https://query1.finance.yahoo.com/v8/finance/chart/",
-    "https://query2.finance.yahoo.com/v8/finance/chart/",
-  ];
-  let lastErr: Error | null = null;
-  for (const base of bases) {
-    const url =
-      `${base}${ticker}?period1=0&period2=${period2}&interval=${interval}` +
-      `&events=div%2Csplit&includeAdjustedClose=true`;
-    try {
-      const json = (await fetchJson(url)) as {
-        chart?: {
-          result?: Array<{
-            timestamp?: number[];
-            meta?: { regularMarketPrice?: number };
-            indicators?: {
-              quote?: Array<{ close?: (number | null)[] }>;
-              adjclose?: Array<{ adjclose?: (number | null)[] }>;
-            };
-          }>;
-        };
-      };
-      const result = json.chart?.result?.[0];
-      if (!result?.timestamp?.length) {
-        lastErr = new Error(`Yahoo ${ticker} ${interval}: no data`);
-        continue;
-      }
-      const quote = result.indicators?.quote?.[0]?.close ?? [];
-      const adj = result.indicators?.adjclose?.[0]?.adjclose ?? [];
-      const rows: Pair[] = [];
-      for (let i = 0; i < result.timestamp.length; i++) {
-        const c = pickClose(quote, adj, i);
-        if (c == null) continue;
-        rows.push([
-          isoDate(result.timestamp[i]!),
-          Math.round(c * 100) / 100,
-        ]);
-      }
-      if (rows.length < 20) {
-        lastErr = new Error(
-          `Yahoo ${ticker} ${interval}: too short (${rows.length})`,
-        );
-        continue;
-      }
-      const spot = result.meta?.regularMarketPrice;
-      const last =
-        spot != null && Number.isFinite(spot) && spot > 0
-          ? Math.round(spot * 100) / 100
-          : rows[rows.length - 1]![1];
-      return { rows, last };
-    } catch (e) {
-      lastErr = e instanceof Error ? e : new Error(String(e));
-    }
-  }
-  throw lastErr ?? new Error(`Yahoo ${ticker} ${interval} unavailable`);
-}
 
 async function krakenOhlc(
   pair: string,
@@ -257,7 +193,7 @@ async function coinbaseDaily(product: string): Promise<Pair[]> {
 }
 
 function dailyToWeekly(daily: Pair[]): Pair[] {
-  // Group by ISO week (Thu-based like Yahoo weekly stamps); keep last close.
+  // Group by ISO week (Thu-based weekly stamps); keep last close.
   const byWeek = new Map<string, Pair>();
   for (const [date, c] of daily) {
     const d = new Date(date + "T00:00:00Z");
@@ -321,81 +257,45 @@ export async function GET(req: Request) {
   let weekly: Pair[] = [];
   let daily: Pair[] = [];
   let last: number | null = null;
-  let source = "Yahoo Finance";
+  let source = "Coinbase";
 
+  // Coinbase Exchange daily candles primary (public market data).
   try {
-    const [w, d] = await Promise.all([
-      yahoo(cfg.yahoo, "1wk"),
-      yahoo(cfg.yahoo, "1d"),
-    ]);
-    weekly = w.rows;
-    daily = d.rows;
-    last = d.last ?? w.last;
-    source = "Yahoo Finance";
+    const cb = await coinbaseDaily(cfg.coinbase);
+    daily = cb;
+    weekly = dailyToWeekly(cb);
+    last = daily.length ? daily[daily.length - 1]![1] : null;
   } catch (e) {
-    errors.push(e instanceof Error ? e.message : "Yahoo failed");
+    errors.push(e instanceof Error ? e.message : "Coinbase failed");
   }
 
-  // ETH: splice Kraken weekly (and daily if needed) before Yahoo ~2017-11.
-  if (cfg.earlySplice) {
+  // ETH: splice Kraken weekly before Coinbase history starts.
+  if (cfg.earlySplice && weekly.length) {
     try {
       const kWeek = await krakenOhlc(cfg.kraken, 10080);
-      if (weekly.length) {
-        const yahooStart = weekly[0]![0];
-        weekly = spliceEarly(kWeek, weekly);
-        if (kWeek[0] && kWeek[0][0] < yahooStart) {
-          source = "Kraken early · Yahoo history";
-        }
-      } else {
-        weekly = kWeek;
-        source = "Kraken";
-      }
-      // Extend daily with Coinbase early if Yahoo daily starts late.
-      if (daily.length && daily[0]![0] > "2016-06-01") {
-        try {
-          const cb = await coinbaseDaily(cfg.coinbase);
-          const yahooDailyStart = daily[0]![0];
-          daily = spliceEarly(cb, daily);
-          if (cb[0] && cb[0][0] < yahooDailyStart) {
-            if (source.startsWith("Kraken early")) {
-              source = "Kraken early · Coinbase · Yahoo";
-            } else if (source === "Yahoo Finance") {
-              source = "Coinbase early · Yahoo history";
-            }
-          }
-        } catch (e2) {
-          errors.push(e2 instanceof Error ? e2.message : "Coinbase early failed");
-        }
-      }
+      const cbStart = weekly[0]![0];
+      weekly = spliceEarly(kWeek, weekly);
+      if (kWeek[0] && kWeek[0][0] < cbStart) source = "Kraken early · Coinbase";
     } catch (e) {
       errors.push(e instanceof Error ? e.message : "Kraken early failed");
     }
   }
 
-  // Full fallbacks if Yahoo produced nothing.
+  // Kraken fallback if Coinbase produced nothing.
   if (!weekly.length && !daily.length) {
     try {
-      const cb = await coinbaseDaily(cfg.coinbase);
-      daily = cb;
-      weekly = dailyToWeekly(cb);
-      last = daily.length ? daily[daily.length - 1]![1] : null;
-      source = "Coinbase";
-    } catch (e) {
-      errors.push(e instanceof Error ? e.message : "Coinbase failed");
-      try {
-        const [kw, kd] = await Promise.all([
-          krakenOhlc(cfg.kraken, 10080),
-          krakenOhlc(cfg.kraken, 1440),
-        ]);
-        weekly = kw;
-        daily = kd;
-        last = daily.length
-          ? daily[daily.length - 1]![1]
-          : weekly.at(-1)?.[1] ?? null;
-        source = "Kraken";
-      } catch (e2) {
-        errors.push(e2 instanceof Error ? e2.message : "Kraken failed");
-      }
+      const [kw, kd] = await Promise.all([
+        krakenOhlc(cfg.kraken, 10080),
+        krakenOhlc(cfg.kraken, 1440),
+      ]);
+      weekly = kw;
+      daily = kd;
+      last = daily.length
+        ? daily[daily.length - 1]![1]
+        : weekly.at(-1)?.[1] ?? null;
+      source = "Kraken";
+    } catch (e2) {
+      errors.push(e2 instanceof Error ? e2.message : "Kraken failed");
     }
   } else if (!weekly.length && daily.length) {
     weekly = dailyToWeekly(daily);
@@ -436,7 +336,7 @@ export async function GET(req: Request) {
     source,
     from,
     to,
-    note: `${cfg.name} (${cfg.yahoo}) closes for optional cycle-map overlay.`,
+    note: `${cfg.name} (${cfg.coinbase}) closes for optional cycle-map overlay.`,
     errors: errors.length ? errors : undefined,
   };
   lastGood.set(sym, payload);

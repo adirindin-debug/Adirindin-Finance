@@ -56,7 +56,7 @@ export default function ToolsHubPage() {
         <Link href="/cycles" className="text-accent hover:underline">
           Market cycles
         </Link>
-        . , not a recommendation, and not a
+        . Educational only, not a recommendation, and not a
         promise of returns. Anthony / Adirindin (@Dirindin533).
       </p>
       <MobileTilesCaption />

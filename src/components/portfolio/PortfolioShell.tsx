@@ -78,7 +78,7 @@ export function PortfolioShell({ seed }: Props) {
   const [returnsVsCost, setReturnsVsCost] = useState(true);
   /** Display-only value denomination (bookkeeping stays AUD). Default USD unless saved. */
   const [displayCurrency, setDisplayCurrency] = useState<PortfolioDisplayCurrency>("USD");
-  /** When the last live AUDUSD (Yahoo) arrived — for the FX note. */
+  /** When the last AUDUSD (FRED DEXUSAL) arrived — for the FX note. */
   const [audUsdAt, setAudUsdAt] = useState<number | null>(null);
   /** ECB (Frankfurter) display FX, units per 1 AUD. */
   const [fx, setFx] = useState<FxRatesPayload | null>(null);
@@ -435,13 +435,13 @@ export function PortfolioShell({ seed }: Props) {
     hasHoldings || (portfolio.availableCashAud != null && portfolio.availableCashAud > 0);
 
   /**
-   * Units of the display currency per 1 AUD. USD keeps the live Yahoo AUDUSD the
+   * Units of the display currency per 1 AUD. USD keeps the FRED DEXUSAL AUDUSD the
    * page already uses for quotes (falls back to ECB); other fiat use ECB rates;
    * BTC = (USD per AUD) ÷ BTC/USD. Null when unknown — never an invented rate.
    */
-  const yahooUsdPerAud = audPerUsd != null && audPerUsd > 0 ? 1 / audPerUsd : null;
-  const usdPerAud = yahooUsdPerAud ?? fx?.rates.USD ?? null;
-  const usdLeg = yahooUsdPerAud != null ? "Yahoo AUDUSD" : fx ? fx.sourceLabel : null;
+  const fredUsdPerAud = audPerUsd != null && audPerUsd > 0 ? 1 / audPerUsd : null;
+  const usdPerAud = fredUsdPerAud ?? fx?.rates.USD ?? null;
+  const usdLeg = fredUsdPerAud != null ? "FRED DEXUSAL" : fx ? fx.sourceLabel : null;
   const displayPerAud: number | null = (() => {
     if (displayCurrency === "AUD") return 1;
     if (displayCurrency === "USD") return usdPerAud;
@@ -454,9 +454,9 @@ export function PortfolioShell({ seed }: Props) {
   const fxUnavailableHint = !fxOk ? "FX unavailable — showing A$" : null;
   const fxNote: FxNote | null = (() => {
     if (!fxOk || effectiveDisplay === "AUD") return null;
-    if (effectiveDisplay === "USD" && yahooUsdPerAud != null) {
+    if (effectiveDisplay === "USD" && fredUsdPerAud != null) {
       return {
-        source: "Yahoo Finance AUDUSD (may be delayed)",
+        source: "FRED DEXUSAL, Federal Reserve H.10 (lags a few days)",
         asOf: audUsdAt ? fmtTime(audUsdAt) : "live",
       };
     }
@@ -501,7 +501,7 @@ export function PortfolioShell({ seed }: Props) {
         onAdd={openAdd}
       />
       <p className="mt-2 text-[11px] leading-relaxed text-muted">
-        My personal holdings, shown for transparency. Not a recommendation. Past performance is not a reliable indicator of future performance.
+        Your holdings, stored on your device. Not a recommendation. Past performance is not a reliable indicator of future performance.
       </p>
       <PerformanceChart
         portfolio={portfolio}
@@ -534,8 +534,9 @@ export function PortfolioShell({ seed }: Props) {
 
 
       <p className="mt-10 text-center text-[11px] leading-relaxed text-zinc-600">
-        Educational tracker only. Security quotes
-        and AUD FX via Yahoo Finance (may be delayed). Spot-crypto logos via{" "}
+        Educational tracker only. Crypto prices via Coinbase Exchange; AUD/USD via FRED
+        (DEXUSAL, Federal Reserve H.10, lags a few days). Shares and ETFs have no live price:
+        there is no free source licensed for public display. Spot-crypto logos via{" "}
         <a
           href="https://www.coingecko.com"
           target="_blank"

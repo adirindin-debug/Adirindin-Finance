@@ -14,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { fetchLicensedDaily } from "@/lib/licensedDaily";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,11 +37,11 @@ type HoldingIn = {
   estimatedValueCurrency?: string;
 };
 
-const BENCHMARKS = [
-  { id: "ndx", label: "Nasdaq 100", yahoo: "^NDX" },
-  { id: "spx", label: "S&P 500", yahoo: "^GSPC" },
-  { id: "aord", label: "All Ords", yahoo: "^AORD" },
-] as const;
+/**
+ * Index benchmarks (Nasdaq 100, S&P 500, All Ords) removed: they came from Yahoo Finance
+ * and have no free source licensed for public display.
+ */
+const BENCHMARKS: ReadonlyArray<{ id: string; label: string; symbol: string }> = [];
 
 const VALID_TF = new Set<string>([
   "1D",
@@ -85,56 +86,7 @@ function dayKey(t: number): number {
   return Math.floor(t / 86400) * 86400;
 }
 
-function pickClose(
-  quoteClose: (number | null | undefined)[] | undefined,
-  adjClose: (number | null | undefined)[] | undefined,
-  i: number,
-): number | null {
-  const adj = adjClose?.[i];
-  if (adj != null && Number.isFinite(adj) && adj > 0) return adj;
-  const c = quoteClose?.[i];
-  if (c != null && Number.isFinite(c) && c > 0) return c;
-  return null;
-}
 
-async function fetchYahooDaily(symbol: string, period1: number): Promise<ClosePoint[]> {
-  const period2 = Math.floor(Date.now() / 1000);
-  const p1 = Math.max(0, Math.floor(period1));
-  const url =
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
-    `?period1=${p1}&period2=${period2}&interval=1d&events=history&includeAdjustedClose=true`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "application/json" },
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error(`Yahoo ${symbol}: HTTP ${res.status}`);
-  const json = (await res.json()) as {
-    chart?: {
-      result?: Array<{
-        timestamp?: number[];
-        meta?: { currency?: string };
-        indicators?: {
-          quote?: Array<{ close?: (number | null)[] }>;
-          adjclose?: Array<{ adjclose?: (number | null)[] }>;
-        };
-      }>;
-      error?: { description?: string };
-    };
-  };
-  const result = json.chart?.result?.[0];
-  if (!result?.timestamp?.length) {
-    throw new Error(json.chart?.error?.description || `No data for ${symbol}`);
-  }
-  const closes = result.indicators?.quote?.[0]?.close;
-  const adj = result.indicators?.adjclose?.[0]?.adjclose;
-  const out: ClosePoint[] = [];
-  for (let i = 0; i < result.timestamp.length; i++) {
-    const c = pickClose(closes, adj, i);
-    if (c == null) continue;
-    out.push({ t: result.timestamp[i], c });
-  }
-  return out;
-}
 
 function forwardFillMap(points: ClosePoint[]): Map<number, number> {
   const map = new Map<number, number>();
@@ -208,7 +160,7 @@ export async function GET(req: NextRequest) {
     const symbols = [
       ...securityTickers,
       "AUDUSD=X",
-      ...BENCHMARKS.map((b) => b.yahoo),
+      ...BENCHMARKS.map((b) => b.symbol),
     ];
 
     const priceMaps = new Map<string, Map<number, number>>();
@@ -217,7 +169,7 @@ export async function GET(req: NextRequest) {
     await Promise.all(
       symbols.map(async (sym) => {
         try {
-          const pts = await fetchYahooDaily(sym, fetchFrom);
+          const pts = await fetchLicensedDaily(sym, fetchFrom);
           priceMaps.set(sym.toUpperCase(), forwardFillMap(pts));
         } catch (e) {
           errors[sym] = e instanceof Error ? e.message : "fetch failed";
@@ -351,7 +303,7 @@ export async function GET(req: NextRequest) {
     }
 
     for (const b of BENCHMARKS) {
-      const map = priceMaps.get(b.yahoo.toUpperCase());
+      const map = priceMaps.get(b.symbol.toUpperCase());
       if (!map) continue;
       const vals: { t: number; v: number }[] = [];
       for (const day of days) {

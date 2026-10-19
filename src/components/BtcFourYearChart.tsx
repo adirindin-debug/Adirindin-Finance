@@ -17,7 +17,7 @@ import {
   type ChartTimeframeKey,
 } from "@/lib/chartTimeframes";
 
-type SeriesId = "btc" | "ndx" | "spx" | "aord" | "msci" | "case" | "auhouses" | "m2";
+type SeriesId = "btc" | "case" | "auhouses" | "m2";
 type WindowKey = ChartTimeframeKey;
 type ChartMode = "line" | "bar";
 
@@ -63,10 +63,6 @@ const SERIES_STYLE: Record<
   { color: string; short: string; chip: string; hint?: string }
 > = {
   btc: { color: "#f7931a", short: "BTC", chip: "BTC" },
-  spx: { color: "#3dcc9a", short: "SPX", chip: "S&P 500" },
-  ndx: { color: "#4c9fff", short: "NDX", chip: "Nasdaq 100" },
-  aord: { color: "#e8873a", short: "AORD", chip: "All Ords" },
-  msci: { color: "#a78bfa", short: "WORLD", chip: "MSCI World" },
   case: { color: "#f472b6", short: "FHFA", chip: "US real estate" },
   auhouses: { color: "#38bdf8", short: "AU", chip: "AU real estate" },
   m2: {
@@ -80,10 +76,6 @@ const SERIES_STYLE: Record<
 /** Default-on series on first load (all chips on when unset). */
 const ALL_SERIES_IDS: SeriesId[] = [
   "btc",
-  "spx",
-  "ndx",
-  "aord",
-  "msci",
   "case",
   "auhouses",
   "m2",
@@ -818,7 +810,7 @@ export function BtcFourYearChart() {
           <div className="flex min-h-[320px] flex-col items-center justify-center gap-2 px-4 py-10 text-center">
             <p className="text-sm text-muted">{copy.loading}</p>
             <p className="text-xs text-muted/70">
-              BTC · S&amp;P 500 · US real estate · equities · MSCI World · AU real estate · US M2
+              BTC · US real estate · AU real estate · US M2
             </p>
           </div>
         )}
@@ -1198,7 +1190,7 @@ export function BtcFourYearChart() {
         price levels.{" "}
         <strong className="font-medium text-muted">Shared % scale:</strong>{" "}
         selected series share one Y-axis so relative paths are comparable
-        (equities and housing may look flatter on long windows — that is the
+        (housing may look flatter on long windows — that is the
         compare).{" "}
         {windowKey === "all" ? (
           <>
@@ -1215,16 +1207,14 @@ export function BtcFourYearChart() {
           </>
         )}
         <strong className="font-medium text-muted">Series toggles:</strong> click
-        chips to show or hide lines and bars (defaults: S&amp;P 500, BTC, US
-        real estate).{" "}
+        chips to show or hide lines and bars (all on by default).{" "}
         <strong className="font-medium text-muted">US M2</strong> is relative %
         change from the window start, not the raw money-stock level.{" "}
         <strong className="font-medium text-muted">Bar mode:</strong> latest %
         for the selected window as grouped bars (same end value as the line).
         BTC: Coinbase Exchange BTC-USD daily closes (Blockchain.com before mid-2015).
-        Nasdaq 100, S&amp;P 500, All Ordinaries and MSCI World: Yahoo Finance delayed chart feed
-        (^NDX, ^GSPC, ^AORD, ^990100-USD-STRD) — no free public equivalent; index names are
-        trademarks of their owners (MSCI®, S&amp;P®, ASX®), no endorsement implied. FRED®, Federal
+        Equity indices (S&amp;P 500, Nasdaq 100, All Ordinaries, MSCI World) are not shown:
+        no free source licensed for public display. FRED®, Federal
         Reserve Bank of St. Louis: USSTHPI (FHFA All-Transactions House Price Index), QAUN628BIS
         (BIS AU residential property prices), M2SL (US M2). Monthly/quarterly series are
         step-forward-filled to the shared axis. A &ldquo;stored copy&rdquo; tag means the live

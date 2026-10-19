@@ -22,7 +22,7 @@ export default function ContactPage() {
         >
           @Dirindin533
         </a>{" "}
-        when the site is live or whenever you have a question about the research desk.
+        whenever you have a question about the research desk.
       </p>
       <p className="mt-6">
         <a

@@ -412,7 +412,7 @@ export function PerformanceChart({
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4">
             <p className="rounded-lg bg-black/70 px-4 py-2 text-center text-sm text-zinc-400">
               {showEmptyOverlay
-                ? "Add holdings to see performance vs Nasdaq 100, S&P 500, and All Ords"
+                ? "Add holdings to see performance over time"
                 : showLoadingOverlay
                   ? "Loading history…"
                   : error}
@@ -445,8 +445,8 @@ export function PerformanceChart({
         <p className="mt-2 text-[10px] leading-relaxed text-zinc-600">
           Cumulative % from window start (1D / 1W / 1M / YTD / 1Y / 3Y / 4Y / 5Y / 10Y / 20Y / ALL; synced with
           homepage compare). Missing acquiredAt ⇒ held for full window from earliest price. Shorter
-          series degrade gracefully. Collectables = flat estimate · cash = flat A$. Quotes via Yahoo
-          Finance (delayed third-party feed).
+          series degrade gracefully. Collectables = flat estimate · cash = flat A$. Crypto history via
+          Coinbase Exchange; shares and ETFs have no licensed free price history.
         </p>
       )}
     </section>

@@ -367,7 +367,7 @@ export function Btc200wMaPanel() {
           <p className="mt-1 max-w-xl text-sm text-muted">
             Weekly Bitcoin USD close versus its 200-week simple moving average —
             a long-cycle reference often watched in crypto. Early years may use
-            a stitched composite USD average before Yahoo BTC-USD. Educational
+            a stitched composite USD average before Coinbase BTC-USD. Educational
             only.
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted">
@@ -609,8 +609,8 @@ export function Btc200wMaPanel() {
             <>
               {" "}
               Pre-{data.stitchSeamDate ?? "2014"} weeks from Blockchain.com
-              Charts market-price (composite average USD, not Yahoo BTC-USD);
-              from the seam onward Yahoo/Coinbase wins on overlap.
+              Charts market-price (composite average USD, not Coinbase BTC-USD);
+              from the seam onward Coinbase wins on overlap.
             </>
           ) : null}
         </p>

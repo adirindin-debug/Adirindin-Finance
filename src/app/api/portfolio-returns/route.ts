@@ -8,6 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { fetchLicensedDaily } from "@/lib/licensedDaily";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -87,55 +88,7 @@ function targetStartSec(tf: Tf, nowSec: number): number {
   return nowSec - Math.round(365.25 * 86400);
 }
 
-function pickClose(
-  quoteClose: (number | null | undefined)[] | undefined,
-  adjClose: (number | null | undefined)[] | undefined,
-  i: number,
-): number | null {
-  const adj = adjClose?.[i];
-  if (adj != null && Number.isFinite(adj) && adj > 0) return adj;
-  const c = quoteClose?.[i];
-  if (c != null && Number.isFinite(c) && c > 0) return c;
-  return null;
-}
 
-async function fetchYahooDaily(symbol: string, period1: number): Promise<ClosePoint[]> {
-  const period2 = Math.floor(Date.now() / 1000);
-  const p1 = Math.max(0, Math.floor(period1));
-  const url =
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}` +
-    `?period1=${p1}&period2=${period2}&interval=1d&events=history&includeAdjustedClose=true`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": UA, Accept: "application/json" },
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error(`Yahoo ${symbol}: HTTP ${res.status}`);
-  const json = (await res.json()) as {
-    chart?: {
-      result?: Array<{
-        timestamp?: number[];
-        indicators?: {
-          quote?: Array<{ close?: (number | null)[] }>;
-          adjclose?: Array<{ adjclose?: (number | null)[] }>;
-        };
-      }>;
-      error?: { description?: string };
-    };
-  };
-  const result = json.chart?.result?.[0];
-  if (!result?.timestamp?.length) {
-    throw new Error(json.chart?.error?.description || `No data for ${symbol}`);
-  }
-  const closes = result.indicators?.quote?.[0]?.close;
-  const adj = result.indicators?.adjclose?.[0]?.adjclose;
-  const out: ClosePoint[] = [];
-  for (let i = 0; i < result.timestamp.length; i++) {
-    const c = pickClose(closes, adj, i);
-    if (c == null) continue;
-    out.push({ t: result.timestamp[i], c });
-  }
-  return out.sort((a, b) => a.t - b.t);
-}
 
 /** Closest point at or before target; fallback to earliest after if none before. */
 function priceAtOrBefore(points: ClosePoint[], targetSec: number): ClosePoint | null {
@@ -273,7 +226,7 @@ export async function GET(req: NextRequest) {
     await Promise.all(
       [...tickers, "AUDUSD=X"].map(async (sym) => {
         try {
-          const pts = await fetchYahooDaily(sym, fetchFrom);
+          const pts = await fetchLicensedDaily(sym, fetchFrom);
           priceMap.set(sym.toUpperCase(), pts);
         } catch (e) {
           errors[sym] = e instanceof Error ? e.message : "fetch failed";
@@ -325,7 +278,7 @@ export async function GET(req: NextRequest) {
       asOf: new Date().toISOString(),
       returns,
       errors: Object.keys(errors).length ? errors : undefined,
-      note: "AUD unit prices from Yahoo daily history. Period return = end/start − 1.",
+      note: "AUD unit prices from Coinbase Exchange daily closes (crypto) and FRED DEXUSAL (FX); shares and ETFs have no licensed free source. Period return = end/start − 1.",
     });
   } catch (e) {
     return NextResponse.json(

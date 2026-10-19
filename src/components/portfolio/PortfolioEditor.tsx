@@ -103,7 +103,7 @@ export function PortfolioEditor({
     setActiveSuggest(-1);
   }, [open, editing, portfolio.name, portfolio.availableCashAud]);
 
-  // Debounced Yahoo ticker / name search for securities
+  // Debounced ticker search (Coinbase crypto pairs) for securities
   useEffect(() => {
     if (!open || kind !== "security" || editing) {
       setSuggestions([]);
@@ -709,7 +709,7 @@ export function PortfolioEditor({
             </div>
             <p className="text-[11px] leading-relaxed text-zinc-600">
               Data stays in this browser (localStorage). Securities: cost in AUD or USD (converted
-              may be delayed). Collectables: estimated value, no Yahoo ticker. Portfolio displayed in A$.
+              at FRED's AUD/USD rate, which lags a few days). Collectables: estimated value, no ticker. Portfolio displayed in A$.
             </p>
           </div>
         )}
