@@ -66,9 +66,7 @@ export const DEFAULT_PORTFOLIO: PortfolioConfig = {
 
 export const PERFORMANCE_BENCHMARKS = [
   { id: "portfolio", label: "This portfolio", color: "#4ade80" },
-  { id: "ndx", label: "Nasdaq 100", color: "#9ca3af" },
-  { id: "spx", label: "S&P 500", color: "#d1d5db" },
-  { id: "aord", label: "All Ords", color: "#6b7280" },
+  // Index benchmarks (Nasdaq 100, S&P 500, All Ords) removed: no free licensed source.
 ] as const;
 
 /** Unified with homepage compare chart (see chartTimeframes). Includes 4Y + 20Y. */
