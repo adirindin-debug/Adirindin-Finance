@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Commodity charts — gold (default), silver, copper, nickel, lithium, iron ore.
+ * Commodity charts — gold (default), silver, platinum, copper, nickel, lithium, iron ore.
  * Multi-select toggles: one metal = native units; 2+ metals = overlay with each
  * series indexed to 100 at the start of the visible window (daily + monthly
  * aligned on dates). Auto-scaled axis (log or linear), timeframe toggles,
@@ -807,7 +807,7 @@ export function CommodityChartsPanel() {
           })}
         </ul>
         <p className="mt-3 text-[11px] leading-relaxed text-muted">
-          Silver, copper, nickel, iron ore, lithium and recent gold months are IMF Primary Commodity
+          Silver, platinum, copper, nickel, iron ore, lithium and recent gold months are IMF Primary Commodity
           Prices (PCPS) — monthly averages of benchmark quotes © International Monetary Fund; copper /
           nickel / iron ore fall back to the same IMF series via FRED®
           (Federal Reserve Bank of St. Louis). Gold peg-era levels are documented official prints,

@@ -4,6 +4,7 @@
  * /api/commodities when live sources fail. Same public sources as the live
  * route (gold has its own snapshot: src/data/gold-history-snapshot.json):
  *   silver SI=F / copper HG=F (Yahoo Finance daily closes)
+ *   platinum PPLAT (IMF PCPS monthly)
  *   nickel PNICK / iron ore PIORECR / lithium PLITH (IMF PCPS monthly)
  * Usage: node scripts/build-commodities-snapshot.mjs
  */
@@ -75,6 +76,12 @@ const series = {
     sourceUrl: "https://finance.yahoo.com/quote/HG%3DF/",
     benchmark: "COMEX high-grade copper futures, continuous front month, daily close",
     points: await yahoo("HG=F"),
+  }),
+  platinum: base({
+    id: "platinum", label: "Platinum", unit: "USD/oz", frequency: "monthly",
+    source: "IMF Primary Commodity Prices (PCPS) · PPLAT", sourceUrl: IMF_URL,
+    benchmark: "Platinum, IMF PCPS benchmark price · monthly average",
+    points: await imf("PPLAT"),
   }),
   nickel: base({
     id: "nickel", label: "Nickel", unit: "USD/t", frequency: "monthly",

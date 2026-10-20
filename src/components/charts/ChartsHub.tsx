@@ -511,7 +511,7 @@ const CATEGORIES: Category[] = [
         id: "commodities",
         href: "/charts/commodities",
         title: "Commodity charts",
-        subtitle: "Gold · silver · copper · nickel · lithium · iron ore",
+        subtitle: "Gold · silver · platinum · copper · nickel · lithium · iron ore",
         endpoint: "/api/commodities?view=tile",
         parse: parseCommodities,
       },

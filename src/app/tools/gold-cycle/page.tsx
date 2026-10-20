@@ -105,7 +105,7 @@ export default function GoldCyclePage() {
           <Link href="/charts/commodities" className="text-accent hover:underline">
             Charts → Commodity charts
           </Link>{" "}
-          — gold, silver, copper, nickel, lithium and iron ore from public sources.
+          — gold, silver, platinum, copper, nickel, lithium and iron ore from public sources.
         </p>
 
         <aside

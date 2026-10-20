@@ -4,7 +4,7 @@
  * Educational
  */
 
-export type CommodityId = "gold" | "silver" | "copper" | "nickel" | "lithium" | "ironOre";
+export type CommodityId = "gold" | "silver" | "platinum" | "copper" | "nickel" | "lithium" | "ironOre";
 
 export type CommodityPoint = { t: number; c: number };
 
@@ -55,6 +55,7 @@ export type CommodityTilePayload = {
 export const COMMODITY_ORDER: CommodityId[] = [
   "gold",
   "silver",
+  "platinum",
   "copper",
   "nickel",
   "lithium",
@@ -67,6 +68,7 @@ export const COMMODITY_META: Record<
 > = {
   gold: { label: "Gold", color: "#f0c14a", defaultLog: true, decimals: 0 },
   silver: { label: "Silver", color: "#c9d1dc", defaultLog: false, decimals: 2 },
+  platinum: { label: "Platinum", color: "#7fb2e5", defaultLog: false, decimals: 0 },
   copper: { label: "Copper", color: "#e8834a", defaultLog: false, decimals: 3 },
   nickel: { label: "Nickel", color: "#5fc4a8", defaultLog: false, decimals: 0 },
   lithium: { label: "Lithium", color: "#a78bfa", defaultLog: false, decimals: 0 },

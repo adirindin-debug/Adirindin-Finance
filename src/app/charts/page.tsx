@@ -5,7 +5,7 @@ import { MobileTilesCaption } from "@/components/ui/MobileViewHint";
 export const metadata: Metadata = {
   title: "Charts",
   description:
-    "Live tiled dashboard of Fear & Greed, crypto Fear & Greed, market volume, Bitcoin 200-week MA, Wilshire 5000 / US M2, the Philly Fed manufacturing survey, a world equities drawdown state, commodity prices (gold, silver, copper, nickel, lithium, iron ore), and monthly / quarterly returns heatmaps for crypto (Bitcoin) and equities (MSCI World, S&P 500) — educational charts for Adirindin Finance.",
+    "Live tiled dashboard of Fear & Greed, crypto Fear & Greed, market volume, Bitcoin 200-week MA, Wilshire 5000 / US M2, the Philly Fed manufacturing survey, a world equities drawdown state, commodity prices (gold, silver, platinum, copper, nickel, lithium, iron ore), and monthly / quarterly returns heatmaps for crypto (Bitcoin) and equities (MSCI World, S&P 500) — educational charts for Adirindin Finance.",
 };
 
 export default function ChartsPage() {

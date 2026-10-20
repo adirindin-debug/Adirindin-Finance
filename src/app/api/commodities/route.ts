@@ -1,5 +1,5 @@
 /**
- * Commodity charts API — gold, silver, copper, nickel, lithium, iron ore.
+ * Commodity charts API — gold, silver, platinum, copper, nickel, lithium, iron ore.
  * GET /api/commodities            → full series (detail chart)
  * GET /api/commodities?view=tile  → 5-year monthly lines rebased to 100 (Charts hub tile)
  * Per-series soft-fail: live → last-good → dated snapshot.

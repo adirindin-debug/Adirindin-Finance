@@ -4,6 +4,7 @@
  * Sources (all public, attributable — never invented):
  *  - Gold:     long-run monthly USD gold (datasets/gold-prices + IMF PCPS PGOLD tail) via src/lib/goldHistory.ts
  *  - Silver:   IMF PCPS PSILVER monthly
+ *  - Platinum: IMF PCPS PPLAT monthly (USD/oz)
  *  - Copper:   IMF PCPS PCOPP monthly → FRED PCOPPUSDM fallback
  *  - Nickel:   IMF Primary Commodity Prices (PCPS) PNICK monthly → FRED PNICKUSDM fallback
  *  - Iron ore: IMF PCPS PIORECR monthly → FRED PIORECRUSDM fallback
@@ -38,6 +39,15 @@ const META: Record<Exclude<CommodityId, "gold">, SeriesMeta> = {
     source: "IMF Primary Commodity Prices (PCPS) · PSILVER",
     sourceUrl: IMF_URL,
     benchmark: "Silver, Handy & Harman 99.9% grade, New York · monthly average",
+  },
+  platinum: {
+    id: "platinum",
+    label: "Platinum",
+    unit: "USD/oz",
+    frequency: "monthly",
+    source: "IMF Primary Commodity Prices (PCPS) · PPLAT",
+    sourceUrl: IMF_URL,
+    benchmark: "Platinum, IMF PCPS benchmark price · monthly average",
   },
   copper: {
     id: "copper",
@@ -85,6 +95,7 @@ const FRED_FALLBACK: Partial<Record<CommodityId, string>> = {
 
 const IMF_CODES: Partial<Record<CommodityId, string>> = {
   silver: "PSILVER",
+  platinum: "PPLAT",
   copper: "PCOPP",
   nickel: "PNICK",
   ironOre: "PIORECR",
@@ -299,7 +310,7 @@ export async function getAllCommodities(): Promise<{
   series: Partial<Record<CommodityId, CommoditySeries>>;
   errors: string[];
 }> {
-  const ids: Exclude<CommodityId, "gold">[] = ["silver", "copper", "nickel", "lithium", "ironOre"];
+  const ids: Exclude<CommodityId, "gold">[] = ["silver", "platinum", "copper", "nickel", "lithium", "ironOre"];
   const [gold, ...rest] = await Promise.all([getGoldSeries(), ...ids.map((id) => getSeries(id))]);
   const series: Partial<Record<CommodityId, CommoditySeries>> = {};
   const errors: string[] = [];
