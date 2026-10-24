@@ -12,6 +12,8 @@
  * - msci: Yahoo ^990100-USD-STRD — MSCI World Standard (price) index level via Yahoo
  *   delayed chart feed. Daily history from ~1972-01-03. Price return only (not net total
  *   return); not an ETF. MSCI® is a trademark of MSCI Inc.
+ * - gold: monthly USD/oz — datasets/gold-prices + IMF PCPS PGOLD tail via src/lib/goldHistory.ts
+ *   (same public series as /charts/commodities). Step-forward-filled; lastObs flags lag.
  * - case: FRED USSTHPI — FHFA All-Transactions House Price Index (quarterly; US Government data)
  * - auhouses: FRED QAUN628BIS — BIS nominal Residential Property Prices for Australia
  *   (quarterly, Index 2010=100; 8 big cities). Nominal chosen to align with US real estate (FHFA)
@@ -24,6 +26,7 @@
  */
 
 import { readFileSync } from "fs";
+import { getGoldHistory } from "@/lib/goldHistory";
 import { join } from "path";
 
 export const runtime = "nodejs";
@@ -45,6 +48,7 @@ export type SeriesId =
   | "spx"
   | "aord"
   | "msci"
+  | "gold"
   | "case"
   | "auhouses"
   | "m2";
@@ -58,7 +62,7 @@ type SeriesMeta = {
   id: SeriesId;
   label: string;
   ticker: string;
-  source: "yahoo" | "fred" | "coinbase";
+  source: "yahoo" | "fred" | "coinbase" | "gold";
   yahooSymbol?: string;
   fredId?: string;
   /** Native cadence before daily forward-fill. */
@@ -105,6 +109,14 @@ const SERIES: SeriesMeta[] = [
     source: "yahoo",
     yahooSymbol: "^990100-USD-STRD",
     frequency: "daily",
+  },
+  {
+    // Monthly USD gold — same public series as /charts/commodities (datasets/gold-prices + IMF PCPS PGOLD).
+    id: "gold",
+    label: "Gold",
+    ticker: "GOLD (USD/oz, monthly)",
+    source: "gold",
+    frequency: "monthly",
   },
   {
     id: "case",
@@ -181,6 +193,7 @@ const SERIES_ORDER: SeriesId[] = [
   "ndx",
   "aord",
   "msci",
+  "gold",
   "case",
   "auhouses",
   "m2",
@@ -787,9 +800,23 @@ async function fetchBtcDailyCoinbase(): Promise<ClosePoint[]> {
   return out;
 }
 
+/** Set per request when gold loads (last monthly print, ISO date). */
+let goldLastObs: string | null = null;
+
 async function loadSeriesCloses(meta: SeriesMeta): Promise<LoadedSeries> {
   if (meta.source === "coinbase") {
     return { closes: await fetchBtcDailyCoinbase(), origin: "coinbase", usedFallback: false };
+  }
+  if (meta.source === "gold") {
+    const r = await getGoldHistory();
+    if (!r.ok) throw new Error("gold: unavailable");
+    const sparse = r.body.points.filter((p) => Number.isFinite(p.c) && p.c > 0);
+    goldLastObs = sparse.length ? isoDate(sparse[sparse.length - 1]!.t) : null;
+    return {
+      closes: expandSparseToDaily(sparse),
+      origin: r.body.snapshot ? "bundled gold snapshot" : r.body.stale ? "gold last-good copy" : "gold",
+      usedFallback: Boolean(r.body.snapshot || r.body.stale),
+    };
   }
   if (meta.source === "yahoo") {
     if (!meta.yahooSymbol) throw new Error(`${meta.id}: missing yahooSymbol`);
@@ -877,6 +904,8 @@ export async function GET(request: Request) {
     /** yahoo | fred, or fred with mirror/bundled note when live FRED timed out. */
     source: string;
     stored?: boolean;
+    /** Last real (monthly) observation date, when it lags the window end. */
+    lastObs?: string;
     shortHistory?: boolean;
     frequency: "daily" | "monthly" | "quarterly";
   }> = [];
@@ -915,6 +944,8 @@ export async function GET(request: Request) {
           ? "yahoo"
           : sMeta.source === "coinbase"
             ? "coinbase"
+          : sMeta.source === "gold"
+            ? usedDataFallback ? `gold (${origin})` : "gold"
           : usedDataFallback
             ? `fred (${origin})`
             : "fred";
@@ -929,6 +960,7 @@ export async function GET(request: Request) {
         startDate,
         source: sourceLabel,
         stored: usedDataFallback && String(originById[sMeta.id] ?? "").startsWith("bundled"),
+        ...(sMeta.id === "gold" && goldLastObs ? { lastObs: goldLastObs } : {}),
         shortHistory: usedFallbackBase,
         frequency: sMeta.frequency,
       });
@@ -971,7 +1003,7 @@ export async function GET(request: Request) {
       seriesStarts: Object.keys(seriesStarts).length ? seriesStarts : undefined,
       availableWindows: [...AVAILABLE_WINDOWS],
       source:
-        "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL); mirrors/bundled CSV if FRED times out",
+        "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL) + gold (datasets/gold-prices monthly, IMF PCPS PGOLD); mirrors/bundled CSV if FRED times out",
       seriesOrigins: Object.keys(originById).length ? originById : undefined,
       tickers: SERIES.map((s) => ({
         id: s.id,

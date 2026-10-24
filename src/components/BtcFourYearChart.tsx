@@ -17,7 +17,7 @@ import {
   type ChartTimeframeKey,
 } from "@/lib/chartTimeframes";
 
-type SeriesId = "btc" | "ndx" | "spx" | "aord" | "msci" | "case" | "auhouses" | "m2";
+type SeriesId = "btc" | "ndx" | "spx" | "aord" | "msci" | "gold" | "case" | "auhouses" | "m2";
 type WindowKey = ChartTimeframeKey;
 type ChartMode = "line" | "bar";
 
@@ -33,6 +33,8 @@ type SeriesPayload = {
   coverage?: "full" | "partial";
   source?: string;
   stored?: boolean;
+  /** Last real monthly print (ISO date) for low-frequency series like gold. */
+  lastObs?: string;
   shortHistory?: boolean;
   frequency?: "daily" | "monthly" | "quarterly";
 };
@@ -67,6 +69,7 @@ const SERIES_STYLE: Record<
   ndx: { color: "#4c9fff", short: "NDX", chip: "Nasdaq 100" },
   aord: { color: "#e8873a", short: "AORD", chip: "All Ords" },
   msci: { color: "#a78bfa", short: "WORLD", chip: "MSCI World" },
+  gold: { color: "#facc15", short: "GOLD", chip: "Gold", hint: "monthly" },
   case: { color: "#f472b6", short: "FHFA", chip: "US real estate" },
   auhouses: { color: "#38bdf8", short: "AU", chip: "AU real estate" },
   m2: {
@@ -84,6 +87,7 @@ const ALL_SERIES_IDS: SeriesId[] = [
   "ndx",
   "aord",
   "msci",
+  "gold",
   "case",
   "auhouses",
   "m2",
@@ -805,6 +809,10 @@ export function BtcFourYearChart() {
                     <span className="text-[10px] text-muted">since {start.slice(0, 4)}</span>
                   ) : s?.stored ? (
                     <span className="rounded-full border border-border/70 px-1.5 text-[10px] text-muted">stored copy</span>
+                  ) : s?.lastObs ? (
+                    <span className="text-[10px] text-muted">
+                      to {new Date(`${s.lastObs}T00:00:00Z`).toLocaleDateString("en-AU", { month: "short", year: "numeric", timeZone: "UTC" })}
+                    </span>
                   ) : null}
                 </button>
               );
@@ -1224,7 +1232,9 @@ export function BtcFourYearChart() {
         BTC: Coinbase Exchange BTC-USD daily closes (Blockchain.com before mid-2015).
         Nasdaq 100, S&amp;P 500, All Ordinaries and MSCI World: Yahoo Finance delayed chart feed
         (^NDX, ^GSPC, ^AORD, ^990100-USD-STRD) — no free public equivalent; index names are
-        trademarks of their owners (MSCI®, S&amp;P®, ASX®), no endorsement implied. FRED®, Federal
+        trademarks of their owners (MSCI®, S&amp;P®, ASX®), no endorsement implied. Gold: monthly USD/oz from datasets/gold-prices (Open Data Commons PDDL) with IMF Primary Commodity
+        Prices (PGOLD, London fix monthly average) on the tail; held flat after the latest monthly print, which
+        the &ldquo;to&nbsp;month&rdquo; tag on the chip shows. FRED®, Federal
         Reserve Bank of St. Louis: USSTHPI (FHFA All-Transactions House Price Index), QAUN628BIS
         (BIS AU residential property prices), M2SL (US M2). Monthly/quarterly series are
         step-forward-filled to the shared axis. A &ldquo;stored copy&rdquo; tag means the live
