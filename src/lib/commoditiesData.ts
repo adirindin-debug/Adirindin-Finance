@@ -16,6 +16,7 @@
 
 import snapshotJson from "@/data/commodities-snapshot.json";
 import { getGoldHistory } from "@/lib/goldHistory";
+import { extendMonthly, getGoldStitched } from "@/lib/goldDaily";
 import type { CommodityId, CommodityPoint, CommoditySeries } from "@/lib/commodities";
 
 const UA =
@@ -284,9 +285,10 @@ async function getSeries(id: Exclude<CommodityId, "gold">): Promise<{ s: Commodi
 }
 
 async function getGoldSeries(): Promise<{ s: CommoditySeries | null; err?: string }> {
-  const r = await getGoldHistory();
+  const [r, g] = await Promise.all([getGoldHistory(), getGoldStitched().catch(() => null)]);
   if (!r.ok) return { s: null, err: "gold: unavailable" };
   const b = r.body;
+  const ext = g ? extendMonthly(g) : { points: b.points, extendedFrom: null };
   return {
     s: {
       id: "gold",
@@ -296,8 +298,9 @@ async function getGoldSeries(): Promise<{ s: CommoditySeries | null; err?: strin
       source: b.source,
       sourceUrl: b.sourceUrl ?? "https://github.com/datasets/gold-prices",
       benchmark:
-        "Long-run USD gold · datasets/gold-prices monthly (official / historical prints in the peg era) with IMF Primary Commodity Prices (PGOLD, London fix monthly average) on the tail",
-      points: b.points,
+        "Long-run USD gold · datasets/gold-prices monthly (official / historical prints in the peg era) with IMF Primary Commodity Prices (PGOLD, London fix monthly average) on the tail" +
+        (ext.extendedFrom ? `; from ${ext.extendedFrom} monthly averages of PAX Gold (PAXG-USD, Coinbase Exchange, scaled to the IMF level; current month to date)` : ""),
+      points: ext.points,
       live: !b.snapshot && !b.stale,
       snapshot: b.snapshot,
       stale: b.stale,

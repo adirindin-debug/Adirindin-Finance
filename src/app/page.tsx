@@ -52,7 +52,7 @@ export default function HomePage() {
       <div className="mt-12 rounded-2xl border border-border bg-[#0d1218] p-4 sm:p-6">
         <BtcFourYearChart />
         <HowDrawn>
-          every line starts at 0% at the start of the window. Sources: Coinbase, Yahoo Finance, IMF, datasets/gold-prices,
+          every line starts at 0% at the start of the window. Sources: Coinbase, Yahoo Finance, IMF, datasets/gold-prices, PAX Gold (Coinbase),
           FHFA, BIS and FRED® (Federal Reserve Bank of St. Louis).
         </HowDrawn>
         <MarketStrip />

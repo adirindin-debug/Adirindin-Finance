@@ -26,7 +26,7 @@
  */
 
 import { readFileSync } from "fs";
-import { getGoldHistory } from "@/lib/goldHistory";
+import { getGoldStitched, stitchedDaily } from "@/lib/goldDaily";
 import { join } from "path";
 
 export const runtime = "nodejs";
@@ -808,14 +808,16 @@ async function loadSeriesCloses(meta: SeriesMeta): Promise<LoadedSeries> {
     return { closes: await fetchBtcDailyCoinbase(), origin: "coinbase", usedFallback: false };
   }
   if (meta.source === "gold") {
-    const r = await getGoldHistory();
-    if (!r.ok) throw new Error("gold: unavailable");
-    const sparse = r.body.points.filter((p) => Number.isFinite(p.c) && p.c > 0);
-    goldLastObs = sparse.length ? isoDate(sparse[sparse.length - 1]!.t) : null;
+    const g = await getGoldStitched();
+    if (!g) throw new Error("gold: unavailable");
+    const pts = stitchedDaily(g);
+    // Lag tag only when no daily PAXG tail is available (monthly prints only).
+    goldLastObs = !g.daily.length && pts.length ? isoDate(pts[pts.length - 1]!.t) : null;
+    const lagging = !g.daily.length && (g.snapshot || g.stale);
     return {
-      closes: expandSparseToDaily(sparse),
-      origin: r.body.snapshot ? "bundled gold snapshot" : r.body.stale ? "gold last-good copy" : "gold",
-      usedFallback: Boolean(r.body.snapshot || r.body.stale),
+      closes: expandSparseToDaily(pts),
+      origin: g.daily.length ? `gold monthly + PAXG daily (${g.dailyVenue}) from ${g.dailyStart}` : lagging ? "bundled gold snapshot" : "gold monthly",
+      usedFallback: lagging,
     };
   }
   if (meta.source === "yahoo") {
@@ -1003,7 +1005,7 @@ export async function GET(request: Request) {
       seriesStarts: Object.keys(seriesStarts).length ? seriesStarts : undefined,
       availableWindows: [...AVAILABLE_WINDOWS],
       source:
-        "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL) + gold (datasets/gold-prices monthly, IMF PCPS PGOLD); mirrors/bundled CSV if FRED times out",
+        "Yahoo Finance chart API (query1) + FRED (CSUSHPISA, QAUN628BIS, M2SL) + gold (datasets/gold-prices + IMF PCPS PGOLD monthly; daily PAXG-USD from Coinbase Exchange); mirrors/bundled CSV if FRED times out",
       seriesOrigins: Object.keys(originById).length ? originById : undefined,
       tickers: SERIES.map((s) => ({
         id: s.id,

@@ -1232,9 +1232,9 @@ export function BtcFourYearChart() {
         BTC: Coinbase Exchange BTC-USD daily closes (Blockchain.com before mid-2015).
         Nasdaq 100, S&amp;P 500, All Ordinaries and MSCI World: Yahoo Finance delayed chart feed
         (^NDX, ^GSPC, ^AORD, ^990100-USD-STRD) — no free public equivalent; index names are
-        trademarks of their owners (MSCI®, S&amp;P®, ASX®), no endorsement implied. Gold: monthly USD/oz from datasets/gold-prices (Open Data Commons PDDL) with IMF Primary Commodity
-        Prices (PGOLD, London fix monthly average) on the tail; held flat after the latest monthly print, which
-        the &ldquo;to&nbsp;month&rdquo; tag on the chip shows. FRED®, Federal
+        trademarks of their owners (MSCI®, S&amp;P®, ASX®), no endorsement implied. Gold: datasets/gold-prices (PDDL) + IMF PCPS monthly; daily from May 2025 via PAX Gold (PAXG-USD),
+        Coinbase Exchange &mdash; a gold-backed token that tracks spot (scaled by one constant factor to the IMF
+        monthly level so the join has no jump; a &ldquo;to&nbsp;month&rdquo; chip tag appears only if the daily feed is down). FRED®, Federal
         Reserve Bank of St. Louis: USSTHPI (FHFA All-Transactions House Price Index), QAUN628BIS
         (BIS AU residential property prices), M2SL (US M2). Monthly/quarterly series are
         step-forward-filled to the shared axis. A &ldquo;stored copy&rdquo; tag means the live
