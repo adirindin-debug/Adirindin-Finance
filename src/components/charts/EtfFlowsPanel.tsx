@@ -4,16 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 
 import { StoredCopyTag } from "@/components/ui/StoredCopyTag";
 import {
-  storedCopyTo,
-  isPartialBucket,
-  PARTIAL_LABEL,
   ETF_AGGS,
   ETF_ASSET_META,
   ETF_VIEWS,
-  aggregateFlows,
+  SEC_SOURCE_URL,
+  bucketsForView,
   flowColor,
   fmtFlowUsd,
-  seriesForView,
+  fundsForView,
+  quarterLabel,
   type EtfAgg,
   type EtfBucket,
   type EtfFlowsPayload,
@@ -151,69 +150,39 @@ function BarChart({
       ) : null}
     </div>
   );
+
+}
+
+function allQuarters(first: string, last: string): string[] {
+  const out: string[] = [];
+  let y = Number(first.slice(0, 4));
+  let q = Number(first.slice(5));
+  while (`${y}Q${q}` <= last) {
+    out.push(`${y}Q${q}`);
+    q += 1;
+    if (q > 4) {
+      q = 1;
+      y += 1;
+    }
+  }
+  return out;
 }
 
 export function EtfFlowsPanel() {
   const [data, setData] = useState<EtfFlowsPayload | null>(null);
   const [loading, setLoading] = useState(true);
-  const [asset, setAsset] = useState<EtfViewId>("total");
-  const [agg, setAgg] = useState<EtfAgg>("monthly");
+  const [view, setView] = useState<EtfViewId>("total");
+  const [agg, setAgg] = useState<EtfAgg>("quarterly");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/etf-flows", { cache: "no-store" });
+        const res = await fetch("/api/etf-flows");
         const json = (await res.json()) as EtfFlowsPayload;
         if (!cancelled) setData(json);
-      } catch (e) {
-        if (!cancelled) {
-          setData({
-            ok: false,
-            asOf: "",
-            unit: "USD",
-            assets: {
-              btc: {
-                label: "Bitcoin",
-                source: "",
-                sourceUrl: "",
-                status: "error",
-                firstDate: null,
-                lastDate: null,
-                days: [],
-              },
-              eth: {
-                label: "Ethereum",
-                source: "",
-                sourceUrl: "",
-                status: "error",
-                firstDate: null,
-                lastDate: null,
-                days: [],
-              },
-              sol: {
-                label: "Solana",
-                source: "",
-                sourceUrl: "",
-                status: "error",
-                firstDate: null,
-                lastDate: null,
-                days: [],
-              },
-              zcsh: {
-                label: "Zcash (ZCSH)",
-                source: "",
-                sourceUrl: "",
-                status: "pending",
-                pendingReason: "Fetch failed",
-                firstDate: null,
-                lastDate: null,
-                days: [],
-              },
-            },
-            errors: [e instanceof Error ? e.message : "Fetch failed"],
-          });
-        }
+      } catch {
+        if (!cancelled) setData(null);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -223,170 +192,148 @@ export function EtfFlowsPanel() {
     };
   }, []);
 
-  const series = data ? seriesForView(data, asset) : undefined;
-  const pending = series?.status === "pending" || (series?.days.length === 0 && series?.status !== "ok");
-  const buckets = useMemo(
-    () => (series?.days?.length ? aggregateFlows(series.days, agg) : []),
-    [series, agg],
-  );
-
-  const latestBucket = buckets[buckets.length - 1];
-  const partial = isPartialBucket(agg, latestBucket, series?.lastDate);
-  const storedTo = data ? (asset === "total" ? storedCopyTo(data.assets) : series?.snapshot ? series.lastDate : null) : null;
-  const totalCum = buckets.length ? buckets[buckets.length - 1]!.cumulativeUsd : null;
-  const meta = ETF_ASSET_META[asset];
+  const buckets = useMemo(() => (data?.ok ? bucketsForView(data, view, agg) : []), [data, view, agg]);
+  const funds = useMemo(() => (data?.ok ? fundsForView(data, view) : []), [data, view]);
+  const omitted = (data?.omitted ?? []).filter((o) => view === "total" || o.asset === view);
+  const latestQ = useMemo(() => {
+    let m = "";
+    for (const f of data?.funds ?? []) for (const q of f.quarters) if (q.q > m) m = q.q;
+    return m;
+  }, [data]);
+  const meta = ETF_ASSET_META[view];
+  const latest = buckets[buckets.length - 1];
+  const totalCum = latest?.cumulativeUsd;
+  const partialYear = agg === "yearly" && latest && latestQ && !latestQ.endsWith("Q4") && latestQ.startsWith(latest.key);
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center gap-2">
-        {storedTo ? <StoredCopyTag to={storedTo} /> : null}
-        <label className="sr-only" htmlFor="etf-asset">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-sm text-muted">
           Asset
-        </label>
-        <select
-          id="etf-asset"
-          value={asset}
-          onChange={(e) => setAsset(e.target.value as EtfViewId)}
-          className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
-        >
-          {ETF_VIEWS.map((id) => {
-            const a = data ? seriesForView(data, id) : undefined;
-            const tag =
-              id !== "total" && a?.status === "pending"
-                ? " (source pending)"
-                : id !== "total" && a?.status === "error"
-                  ? " (unavailable)"
-                  : "";
-            return (
-              <option key={id} value={id}>
-                {ETF_ASSET_META[id].label}
-                {tag}
+          <select
+            value={view}
+            onChange={(e) => setView(e.target.value as EtfViewId)}
+            className="rounded-md border border-border bg-card px-2 py-1 text-sm text-foreground"
+          >
+            {ETF_VIEWS.map((v) => (
+              <option key={v} value={v}>
+                {ETF_ASSET_META[v].label}
               </option>
-            );
-          })}
-        </select>
-        <div
-          className="inline-flex rounded-lg border border-border bg-card p-0.5"
-          role="group"
-          aria-label="Aggregation"
-        >
+            ))}
+          </select>
+        </label>
+        <div className="flex rounded-md border border-border bg-card p-0.5 text-xs">
           {ETF_AGGS.map((a) => (
             <button
               key={a.key}
               type="button"
               onClick={() => setAgg(a.key)}
-              className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition sm:text-sm ${
-                agg === a.key
-                  ? "bg-accent/20 text-accent"
-                  : "text-muted hover:text-foreground"
+              className={`rounded px-2.5 py-1 font-medium ${
+                agg === a.key ? "bg-accent/20 text-accent" : "text-muted hover:text-foreground"
               }`}
             >
               {a.label}
             </button>
           ))}
         </div>
+        <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted">
+          Quarterly filings data
+        </span>
+        {data?.snapshot ? <StoredCopyTag to={data.asOf} /> : null}
       </div>
 
       {loading ? (
         <p className="text-sm text-muted">Loading ETF flows…</p>
-      ) : pending ? (
-        <div className="rounded-xl border border-dashed border-border bg-card/60 p-8 text-center">
-          <p className="text-lg font-semibold text-muted">
-            {meta.label} — source pending
-          </p>
-          <p className="mt-2 text-sm text-muted">
-            {series?.pendingReason ??
-              "No public figures available yet. We do not invent flow data."}
-          </p>
+      ) : !data?.ok ? (
+        <div className="rounded-xl border border-dashed border-border bg-card/60 p-8 text-center text-sm text-muted">
+          SEC EDGAR data is unavailable right now. We don&apos;t invent flow figures.
         </div>
       ) : (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-border bg-card p-4">
               <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Latest {agg} net{partial ? ` (${PARTIAL_LABEL[agg]})` : ""}
+                Latest {agg === "yearly" ? "year" : "quarter"} net{partialYear ? " (year to date)" : ""}
               </p>
-              <p
-                className="mt-1 font-mono text-2xl font-bold"
-                style={{
-                  color: latestBucket
-                    ? flowColor(latestBucket.netFlowUsd)
-                    : undefined,
-                }}
-              >
-                {latestBucket ? fmtFlowUsd(latestBucket.netFlowUsd) : "—"}
+              <p className="mt-1 font-mono text-2xl font-bold" style={{ color: latest ? flowColor(latest.netFlowUsd) : undefined }}>
+                {latest ? fmtFlowUsd(latest.netFlowUsd) : "—"}
               </p>
               <p className="mt-1 text-xs text-muted">
-                {latestBucket?.label ?? "—"}
+                {latest ? `${latest.label} · ${latest.funds} funds reporting` : "—"}
               </p>
             </div>
-            <div className="rounded-xl border border-accent/40 bg-accent/5 p-4 sm:col-span-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-accent">
-                Total net (in − out)
-              </p>
-              <p
-                className="mt-1 font-mono text-2xl font-bold"
-                style={{
-                  color: totalCum != null ? flowColor(totalCum) : undefined,
-                }}
-              >
+            <div className="rounded-xl border border-accent/40 bg-accent/5 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-accent">Total net (created − redeemed)</p>
+              <p className="mt-1 font-mono text-2xl font-bold" style={{ color: totalCum != null ? flowColor(totalCum) : undefined }}>
                 {totalCum != null ? fmtFlowUsd(totalCum) : "—"}
               </p>
               <p className="mt-1 text-xs text-muted">
-                Running sum of net flows since first print
-                {asset === "total" ? " across all listed ETFs" : ""} — not AUM
+                {buckets.length ? `${buckets[0]!.label} → ${latest!.label}` : "—"}
               </p>
             </div>
             <div className="rounded-xl border border-border bg-card p-4">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">
-                Coverage
-              </p>
-              <p className="mt-1 font-mono text-lg font-semibold text-foreground">
-                {series?.firstDate ?? "—"} → {series?.lastDate ?? "—"}
-              </p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Coverage</p>
+              <p className="mt-1 font-mono text-2xl font-bold text-foreground">{funds.length} funds</p>
               <p className="mt-1 text-xs text-muted">
-                {series?.days.length ?? 0} daily prints
-                {series?.snapshot ? " · stored copy" : ""}
+                {omitted.length ? `${omitted.length} omitted (see below)` : "none omitted"} · latest filed {latestQ ? quarterLabel(latestQ) : "—"}
               </p>
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-xl border border-border bg-card p-3 sm:p-4">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <p className="mb-2 text-xs text-muted">
+              <span style={{ color: meta.color }}>{meta.label}</span> · {agg} net creations minus redemptions (US$)
+            </p>
             <BarChart buckets={buckets} accent={meta.color} />
           </div>
+
+          <div className="rounded-xl border border-border bg-card p-4 text-xs text-muted">
+            <p className="mb-2 font-semibold text-foreground">Funds covered</p>
+            <ul className="grid gap-1 sm:grid-cols-2">
+              {funds.map((f) => {
+                const qs = f.quarters.map((q) => q.q);
+                const missing = allQuarters(qs[0]!, latestQ).filter((q) => !qs.includes(q));
+                return (
+                  <li key={f.ticker}>
+                    <a href={f.url} target="_blank" rel="noopener noreferrer" className="font-mono text-foreground hover:text-accent">
+                      {f.ticker}
+                    </a>{" "}
+                    {f.name} · {quarterLabel(qs[0]!)}–{quarterLabel(qs[qs.length - 1]!)}
+                    {missing.length ? (
+                      <span className="text-[#f4b942]"> · not derivable: {missing.map(quarterLabel).join(", ")}</span>
+                    ) : null}
+                    {f.snapshot ? " · stored copy" : ""}
+                  </li>
+                );
+              })}
+            </ul>
+            {omitted.length ? (
+              <>
+                <p className="mb-1 mt-4 font-semibold text-foreground">Omitted (can&apos;t be derived from filings)</p>
+                <ul className="space-y-1">
+                  {omitted.map((o) => (
+                    <li key={o.ticker}>
+                      <span className="font-mono text-foreground">{o.ticker}</span> {o.name} — {o.reason}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </div>
+
+          <p className="text-xs leading-relaxed text-muted">
+            Quarterly figures. Net = US$ value of shares created minus shares redeemed, as reported in each
+            trust&apos;s statement of changes in net assets (10-Q / 10-K XBRL). Q4 is the annual figure less the
+            first nine months. Each fund starts in the quarter it began trading as a US spot ETF; seed capital
+            and pre-conversion trust history are excluded. A filing lands roughly 5–6 weeks after quarter end.
+            Educational only, not advice.{" "}
+            <a href={SEC_SOURCE_URL} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+              Source: SEC EDGAR
+            </a>
+            {data.asOf ? ` · fetched ${data.asOf}` : ""}
+          </p>
         </>
       )}
-
-      <div className="space-y-2 text-xs leading-relaxed text-muted">
-        <p>
-          <span className="font-semibold text-foreground/80">Source: </span>
-          {series?.sourceUrl ? (
-            <a
-              href={series.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent hover:underline"
-            >
-              {series.source || series.sourceUrl}
-            </a>
-          ) : (
-            series?.source || "—"
-          )}
-          . Figures are public table totals (Farside US$m converted to USD;
-          ZCSH from ZecZcash’s SoSoValue-backed settled CSV). Not an official
-          issuer feed.
-        </p>
-        <p>
-          Aggregation sums the same daily series into{" "}
-          {ETF_AGGS.map((a) => a.label.toLowerCase()).join(" / ")} buckets.
-          The latest bucket is marked month-to-date (or week/quarter/year-to-date) until that period ends.
-        </p>
-        {data?.errors?.length ? (
-          <p className="text-amber-400/90">
-            Some live sources were unavailable ({data.errors.map((e) => e.split(":")[0]!.toUpperCase()).join(", ")}), so a stored copy is shown for those.
-          </p>
-        ) : null}
-      </div>
     </div>
   );
 }

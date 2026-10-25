@@ -4,9 +4,9 @@ import { EtfFlowsPanel } from "@/components/charts/EtfFlowsPanel";
 import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
 export const metadata: Metadata = {
-  title: "Crypto ETF flows · US spot net flows",
+  title: "Crypto ETF flows · quarterly net creations (SEC EDGAR)",
   description:
-    "US spot Bitcoin, Ethereum, Solana and Zcash (ZCSH) ETF net flows — daily through yearly aggregation. Public Farside and SoSoValue-backed sources. Educational only.",
+    "Quarterly net creations and redemptions for US spot Bitcoin, Ethereum and Solana ETFs, taken from each trust's 10-Q and 10-K filings on SEC EDGAR. Educational only.",
 };
 
 export default function EtfFlowsChartPage() {
@@ -18,10 +18,11 @@ export default function EtfFlowsChartPage() {
         Crypto ETF flows
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-muted">
-        US spot crypto ETF net flows for Bitcoin, Ethereum, Solana and Zcash
-        (ZCSH). Toggle the asset and aggregation (daily / weekly / monthly /
-        quarterly / yearly). Public source tables only — we never invent
-        figures. 
+        Quarterly net creations minus redemptions for US spot Bitcoin,
+        Ethereum and Solana ETFs, as reported in each trust&apos;s 10-Q and
+        10-K filings on SEC EDGAR. Filings arrive about 5–6 weeks after each
+        quarter ends, so the latest quarter lags. Funds we can&apos;t derive
+        from the filings are listed below, never estimated.
       </p>
 
       <div className="mt-8">

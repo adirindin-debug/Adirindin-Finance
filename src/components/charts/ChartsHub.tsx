@@ -26,10 +26,7 @@ import {
   type SeasonPayload,
 } from "@/lib/seasonality";
 import {
-  ETF_ASSET_META,
-  aggregateFlows,
-  buildTotalSeries,
-  storedCopyTo,
+  bucketsForView,
   flowColor,
   fmtFlowUsd,
   type EtfFlowsPayload,
@@ -369,34 +366,31 @@ function seasonalityParser(lead: SeasonAsset) {
 }
 
 /**
- * Crypto ETF flows — Bitcoin monthly net bars at a glance; detail page has
- * daily/weekly/monthly/quarterly/yearly for BTC/ETH/SOL/ZCSH.
+ * Crypto ETF flows — quarterly net creations/redemptions (SEC EDGAR), Total of BTC/ETH/SOL.
  */
 function parseEtfFlows(json: unknown): Omit<TileLive, "status"> | null {
   const data = json as EtfFlowsPayload;
-  if (!data?.ok || !data.assets) return null;
-  const total = buildTotalSeries(data.assets);
-  if (total.status !== "ok" || !total.days.length) return null;
-  const months = aggregateFlows(total.days, "monthly").slice(-12);
-  if (!months.length) return null;
-  const last = months[months.length - 1]!;
+  if (!data?.ok || !data.funds?.length) return null;
+  const qs = bucketsForView(data, "total", "quarterly").slice(-10);
+  if (!qs.length) return null;
+  const last = qs[qs.length - 1]!;
   const cum = last.cumulativeUsd;
   return {
     headline: fmtFlowUsd(cum),
     headlineColor: flowColor(cum),
-    secondary: `${last.label} · ${fmtFlowUsd(last.netFlowUsd)} · Total net ${fmtFlowUsd(cum)}`,
+    secondary: `${last.label} · ${fmtFlowUsd(last.netFlowUsd)} · Total net since 2024 · Source: SEC EDGAR`,
     secondaryColor: flowColor(last.netFlowUsd),
     miniBars: {
-      caption: "Monthly net flows · Total (all crypto ETFs)",
-      bars: months.map((m) => ({
+      caption: "Quarterly net creations · Total (BTC + ETH + SOL)",
+      bars: qs.map((m) => ({
         key: m.key,
-        label: m.label.split(" ")[0]!.slice(0, 3),
+        label: m.label.replace(/^Q(\d) 20(\d\d)$/, "Q$1'$2"),
         v: m.netFlowUsd,
         title: `${m.label}: ${fmtFlowUsd(m.netFlowUsd)}`,
       })),
     },
-    isLive: !total.snapshot && !storedCopyTo(data.assets),
-    storedTo: storedCopyTo(data.assets) ?? (total.snapshot ? data.asOf : null),
+    isLive: !data.snapshot,
+    storedTo: data.snapshot ? data.asOf : null,
   };
 }
 
@@ -525,7 +519,7 @@ const CATEGORIES: Category[] = [
         id: "etf-flows",
         href: "/charts/etf-flows",
         title: "Crypto ETF flows",
-        subtitle: "US spot · BTC · ETH · SOL · ZCSH",
+        subtitle: "US spot · BTC · ETH · SOL · quarterly · SEC EDGAR",
         endpoint: "/api/etf-flows",
         parse: parseEtfFlows,
       },
