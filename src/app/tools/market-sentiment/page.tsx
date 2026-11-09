@@ -1,7 +1,7 @@
 import { BackLink } from "@/components/nav/BackLink";
 import type { Metadata } from "next";
 import { MarketSentimentPanel } from "@/components/tools/MarketSentimentPanel";
-import { HYSTERESIS_PTS, INPUTS, MIN_WEIGHT, STRETCH_AT, STRETCH_NEEDED, VALUATION_CAP, WATCH_CONDITIONS, WATCH_NEEDED, WATCH_SCORE, ZONES, zoneLine } from "@/lib/marketSentiment";
+import { INPUTS, MIN_WEIGHT, STRETCH_AT, STRETCH_NEEDED, VALUATION_CAP, WATCH_CONDITIONS, WATCH_NEEDED, WATCH_SCORE, ZONES, zoneLine } from "@/lib/marketSentiment";
 import { SEASON_HEADWIND_AT, SEASON_TAILWIND_AT } from "@/lib/riskSentiment";
 import { MobileViewHint } from "@/components/ui/MobileViewHint";
 
@@ -50,8 +50,8 @@ export default function RiskSentimentPage() {
         <p className="mt-2 text-sm leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Smoothing.</strong> The big number and line show a 10-day
           exponential average of the daily blend by default; a ~2-month (42-session) average and the raw daily blend are
-          one tap away. The zone label only changes once the score is {HYSTERESIS_PTS} points past a zone line, so it doesn’t
-          flick back and forth near a boundary. The Complacency watch note is still based on the ~2-month average.
+          one tap away. The zone label is the band that score sits in: Extreme fear under 20, Fear from 20, Neutral from 40,
+          Greed from 60 and Extreme greed from 80. The Complacency watch note is still based on the ~2-month average.
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
           <strong className="font-medium text-foreground">Seasonality.</strong> This month’s historical average S&amp;P 500

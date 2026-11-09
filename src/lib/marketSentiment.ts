@@ -237,8 +237,6 @@ export const SMOOTH_OPTIONS: Array<{ key: SmoothKey; label: string; name: string
 export const DEFAULT_SMOOTH: SmoothKey = "ema10";
 /** Row column of each smoothing (see MsRow). */
 export const SCORE_COL: Record<SmoothKey, number> = { raw: 1, ema10: 2, ema42: 3 };
-/** Zone label only changes once the score is this many points past a boundary. */
-export const HYSTERESIS_PTS = 5;
 
 export type Series = Array<[string, number]>;
 
@@ -352,24 +350,6 @@ export function weightWithData(subs: Array<number | null>): number {
   return INPUTS.reduce((a, m, i) => a + (subs[i] != null ? m.weight : 0), 0);
 }
 
-/**
- * Zone per point with hysteresis: the label only moves to a new zone once the
- * score is HYSTERESIS_PTS beyond the boundary it crossed.
- */
-export function zonesWithHysteresis(scores: Array<number | null>, band = HYSTERESIS_PTS): Array<Zone | null> {
-  let cur: Zone | null = null;
-  return scores.map((s) => {
-    if (s == null) return cur;
-    const z = zoneFor(s);
-    if (!cur) cur = z;
-    else if (z.key !== cur.key) {
-      const boundary = z.min >= cur.max ? cur.max : cur.min;
-      if (Math.abs(s - boundary) >= band) cur = z;
-    }
-    return cur;
-  });
-}
-
 /** Plain-language reading of a zone (non-alarming). */
 export function zoneLine(z: Zone): string {
   switch (z.key) {
@@ -407,8 +387,8 @@ export function summarize(p: MsPayload): MsSummary {
   let i = rows.length - 1;
   while (i >= 0 && sc[i] == null) i--;
   if (!p.ok || i < 0) return { ...base, ok: false, score: null, raw: null, zone: null, change3m: null, season: null };
-  const zones = zonesWithHysteresis(sc);
-  const z = zones[i]!;
+  // Same cut-offs as the gauge page and the dial: the band the score sits in now.
+  const z = zoneFor(sc[i]!);
   const cutoff = new Date(Date.parse(`${rows[i]![0]}T00:00:00Z`) - 91 * 86_400_000).toISOString().slice(0, 10);
   let j = i;
   while (j >= 0 && rows[j]![0] > cutoff) j--;

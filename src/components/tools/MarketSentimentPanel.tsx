@@ -17,7 +17,6 @@ import {
   seasonTag,
   zoneFor,
   zoneLine,
-  zonesWithHysteresis,
   type MsPayload,
   type SmoothKey,
 } from "@/lib/marketSentiment";
@@ -126,7 +125,6 @@ export function MarketSentimentPanel() {
 
   const rows = useMemo(() => data?.rows ?? [], [data]);
   const scores = useMemo(() => rows.map((r) => cell(r, SCORE_COL[smooth])), [rows, smooth]);
-  const zones = useMemo(() => zonesWithHysteresis(scores), [scores]);
   const latestIdx = useMemo(() => {
     for (let i = scores.length - 1; i >= 0; i--) if (scores[i] != null) return i;
     return -1;
@@ -217,7 +215,7 @@ export function MarketSentimentPanel() {
   const pickIdx = hover != null ? view.off + hover : latestIdx;
   const row = rows[pickIdx]!;
   const score = scores[pickIdx];
-  const zone = zones[pickIdx];
+  const zone = score != null ? zoneFor(score) : null;
   const cutoff = new Date(Date.parse(`${row[0]}T00:00:00Z`) - 91 * 86_400_000).toISOString().slice(0, 10);
   let j = pickIdx;
   while (j >= 0 && rows[j]![0] > cutoff) j--;
@@ -410,7 +408,7 @@ export function MarketSentimentPanel() {
         </div>
       </div>
       <p className="mt-2 text-[11px] text-muted">
-        Zones describe conditions, not signals to buy or sell. Score line: {smoothName.toLowerCase()}. Zone label changes only once the score is 5 points past a zone line.
+        Zones describe conditions, not signals to buy or sell. Score line: {smoothName.toLowerCase()}. The zone label is the band the score sits in.
         {base !== "off" ? ` Faint line: ${baseLabel} on its own log scale for context (not part of the score).` : ""}
       </p>
 
